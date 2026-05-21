@@ -1,16 +1,15 @@
 using System;
 using System.Threading.Tasks;
-using Ivi.Visa;
 
 namespace SMU_Revamp.Services
 {
     /// <summary>
-    /// A simple IGpibSession implementation using modern IVI VISA.NET APIs.
-    /// Wraps low-level VISA COM calls to make higher-level services testable.
+    /// A simple IGpibSession implementation using NationalInstruments VISA APIs.
+    /// Wraps low-level VISA calls to make higher-level services testable.
     /// </summary>
     public class VisaGpibSession : IGpibSession, IDisposable
     {
-        private IMessageBasedSession? _session;
+        private dynamic? _session;
         private int _timeout = 5000;
 
         public int Timeout
@@ -21,7 +20,8 @@ namespace SMU_Revamp.Services
                 _timeout = value;
                 try
                 {
-                    _session?.TimeoutMilliseconds = _timeout;
+                    if (_session != null)
+                        _session.Timeout = _timeout;
                 }
                 catch { }
             }
@@ -42,15 +42,40 @@ namespace SMU_Revamp.Services
 
                 try
                 {
-                    // Open a VISA session via the global resource manager and require message-based I/O.
-                    _session = GlobalResourceManager.Open(resourceString, AccessModes.None, _timeout) as IMessageBasedSession;
+                    // Load NationalInstruments.Visa dynamically to open a session
+                    var visaAssembly = System.Reflection.Assembly.Load("NationalInstruments.Visa");
+
+                    // Use reflection to access GlobalResourceManager
+                    var globalRmType = visaAssembly.GetType("NationalInstruments.Visa.GlobalResourceManager");
+                    if (globalRmType == null)
+                        throw new InvalidOperationException("Could not load NationalInstruments.Visa.GlobalResourceManager");
+
+                    var accessModesType = visaAssembly.GetType("NationalInstruments.Visa.AccessModes");
+                    if (accessModesType == null)
+                        throw new InvalidOperationException("Could not load NationalInstruments.Visa.AccessModes");
+
+                    var noneValue = System.Enum.Parse(accessModesType, "None");
+
+                    var openMethod = globalRmType.GetMethod("Open", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static, null, new Type[] { typeof(string), accessModesType, typeof(int) }, null);
+                    if (openMethod == null)
+                        throw new InvalidOperationException("Could not find Open method on GlobalResourceManager");
+
+                    _session = openMethod.Invoke(null, new object[] { resourceString, noneValue, _timeout });
+
                     if (_session == null)
                     {
                         throw new InvalidOperationException(
-                            $"Resource '{resourceString}' is not a message-based VISA session.");
+                            $"Resource '{resourceString}' could not be opened or is not a message-based VISA session.");
                     }
 
-                    try { _session.TimeoutMilliseconds = _timeout; } catch { }
+                    // Set timeout on the opened session
+                    try
+                    {
+                        var timeoutProp = _session.GetType().GetProperty("Timeout");
+                        if (timeoutProp != null)
+                            timeoutProp.SetValue(_session, _timeout);
+                    }
+                    catch { }
                 }
                 catch (Exception ex)
                 {
@@ -68,7 +93,15 @@ namespace SMU_Revamp.Services
             {
                 if (_session != null)
                 {
-                    try { _session.Dispose(); } catch { }
+                    try
+                    {
+                        var closeMethod = _session.GetType().GetMethod("Close");
+                        if (closeMethod != null)
+                            closeMethod.Invoke(_session, null);
+                        else
+                            (_session as IDisposable)?.Dispose();
+                    }
+                    catch { }
                     _session = null;
                 }
             });
@@ -81,7 +114,23 @@ namespace SMU_Revamp.Services
                 if (_session == null)
                     throw new InvalidOperationException("Session not open.");
 
-                _session.RawIO.Write(command);
+                try
+                {
+                    var writeMethod = _session.GetType().GetMethod("Write", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.IgnoreCase, null, new[] { typeof(string) }, null);
+                    if (writeMethod != null)
+                        writeMethod.Invoke(_session, new object[] { command });
+                    else
+                    {
+                        // Try RawIO.Write
+                        var rawIO = _session.GetType().GetProperty("RawIO")?.GetValue(_session);
+                        if (rawIO != null)
+                            rawIO.GetType().GetMethod("Write").Invoke(rawIO, new object[] { command });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Write failed: {ex.Message}", ex);
+                }
             });
         }
 
@@ -92,7 +141,24 @@ namespace SMU_Revamp.Services
                 if (_session == null)
                     throw new InvalidOperationException("Session not open.");
 
-                return _session.RawIO.ReadString(maxChars) ?? string.Empty;
+                try
+                {
+                    var readMethod = _session.GetType().GetMethod("Read", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.IgnoreCase, null, new[] { typeof(int) }, null);
+                    if (readMethod != null)
+                        return (string)readMethod.Invoke(_session, new object[] { maxChars }) ?? string.Empty;
+                    else
+                    {
+                        // Try RawIO.ReadString
+                        var rawIO = _session.GetType().GetProperty("RawIO")?.GetValue(_session);
+                        if (rawIO != null)
+                            return (string)rawIO.GetType().GetMethod("ReadString").Invoke(rawIO, new object[] { maxChars }) ?? string.Empty;
+                    }
+                    return string.Empty;
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Read failed: {ex.Message}", ex);
+                }
             });
         }
 
@@ -103,7 +169,20 @@ namespace SMU_Revamp.Services
                 if (_session == null)
                     throw new InvalidOperationException("Session not open.");
 
-                return _session.RawIO.Read(count);
+                try
+                {
+                    var rawIO = _session.GetType().GetProperty("RawIO")?.GetValue(_session);
+                    if (rawIO != null)
+                    {
+                        var result = rawIO.GetType().GetMethod("Read").Invoke(rawIO, new object[] { count });
+                        return (byte[])result;
+                    }
+                    return new byte[0];
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Read bytes failed: {ex.Message}", ex);
+                }
             });
         }
 
@@ -114,7 +193,16 @@ namespace SMU_Revamp.Services
                 if (_session == null)
                     throw new InvalidOperationException("Session not open.");
 
-                _session.RawIO.Write(data);
+                try
+                {
+                    var rawIO = _session.GetType().GetProperty("RawIO")?.GetValue(_session);
+                    if (rawIO != null)
+                        rawIO.GetType().GetMethod("Write").Invoke(rawIO, new object[] { data });
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Write bytes failed: {ex.Message}", ex);
+                }
             });
         }
 
@@ -125,13 +213,27 @@ namespace SMU_Revamp.Services
                 if (_session == null)
                     throw new InvalidOperationException("Session not open.");
 
-                try { _session.Clear(); } catch { }
+                try
+                {
+                    var clearMethod = _session.GetType().GetMethod("Clear");
+                    if (clearMethod != null)
+                        clearMethod.Invoke(_session, null);
+                }
+                catch { }
             });
         }
 
         public void Dispose()
         {
-            try { _session?.Dispose(); } catch { }
+            try
+            {
+                var closeMethod = _session?.GetType().GetMethod("Close");
+                if (closeMethod != null)
+                    closeMethod.Invoke(_session, null);
+                else
+                    (_session as IDisposable)?.Dispose();
+            }
+            catch { }
             _session = null;
         }
     }
