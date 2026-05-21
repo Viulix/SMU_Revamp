@@ -1,0 +1,69 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SMU_Revamp.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="400"
+        x:Class="SMU_Revamp.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="Settings"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        CanResize="True"
+        Width="600"
+        Height="400">
+
+    <Design.DataContext>
+        <vm:SettingsViewModel />
+    </Design.DataContext>
+
+    <StackPanel Orientation="Vertical" Margin="20" Spacing="15">
+        <!-- Prober Section -->
+        <TextBlock Text="Prober / Stager" FontSize="16" FontWeight="Bold" />
+
+        <StackPanel Orientation="Vertical" Spacing="10" Margin="20,0,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Quiet Mode:" Width="120" VerticalAlignment="Center" />
+                <CheckBox IsChecked="{Binding ProberQuietMode}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Resource:" Width="120" VerticalAlignment="Center" />
+                <TextBox Text="{Binding ProberResource}" Width="200" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Timeout (ms):" Width="120" VerticalAlignment="Center" />
+                <NumericUpDown Value="{Binding ProberTimeoutMs}" Minimum="1000" Maximum="60000" Increment="1000" Width="100" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Separator -->
+        <Separator Margin="0,10" />
+
+        <!-- Switch Matrix Section -->
+        <TextBlock Text="Switch Matrix" FontSize="16" FontWeight="Bold" />
+
+        <StackPanel Orientation="Vertical" Spacing="10" Margin="20,0,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Resource:" Width="120" VerticalAlignment="Center" />
+                <TextBox Text="{Binding SwitchMatrixResource}" Width="200" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Timeout (ms):" Width="120" VerticalAlignment="Center" />
+                <NumericUpDown Value="{Binding SwitchMatrixTimeoutMs}" Minimum="1000" Maximum="60000" Increment="1000" Width="100" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Spacer -->
+        <Border Height="20" />
+
+        <!-- Buttons -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+            <Button Content="Reset" Click="ResetButton_Click" Classes="Secondary" Padding="15,8" />
+            <Button Content="Apply" Click="ApplyButton_Click" Classes="Primary" Padding="15,8" />
+            <Button Content="Close" Click="CloseButton_Click" Classes="Tertiary" Padding="15,8" />
+        </StackPanel>
+    </StackPanel>
+</Window>

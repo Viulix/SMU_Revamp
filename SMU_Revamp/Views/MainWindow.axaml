@@ -11,10 +11,34 @@
 
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+        to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    <DockPanel>
+        <!-- Header with Settings and Debug Buttons -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="20,10,20,0" Spacing="10" HorizontalAlignment="Right">
+            <Button Content="🐛 Debug" Click="DebugButton_Click" Classes="Secondary" Padding="10,5" />
+            <Button Content="⚙ Settings" Click="SettingsButton_Click" Classes="Secondary" Padding="10,5" />
+        </StackPanel>
 
+        <!-- Main Content with Tabs -->
+        <TabControl Margin="20" Padding="20">
+            <TabItem Header="Settings">
+                <StackPanel Margin="20">
+                    <TextBlock Text="Settings Content" FontSize="16" Foreground="#808080" />
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="Viewer">
+                <StackPanel Margin="20">
+                    <TextBlock Text="Viewer Content" FontSize="16" Foreground="#808080" />
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="Measurements">
+                <StackPanel Margin="20">
+                    <TextBlock Text="Measurements Content" FontSize="16" Foreground="#808080" />
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
 </Window>
