@@ -14,6 +14,23 @@ namespace SMU_Revamp.Services
         bool QuietMode { get; set; }
 
         /// <summary>
+        /// Gets or sets the GPIB resource string for the prober device.
+        /// </summary>
+        string ResourceString { get; set; }
+
+        /// <summary>
+        /// Connects to the prober, establishing a persistent GPIB session.
+        /// Must be called before executing any prober commands.
+        /// </summary>
+        Task ConnectAsync();
+
+        /// <summary>
+        /// Disconnects from the prober, closing the persistent GPIB session.
+        /// Should be called when done with all prober operations.
+        /// </summary>
+        Task DisconnectAsync();
+
+        /// <summary>
         /// Aligns the chuck by sending the legacy separation command.
         /// </summary>
         Task ProberAlignAsync();
@@ -42,11 +59,6 @@ namespace SMU_Revamp.Services
         /// Moves the chuck using the legacy Z mode variant.
         /// </summary>
         Task<string> MoveProberAbsAsync(double x, double y);
-
-        /// <summary>
-        /// Sends an arbitrary legacy prober command to the device.
-        /// </summary>
-        Task<string> SendProberAsync(string command);
 
         /// <summary>
         /// Sets the chuck home position.

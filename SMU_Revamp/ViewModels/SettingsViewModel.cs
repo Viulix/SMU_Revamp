@@ -1,49 +1,121 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using SMU_Revamp.Models;
 using SMU_Revamp.Services;
+using System.Threading.Tasks;
 
 namespace SMU_Revamp.ViewModels
 {
     /// <summary>
     /// ViewModel for the settings window that binds to service configuration values.
     /// </summary>
-    public partial class SettingsViewModel : ViewModelBase
+    public class SettingsViewModel : ViewModelBase
     {
         private readonly IProberService _proberService;
         private readonly SwitchMatrixService _switchMatrixService;
+        private readonly ConfigurationService _configService;
 
-        [ObservableProperty]
-        private bool proberQuietMode = false;
+        private bool _proberQuietMode = false;
+        private string _proberResource = "GPIB0::22::INSTR";
+        private int _proberTimeoutMs = 20000;
+        private string _switchMatrixResource = "GPIB0::23::INSTR";
+        private int _switchMatrixTimeoutMs = 5000;
+        private string _applyStatusMessage = string.Empty;
 
-        [ObservableProperty]
-        private string switchMatrixResource = "GPIB0::23::INSTR";
+        private string _profil = string.Empty;
+        private string _probename = string.Empty;
 
-        [ObservableProperty]
-        private int switchMatrixTimeoutMs = 5000;
+        public bool ProberQuietMode
+        {
+            get => _proberQuietMode;
+            set => SetProperty(ref _proberQuietMode, value);
+        }
 
-        [ObservableProperty]
-        private string proberResource = "GPIB0::22::INSTR";
+        public string ProberResource
+        {
+            get => _proberResource;
+            set => SetProperty(ref _proberResource, value ?? "GPIB0::22::INSTR");
+        }
 
-        [ObservableProperty]
-        private int proberTimeoutMs = 20000;
+        public int ProberTimeoutMs
+        {
+            get => _proberTimeoutMs;
+            set => SetProperty(ref _proberTimeoutMs, value);
+        }
+
+        public string SwitchMatrixResource
+        {
+            get => _switchMatrixResource;
+            set => SetProperty(ref _switchMatrixResource, value ?? "GPIB0::23::INSTR");
+        }
+
+        public int SwitchMatrixTimeoutMs
+        {
+            get => _switchMatrixTimeoutMs;
+            set => SetProperty(ref _switchMatrixTimeoutMs, value);
+        }
+
+        public string Profil
+        {
+            get => _profil;
+            set => SetProperty(ref _profil, value ?? string.Empty);
+        }
+
+        public string Probename
+        {
+            get => _probename;
+            set => SetProperty(ref _probename, value ?? string.Empty);
+        }
+
+        public string ApplyStatusMessage
+        {
+            get => _applyStatusMessage;
+            set => SetProperty(ref _applyStatusMessage, value);
+        }
 
         public SettingsViewModel()
         {
             // Get singleton instances
             _proberService = ProberService.Instance;
             _switchMatrixService = SwitchMatrixService.Instance;
+            _configService = ConfigurationService.Instance;
 
             // Initialize bindings from service state
             ProberQuietMode = _proberService.QuietMode;
             SwitchMatrixTimeoutMs = _switchMatrixService.GetTimeout();
+
+            // Load from config
+            var config = _configService.GetConfig();
+            ProberResource = config.ProberResource;
+            ProberTimeoutMs = config.ProberTimeoutMs;
+            SwitchMatrixResource = config.SwitchMatrixResource;
+            Profil = config.Profil;
+            Probename = config.Probename;
         }
 
         /// <summary>
         /// Applies settings changes back to the services.
         /// </summary>
-        public void ApplySettings()
+        public async Task ApplySettingsAsync()
         {
             _proberService.QuietMode = ProberQuietMode;
+            _proberService.ResourceString = ProberResource;
+            _switchMatrixService.ResourceString = SwitchMatrixResource;
             _switchMatrixService.SetTimeout(SwitchMatrixTimeoutMs);
+
+            // Save to persistent configuration
+            var config = new AppConfig
+            {
+                ProberQuietMode = ProberQuietMode,
+                ProberResource = ProberResource,
+                ProberTimeoutMs = ProberTimeoutMs,
+                SwitchMatrixResource = SwitchMatrixResource,
+                SwitchMatrixTimeoutMs = SwitchMatrixTimeoutMs,
+                Profil = Profil,
+                Probename = Probename
+            };
+
+            await _configService.SaveAsync(config);
+            ApplyStatusMessage = "Settings saved.";
         }
 
         /// <summary>
@@ -53,6 +125,13 @@ namespace SMU_Revamp.ViewModels
         {
             ProberQuietMode = _proberService.QuietMode;
             SwitchMatrixTimeoutMs = _switchMatrixService.GetTimeout();
+            var config = _configService.GetConfig();
+            ProberResource = config.ProberResource;
+            ProberTimeoutMs = config.ProberTimeoutMs;
+            SwitchMatrixResource = config.SwitchMatrixResource;
+            Profil = config.Profil;
+            Probename = config.Probename;
         }
     }
 }
+

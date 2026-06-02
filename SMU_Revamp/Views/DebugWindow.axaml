@@ -10,44 +10,46 @@
         Width="600"
         Height="500">
 
-    <StackPanel Orientation="Vertical" Margin="20" Spacing="15">
-        <TextBlock Text="Device Connection Debugger" FontSize="18" FontWeight="Bold" />
-        <TextBlock Text="Test VISA connectivity to Prober and Switch Matrix devices" FontSize="12" Foreground="#666666" />
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Orientation="Vertical" Margin="20" Spacing="15">
+            <TextBlock Text="Device Connection Debugger" FontSize="18" FontWeight="Bold" />
+            <TextBlock Text="Test VISA connectivity to Prober and Switch Matrix devices" FontSize="12" Foreground="#666666" />
 
-        <!-- Separator -->
-        <Separator Margin="0,5" />
+            <!-- Separator -->
+            <Separator Margin="0,5" />
 
-        <!-- Prober Section -->
-        <TextBlock Text="Prober (GPIB0::22::INSTR)" FontSize="14" FontWeight="SemiBold" />
-        <StackPanel Orientation="Horizontal" Spacing="10">
-            <Button Content="Test Connection" Click="TestProberConnection_Click" Classes="Primary" Padding="15,8" />
-            <Button Content="Query Identity" Click="QueryProberIdentity_Click" Classes="Secondary" Padding="15,8" />
+            <!-- Prober Section -->
+            <TextBlock Text="Prober (GPIB0::22::INSTR)" FontSize="14" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Content="Test Connection" Click="TestProberConnection_Click" Classes="Primary" Padding="15,8" />
+                <Button Content="Query Identity" Click="QueryProberIdentity_Click" Classes="Secondary" Padding="15,8" />
+            </StackPanel>
+
+            <!-- Prober Output -->
+            <TextBlock Text="Output:" FontSize="12" FontWeight="SemiBold" Margin="0,10,0,0" />
+            <TextBox x:Name="ProberOutputTextBox" IsReadOnly="True" Height="100" Margin="0,5" Padding="10" Text="Ready..." FontFamily="Courier New" FontSize="10" AcceptsReturn="True" TextWrapping="Wrap" />
+
+            <!-- Separator -->
+            <Separator Margin="0,15" />
+
+            <!-- Switch Matrix Section -->
+            <TextBlock Text="Switch Matrix (GPIB0::23::INSTR)" FontSize="14" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Content="Test Connection" Click="TestSwitchConnection_Click" Classes="Primary" Padding="15,8" />
+                <Button Content="Query Identity" Click="QuerySwitchIdentity_Click" Classes="Secondary" Padding="15,8" />
+            </StackPanel>
+
+            <!-- Switch Matrix Output -->
+            <TextBlock Text="Output:" FontSize="12" FontWeight="SemiBold" Margin="0,10,0,0" />
+            <TextBox x:Name="SwitchOutputTextBox" IsReadOnly="True" Height="100" Margin="0,5" Padding="10" Text="Ready..." FontFamily="Courier New" FontSize="10" AcceptsReturn="True" TextWrapping="Wrap" />
+
+            <!-- Spacer -->
+            <Border Height="20" />
+
+            <!-- Close Button -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                <Button Content="Close" Click="CloseButton_Click" Classes="Secondary" Padding="15,8" />
+            </StackPanel>
         </StackPanel>
-
-        <!-- Prober Output -->
-        <TextBlock Text="Output:" FontSize="12" FontWeight="SemiBold" Margin="0,10,0,0" />
-        <TextBox x:Name="ProberOutputTextBox" IsReadOnly="True" Height="100" Margin="0,5" Padding="10" Text="Ready..." FontFamily="Courier New" FontSize="10" AcceptsReturn="True" TextWrapping="Wrap" />
-
-        <!-- Separator -->
-        <Separator Margin="0,15" />
-
-        <!-- Switch Matrix Section -->
-        <TextBlock Text="Switch Matrix (GPIB0::23::INSTR)" FontSize="14" FontWeight="SemiBold" />
-        <StackPanel Orientation="Horizontal" Spacing="10">
-            <Button Content="Test Connection" Click="TestSwitchConnection_Click" Classes="Primary" Padding="15,8" />
-            <Button Content="Query Identity" Click="QuerySwitchIdentity_Click" Classes="Secondary" Padding="15,8" />
-        </StackPanel>
-
-        <!-- Switch Matrix Output -->
-        <TextBlock Text="Output:" FontSize="12" FontWeight="SemiBold" Margin="0,10,0,0" />
-        <TextBox x:Name="SwitchOutputTextBox" IsReadOnly="True" Height="100" Margin="0,5" Padding="10" Text="Ready..." FontFamily="Courier New" FontSize="10" AcceptsReturn="True" TextWrapping="Wrap" />
-
-        <!-- Spacer -->
-        <Border Height="20" />
-
-        <!-- Close Button -->
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
-            <Button Content="Close" Click="CloseButton_Click" Classes="Secondary" Padding="15,8" />
-        </StackPanel>
-    </StackPanel>
+    </ScrollViewer>
 </Window>

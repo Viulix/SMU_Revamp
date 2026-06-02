@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SMU_Revamp.ViewModels"
+        xmlns:views="using:SMU_Revamp.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
@@ -18,25 +19,85 @@
     <DockPanel>
         <!-- Header with Settings and Debug Buttons -->
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="20,10,20,0" Spacing="10" HorizontalAlignment="Right">
-            <Button Content="🐛 Debug" Click="DebugButton_Click" Classes="Secondary" Padding="10,5" />
+            <Button Content="Debug" Click="DebugButton_Click" Classes="Secondary" Padding="10,5" />
             <Button Content="⚙ Settings" Click="SettingsButton_Click" Classes="Secondary" Padding="10,5" />
         </StackPanel>
 
         <!-- Main Content with Tabs -->
         <TabControl Margin="20" Padding="20">
-            <TabItem Header="Settings">
-                <StackPanel Margin="20">
-                    <TextBlock Text="Settings Content" FontSize="16" Foreground="#808080" />
-                </StackPanel>
+            <TabItem Header="Configuration">
+                <ScrollViewer Margin="20">
+                    <StackPanel Spacing="20">
+                        <TextBlock Text="Target Contact" FontSize="18" FontWeight="SemiBold" />
+                        <StackPanel Spacing="10" Margin="10,0,0,0">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Zelle:" Width="120" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding TargetCell}" Width="150" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Reihe:" Width="120" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding TargetRow}" Width="150" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Spalte:" Width="120" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding TargetColumn}" Width="150" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Kontakt:" Width="120" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding TargetContact}" Width="150" />
+                            </StackPanel>
+                            <Button Content="Go To Contact" Command="{Binding GoToContactCommand}" Classes="Primary" Width="150" Margin="0,10,0,0" />
+                            <TextBlock Text="{Binding ErrorMessage}" Foreground="#D32F2F" TextWrapping="Wrap" MaxWidth="400" HorizontalAlignment="Left" />
+                        </StackPanel>
+
+                        <Separator Margin="0,10" />
+
+                        <TextBlock Text="File Storing Info" FontSize="18" FontWeight="SemiBold" />
+                        <StackPanel Spacing="10" Margin="10,0,0,0">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Profil:" Width="120" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding Settings.Profil}" Width="200" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Probename:" Width="120" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding Settings.Probename}" Width="200" />
+                            </StackPanel>
+                        </StackPanel>
+                        
+                        <Button Content="Save Configuration" Command="{Binding SaveSettingsCommand}" Classes="Primary" Padding="10,5" HorizontalAlignment="Left" Margin="0,10,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
             <TabItem Header="Viewer">
-                <StackPanel Margin="20">
-                    <TextBlock Text="Viewer Content" FontSize="16" Foreground="#808080" />
-                </StackPanel>
+                <ScrollViewer Margin="20">
+                    <StackPanel Spacing="16">
+                        <views:CurvePlotView Title="I/U Curve - Linear"
+                                             XAxisLabel="Voltage (V)"
+                                             YAxisLabel="Current (A)"
+                                             Points="{Binding CurvePoints}"
+                                             Height="340" />
+
+                        <views:CurvePlotView Title="I/U Curve - Logarithmic"
+                                             XAxisLabel="Voltage (V)"
+                                             YAxisLabel="Current (A)"
+                                             Points="{Binding CurvePoints}"
+                                             LogarithmicY="True"
+                                             Height="340" />
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
             <TabItem Header="Measurements">
-                <StackPanel Margin="20">
-                    <TextBlock Text="Measurements Content" FontSize="16" Foreground="#808080" />
+                <StackPanel Margin="20" Spacing="14">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Measurement Mode" FontWeight="SemiBold" />
+                        <ComboBox ItemsSource="{Binding MeasurementModes}"
+                                  SelectedItem="{Binding SelectedMeasurementMode}"
+                                  Width="220"
+                                  HorizontalAlignment="Left" />
+                    </StackPanel>
+
+                    <TextBlock Text="Selected mode:" Foreground="#808080" />
+                    <TextBlock Text="{Binding SelectedMeasurementMode}" FontSize="16" FontWeight="SemiBold" />
                 </StackPanel>
             </TabItem>
         </TabControl>

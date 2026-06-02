@@ -1,15 +1,16 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using NationalInstruments.Visa;
 namespace SMU_Revamp.Services
 {
     /// <summary>
     /// Service implementing basic VISA connectivity for a switch matrix instrument.
     /// Translates functionality from the provided Visual Basic switchmatrix module.
+    /// Supports persistent session management and configurable resource addressing.
     /// Singleton instance: access via SwitchMatrixService.Instance.
     /// </summary>
-    public sealed class SwitchMatrixService : IInstrumentService, ISwitchMatrixService
+    public sealed class SwitchMatrixService : ISwitchMatrixService
     {
         private static readonly Lazy<SwitchMatrixService> _instance = new(() => new SwitchMatrixService());
 
@@ -18,9 +19,10 @@ namespace SMU_Revamp.Services
         /// </summary>
         public static SwitchMatrixService Instance => _instance.Value;
 
-        private readonly IGpibSession _gpibSession;
+        private MessageBasedSession? _session;
         private bool _isConnected = false;
         private int _timeoutMilliseconds = 5000;
+        private string _resourceString = DefaultResource;
 
         /// <summary>
         /// Default resource string used by the VB example.
@@ -29,183 +31,93 @@ namespace SMU_Revamp.Services
 
         public bool IsConnected => _isConnected;
 
-        public string CurrentResourceString { get; private set; } = string.Empty;
+        public string ResourceString
+        {
+            get => _resourceString;
+            set => _resourceString = value ?? "GPIB0::23::INSTR";
+        }
 
-        public event EventHandler? Connected;
-        public event EventHandler? Disconnected;
-        public event EventHandler<InstrumentErrorEventArgs>? Error;
 
         private SwitchMatrixService()
         {
-            _gpibSession = CreateSession();
+            _session = CreateSession();
         }
 
-        private IGpibSession CreateSession()
+        private MessageBasedSession CreateSession()
         {
-            return new VisaGpibSession();
-        }
+            using var rm = new ResourceManager();
+            if (rm.Open(_resourceString) is not MessageBasedSession session)
+            {
+                throw new InvalidOperationException($"Failed to create GPIB session for resource {_resourceString}");
+            }
 
-        /// <summary>
-        /// Discover instruments using a simple query. This implementation returns an empty list
-        /// if discovery is not supported by the local VISA provider.
-        /// </summary>
-        public Task<IEnumerable<string>> DiscoverInstrumentsAsync()
-        {
-            // Simple discovery fallback: return the default resource used in legacy code.
-            return Task.FromResult<IEnumerable<string>>(new[] { DefaultResource });
+            session.TimeoutMilliseconds = _timeoutMilliseconds;
+            return session;
         }
 
         /// <summary>
         /// Connects to the given VISA resource string.
         /// </summary>
-        public async Task ConnectAsync(string resourceString)
+        public async Task ConnectAsync()
         {
-            if (IsConnected)
-                throw new InvalidOperationException("Already connected to an instrument.");
-
             try
             {
-                await _gpibSession.OpenAsync(resourceString, _timeoutMilliseconds).ConfigureAwait(false);
-                CurrentResourceString = resourceString;
+                if (_isConnected && _session != null)
+                    return;
+                var rm = new ResourceManager();
+                _session = rm.Open(_resourceString) as MessageBasedSession;
                 _isConnected = true;
-                Connected?.Invoke(this, EventArgs.Empty);
             }
             catch (Exception ex)
             {
-                Error?.Invoke(this, new InstrumentErrorEventArgs(ex.Message));
-                throw;
+                System.Diagnostics.Debug.WriteLine($"[ProberService] Error during connect: {ex.Message}");
+                throw new InvalidOperationException("Failed to connect to prober. Check resource string and connection.", ex);
             }
         }
 
         /// <summary>
-        /// Disconnects from the current instrument and releases the session.
+        /// Disconnects from the switch matrix, closing the persistent GPIB session.
         /// </summary>
         public async Task DisconnectAsync()
         {
             try
             {
-                await _gpibSession.CloseAsync().ConfigureAwait(false);
+                _session?.Dispose();
+                _session = null;
+                _isConnected = false;
             }
             catch (Exception ex)
             {
-                Error?.Invoke(this, new InstrumentErrorEventArgs(ex.Message));
-            }
-            finally
-            {
-                _isConnected = false;
-                CurrentResourceString = string.Empty;
-                Disconnected?.Invoke(this, EventArgs.Empty);
+                System.Diagnostics.Debug.WriteLine($"[ProberService] Error during disconnect: {ex.Message}");
             }
         }
 
-        public void Dispose()
-        {
-            try { (_gpibSession as IDisposable)?.Dispose(); } catch { }
-        }
 
         /// <summary>
         /// Send a command that does not expect a response.
         /// </summary>
-        public async Task SendCommandAsync(string command)
+        public async Task<string> SendReadCommandAsync(string command, int readBufferChars = 50, int postWriteDelayMs = 0)
         {
-            if (!IsConnected)
+            if (!IsConnected || _session == null)
                 throw new InvalidOperationException("Not connected to an instrument.");
-
             try
             {
-                await _gpibSession.WriteAsync(command + "\n").ConfigureAwait(false);
+                _session.RawIO.Write(command + "\n");
+                Thread.Sleep(postWriteDelayMs);
+                return _session.RawIO.ReadString(readBufferChars);
             }
             catch (Exception ex)
             {
-                Error?.Invoke(this, new InstrumentErrorEventArgs(ex.Message));
+                return $"Error sending command: {ex.Message}";
                 throw;
             }
         }
-
-        /// <summary>
-        /// Send a query and read the response.
-        /// </summary>
-        public async Task<string> QueryAsync(string query)
-        {
-            if (!IsConnected)
-                throw new InvalidOperationException("Not connected to an instrument.");
-
-            try
-            {
-                await _gpibSession.WriteAsync(query + "\n").ConfigureAwait(false);
-                var resp = await _gpibSession.ReadAsync(256).ConfigureAwait(false);
-                return resp;
-            }
-            catch (Exception ex)
-            {
-                Error?.Invoke(this, new InstrumentErrorEventArgs(ex.Message));
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Send raw binary data to instrument.
-        /// </summary>
-        public async Task SendRawDataAsync(byte[] data)
-        {
-            if (!IsConnected)
-                throw new InvalidOperationException("Not connected to an instrument.");
-
-            try
-            {
-                await _gpibSession.WriteBytesAsync(data).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                Error?.Invoke(this, new InstrumentErrorEventArgs(ex.Message));
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Read raw binary data from instrument up to bufferSize.
-        /// </summary>
-        public async Task<byte[]> ReadRawDataAsync(int bufferSize)
-        {
-            if (!IsConnected)
-                throw new InvalidOperationException("Not connected to an instrument.");
-
-            try
-            {
-                return await _gpibSession.ReadBytesAsync(bufferSize).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                Error?.Invoke(this, new InstrumentErrorEventArgs(ex.Message));
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Clear instrument buffers.
-        /// </summary>
-        public async Task ClearBuffersAsync()
-        {
-            if (!IsConnected)
-                throw new InvalidOperationException("Not connected to an instrument.");
-
-            try
-            {
-                await _gpibSession.ClearAsync().ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                Error?.Invoke(this, new InstrumentErrorEventArgs(ex.Message));
-                throw;
-            }
-        }
-
         public void SetTimeout(int timeoutMilliseconds)
         {
             _timeoutMilliseconds = timeoutMilliseconds;
             try
             {
-                _gpibSession.Timeout = timeoutMilliseconds;
+                _session?.TimeoutMilliseconds = timeoutMilliseconds;
             }
             catch { }
         }
@@ -222,27 +134,13 @@ namespace SMU_Revamp.Services
         {
             try
             {
-                var session = CreateSession();
-                try
-                {
-                    await session.OpenAsync(DefaultResource, _timeoutMilliseconds).ConfigureAwait(false);
-                    await session.WriteAsync(":CLOS:CARD? 1\n").ConfigureAwait(false);
-                    var t1 = await session.ReadAsync(50).ConfigureAwait(false);
-
-                    await session.WriteAsync(":CLOS:CARD? 2\n").ConfigureAwait(false);
-                    var t2 = await session.ReadAsync(50).ConfigureAwait(false);
-
-                    return (t1 ?? string.Empty).Trim() + " " + (t2 ?? string.Empty).Trim();
-                }
-                finally
-                {
-                    try { await session.CloseAsync().ConfigureAwait(false); } catch { }
-                }
+                string temp1 = await SendReadCommandAsync(":CLOS:CARD? 1");
+                string temp2 = await SendReadCommandAsync(":CLOS:CARD? 2");
+                return temp1 + temp2;
             }
             catch (Exception ex)
             {
-                Error?.Invoke(this, new InstrumentErrorEventArgs(ex.Message));
-                throw;
+                return $"Error reading connection: {ex.Message}";
             }
         }
 
@@ -258,6 +156,7 @@ namespace SMU_Revamp.Services
 
             try
             {
+                // We cannot tell what data type x and y are here, so we will convert them to strings and handle nulls gracefully.
                 string xs = x?.ToString() ?? string.Empty;
                 string ys = y?.ToString() ?? string.Empty;
 
@@ -267,30 +166,21 @@ namespace SMU_Revamp.Services
                 else
                     channelstring = "@1" + xs + ", 1" + ys;
 
-                var session = CreateSession();
-                try
-                {
-                    await session.OpenAsync(DefaultResource, _timeoutMilliseconds).ConfigureAwait(false);
-                    Thread.Sleep(10);
-                    await session.WriteAsync("*RST\n").ConfigureAwait(false);
-                    await session.WriteAsync(":ROUT:CONN:RULE ALL,FREE\n").ConfigureAwait(false);
-                    await session.WriteAsync(":ROUT:CONN:SEQ ALL,BBM\n").ConfigureAwait(false);
+                Thread.Sleep(10);
 
-                    await session.WriteAsync(":ROUT:CLOSE (" + channelstring + ")\n").ConfigureAwait(false);
-                    Thread.Sleep(5);
-                    await session.WriteAsync("*OPC?\n").ConfigureAwait(false);
-                    await session.ReadAsync(10).ConfigureAwait(false);
-                    Thread.Sleep(5);
-                    return channelstring;
-                }
-                finally
-                {
-                    try { await session.CloseAsync().ConfigureAwait(false); } catch { }
-                }
+                await SendReadCommandAsync("*RST");
+                await SendReadCommandAsync(":ROUT:CONN:RULE ALL,FREE");
+                await SendReadCommandAsync(":ROUT:CONN:SEQ ALL,BBM");
+                await SendReadCommandAsync(":ROUT:CLOSE (" + channelstring + ")");
+
+                Thread.Sleep(5);
+                await SendReadCommandAsync("*OPC?", readBufferChars: 10);
+                Thread.Sleep(5);
+                return channelstring;
             }
             catch (Exception ex)
             {
-                Error?.Invoke(this, new InstrumentErrorEventArgs(ex.Message));
+                return $"Error creating connection: {ex.Message}";
                 throw;
             }
         }

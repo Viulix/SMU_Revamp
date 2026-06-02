@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using SMU_Revamp.ViewModels;
+using System.Threading.Tasks;
 
 namespace SMU_Revamp.Views
 {
@@ -20,11 +21,13 @@ namespace SMU_Revamp.Views
             }
         }
 
-        private void ApplyButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        private async void ApplyButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             if (DataContext is SettingsViewModel vm)
             {
-                vm.ApplySettings();
+                await vm.ApplySettingsAsync();
+                await Task.Delay(500);
+                Close();
             }
         }
 

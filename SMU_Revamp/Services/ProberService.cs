@@ -1,28 +1,29 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using NationalInstruments.Visa;
 
 namespace SMU_Revamp.Services
 {
     /// <summary>
     /// Singleton prober/stager service that mirrors the legacy VB module behavior.
     /// Uses the same resource string, commands, timeouts, and delays from the original code.
+    /// Features persistent GPIB session management, error resilience, and comprehensive logging.
     /// </summary>
     public sealed class ProberService : IProberService
     {
-        private const string ProberResourceString = "GPIB0::22::INSTR";
+        private string _resourceString = "GPIB0::22::INSTR";
+        private bool _isConnected;
+        private MessageBasedSession? _session; // NI VISA session for the prober
 
+        // Constants based on the original source code
         private const int AlignContactDelayMs = 100;
         private const int MoveXYTimeoutMs = 20000;
         private const int MoveZTimeoutMs = 15000;
         private const int AbsoluteMoveTimeoutMs = 15000;
         private const int GenericCommandTimeoutMs = 25000;
         private const int ReadBufferChars = 90;
-        private const int QuietEnableDelayMs = 200;
-        private const int QuietPostDelayMs = 300;
-        private const int MoveReadDelayMs = 100;
         private const int AbsoluteReadDelayMs = 10;
-        private const int PositionReadDelayMs = 30;
         private const int ExceptionPauseMs = 30000;
 
         private static readonly Lazy<ProberService> _instance = new(() => new ProberService());
@@ -35,8 +36,52 @@ namespace SMU_Revamp.Services
         /// <inheritdoc />
         public bool QuietMode { get; set; }
 
+        /// <inheritdoc />
+        public string ResourceString
+        {
+            get => _resourceString;
+            set => _resourceString = value ?? "GPIB0::22::INSTR";
+        }
+
         private ProberService()
         {
+        }
+
+        /// <summary>
+        /// Connects to the prober, opening a persistent GPIB session.
+        /// </summary>
+        public async Task ConnectAsync()
+        {
+            try
+            {
+                if (_isConnected && _session != null)
+                    return;
+                var rm = new ResourceManager();
+                _session = rm.Open(_resourceString) as MessageBasedSession;
+                _isConnected = true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ProberService] Error during connect: {ex.Message}");
+                throw new InvalidOperationException("Failed to connect to prober. Check resource string and connection.", ex);
+            }
+        }
+
+        /// <summary>
+        /// Disconnects from the prober, closing the persistent GPIB session.
+        /// </summary>
+        public async Task DisconnectAsync()
+        {
+            try
+            {
+                _session?.Dispose();
+                _session = null;
+                _isConnected = false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ProberService] Error during disconnect: {ex.Message}");
+            }
         }
 
         /// <inheritdoc />
@@ -54,32 +99,27 @@ namespace SMU_Revamp.Services
         /// <inheritdoc />
         public Task<string> MoveProberAsync(double x, double y)
         {
-            return ExecuteMoveAsync($"MoveChuck {x} {y} R", MoveXYTimeoutMs, MoveReadDelayMs, includePositionRead: false);
+            return SendProberAsync($"MoveChuck {x} {y} R", MoveXYTimeoutMs);
         }
 
         /// <inheritdoc />
         public Task<string> MoveProberZAsync(double z)
         {
-            return ExecuteMoveAsync($"MoveChuckZ {z} R", MoveZTimeoutMs, MoveReadDelayMs, includePositionRead: false);
+            return SendProberAsync($"MoveChuckZ {z} R", MoveZTimeoutMs);
         }
 
         /// <inheritdoc />
         public Task<string> MoveProberAbsoluteAsync(double x, double y)
         {
-            return ExecuteMoveAsync($"MoveChuck {x} {y} H", AbsoluteMoveTimeoutMs, AbsoluteReadDelayMs, includePositionRead: true);
+            return SendProberAsync($"MoveChuck {x} {y} H", AbsoluteMoveTimeoutMs, AbsoluteReadDelayMs);
         }
 
         /// <inheritdoc />
         public Task<string> MoveProberAbsAsync(double x, double y)
         {
-            return ExecuteMoveAsync($"MoveChuck {x} {y} Z", AbsoluteMoveTimeoutMs, AbsoluteReadDelayMs, includePositionRead: false);
+            return SendProberAsync($"MoveChuck {x} {y} Z", AbsoluteMoveTimeoutMs, AbsoluteReadDelayMs);
         }
 
-        /// <inheritdoc />
-        public Task<string> SendProberAsync(string command)
-        {
-            return ExecuteCommandAsync(command, GenericCommandTimeoutMs);
-        }
 
         /// <inheritdoc />
         public Task ProberSetHomeAsync()
@@ -94,12 +134,14 @@ namespace SMU_Revamp.Services
         }
 
         /// <inheritdoc />
+        /// This method implements the contact sequence logic based on the original code's behavior.
+        /// The origin of the specific values is unclear but relates to the legacy prober's contact sequencing.
         public int NextContact(string cellPosition, int contactNumber, bool combSputtering, bool hugeDeltaA, bool hugeDeltaB)
         {
             if (combSputtering)
             {
                 var secondChar = cellPosition.Length > 1 ? char.ToLowerInvariant(cellPosition[1]) : '\0';
-                if (secondChar == 'i' || secondChar == 'j')
+                if (secondChar == 'i' || secondChar == 'j') // TODO: Verify if this is the correct logic for determining the position type
                 {
                     if (contactNumber < 7)
                     {
@@ -204,7 +246,7 @@ namespace SMU_Revamp.Services
             }
 
             string paddedZeile = zeile < 10 ? "0" + zeile : zeile.ToString();
-            return new[] { paddedZeile, subZeile.ToString() };
+            return [paddedZeile, subZeile.ToString()];
         }
 
         /// <inheritdoc />
@@ -213,61 +255,35 @@ namespace SMU_Revamp.Services
             return (pos - 1) * 5 + subpos;
         }
 
-        private async Task<string> ExecuteCommandAsync(string command, int timeoutMs)
+        private async Task<string> SendProberAsync(string command, int timeoutMs = GenericCommandTimeoutMs, int postWriteDelayMs = 100, int readBufferChars = ReadBufferChars)
         {
-            string response = string.Empty;
+            string response;
 
             try
             {
-                using var session = new VisaGpibSession();
-                await session.OpenAsync(ProberResourceString, timeoutMs).ConfigureAwait(false);
-                await session.WriteAsync(command + "\r").ConfigureAwait(false);
-                Thread.Sleep(MoveReadDelayMs);
-                response = await session.ReadAsync(ReadBufferChars).ConfigureAwait(false);
+                if (!_isConnected)
+                {
+                    throw new InvalidOperationException("Not connected to prober. Call ConnectAsync first.");
+                }
+                if (_session == null)
+                {
+                    throw new InvalidOperationException("GPIB session is not initialized. Call ConnectAsync first.");
+                }
+                _session.TimeoutMilliseconds = timeoutMs;
+                _session.RawIO.Write(command + "\n");
+
+                Thread.Sleep(postWriteDelayMs);
+
+                // Not particular clear what quite mode does
+                // -> Copied from original code.
+                response = _session.RawIO.ReadString(readBufferChars) ?? "No response received.";
 
                 if (QuietMode)
                 {
-                    await session.WriteAsync("EnableMotorQuiet 1\r").ConfigureAwait(false);
-                    Thread.Sleep(QuietEnableDelayMs);
-                    response = await session.ReadAsync(ReadBufferChars).ConfigureAwait(false);
-                    Thread.Sleep(QuietPostDelayMs);
-                }
-            }
-            catch
-            {
-                Thread.Sleep(ExceptionPauseMs);
-                throw;
-            }
+                    _session.RawIO.Write("EnableMotorQuiet 1\n");
 
-            return response;
-        }
-
-        private async Task<string> ExecuteMoveAsync(string command, int timeoutMs, int readDelayMs, bool includePositionRead)
-        {
-            string response = string.Empty;
-
-            try
-            {
-                using var session = new VisaGpibSession();
-                await session.OpenAsync(ProberResourceString, timeoutMs).ConfigureAwait(false);
-                await session.WriteAsync(command + "\r").ConfigureAwait(false);
-                Thread.Sleep(readDelayMs);
-                response = await session.ReadAsync(ReadBufferChars).ConfigureAwait(false);
-
-                if (QuietMode)
-                {
-                    await session.WriteAsync("EnableMotorQuiet 1\r").ConfigureAwait(false);
-                    Thread.Sleep(QuietEnableDelayMs);
-                    response = await session.ReadAsync(ReadBufferChars).ConfigureAwait(false);
-                    Thread.Sleep(QuietPostDelayMs);
-                }
-
-                if (includePositionRead)
-                {
-                    await session.WriteAsync("ReadChuckPosition Z\r").ConfigureAwait(false);
-                    Thread.Sleep(PositionReadDelayMs);
-                    var xyz = await session.ReadAsync(ReadBufferChars).ConfigureAwait(false);
-                    response = xyz;
+                    // Reading 90 chars here. Based on original code. Not sure if this is correct. TODO: Verify if this is the intended behavior.
+                    response = _session.RawIO.ReadString(readBufferChars) ?? "No response received.";
                 }
             }
             catch

@@ -9,6 +9,11 @@ namespace SMU_Revamp.Services
     public interface ISwitchMatrixService
     {
         /// <summary>
+        /// Gets or sets the GPIB resource string for the switch matrix device.
+        /// </summary>
+        string ResourceString { get; set; }
+
+        /// <summary>
         /// Reads human-readable connection/card information from the matrix.
         /// Mirrors the legacy "read_connection" behavior.
         /// </summary>
