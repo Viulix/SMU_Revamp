@@ -40,7 +40,6 @@ namespace SMU_Revamp.Services
 
         private SwitchMatrixService()
         {
-            _session = CreateSession();
         }
 
         private MessageBasedSession CreateSession()
@@ -64,9 +63,8 @@ namespace SMU_Revamp.Services
             {
                 if (_isConnected && _session != null)
                     return;
-                var rm = new ResourceManager();
-                _session = rm.Open(_resourceString) as MessageBasedSession;
-                _isConnected = true;
+                _session = CreateSession();
+                _isConnected = _session != null;
             }
             catch (Exception ex)
             {
