@@ -148,7 +148,7 @@ namespace SMU_Revamp.Services
 
         /// <summary>
         /// Reads human-readable connection/card information from the matrix by querying closed channels.
-        /// Queries cards 1 to 4 and formats the E5250A 5-digit channel list response.
+        /// Queries cards 1 and formats the E5250A 5-digit channel list response.
         /// </summary>
         public async Task<string> ReadConnectionAsync()
         {
@@ -156,41 +156,39 @@ namespace SMU_Revamp.Services
             {
                 var activeConnections = new System.Collections.Generic.List<string>();
 
-                for (int slot = 1; slot <= 4; slot++)
+                int slot = 1;
+                try
                 {
-                    try
+                    string response = await SendReadCommandAsync($":ROUT:CLOS:CARD? {slot}");
+                    response = response.Trim();
+
+                    if (!string.IsNullOrEmpty(response) && response != "@")
                     {
-                        string response = await SendReadCommandAsync($":ROUT:CLOS:CARD? {slot}");
-                        response = response.Trim();
-
-                        if (!string.IsNullOrEmpty(response) && response != "@")
+                        if (response.StartsWith("@"))
                         {
-                            if (response.StartsWith("@"))
-                            {
-                                response = response.Substring(1);
-                            }
+                            response = response.Substring(1);
+                        }
 
-                            var channels = response.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                            foreach (var channel in channels)
+                        var channels = response.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var channel in channels)
+                        {
+                            if (channel.Length == 5)
                             {
-                                if (channel.Length == 5)
-                                {
-                                    int card = int.Parse(channel.Substring(0, 1));
-                                    int input = int.Parse(channel.Substring(1, 2));
-                                    int output = int.Parse(channel.Substring(3, 2));
-                                    activeConnections.Add($"Slot {card}: Input {input:D2} -> Output {output:D2}");
-                                }
-                                else
-                                {
-                                    activeConnections.Add(channel);
-                                }
+                                int card = int.Parse(channel.Substring(0, 1));
+                                int input = int.Parse(channel.Substring(1, 2));
+                                int output = int.Parse(channel.Substring(3, 2));
+                                activeConnections.Add($"Slot {card}: Input {input:D2} -> Output {output:D2}");
+                            }
+                            else
+                            {
+                                activeConnections.Add(channel);
                             }
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Failed reading card {slot}: {ex.Message}");
-                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Failed reading card {slot}: {ex.Message}");
                 }
 
                 if (activeConnections.Count == 0)
@@ -275,7 +273,7 @@ namespace SMU_Revamp.Services
 
                 await Task.Delay(10);
 
-                await SendWriteCommandAsync("*RST");
+                //await SendWriteCommandAsync("*RST");
                 await SendWriteCommandAsync(":ROUT:CONN:RULE ALL,FREE");
                 await SendWriteCommandAsync(":ROUT:CONN:SEQ ALL,BBM");
                 await SendWriteCommandAsync(":ROUT:CLOSE (" + channelstring + ")");
