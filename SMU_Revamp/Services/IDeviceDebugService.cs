@@ -14,5 +14,6 @@ namespace SMU_Revamp.Services
         Task<string> TestSwitchMatrixConnectionAsync();
         Task<string> QuerySwitchMatrixIdentityAsync();
         Task<string> CreateSwitchMatrixConnectionAsync(string x, string y);
+        Task<string> ReadSwitchMatrixConnectionAsync();
     }
 }

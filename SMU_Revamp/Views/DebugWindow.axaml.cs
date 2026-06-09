@@ -60,6 +60,13 @@ public partial class DebugWindow : Window
         SwitchOutputTextBox.Text = result;
     }
 
+    private async void ReadSwitchConnection_Click(object? sender, RoutedEventArgs e)
+    {
+        SwitchOutputTextBox.Text = "Reading active Switch Matrix connections...";
+        var result = await _debugService.ReadSwitchMatrixConnectionAsync();
+        SwitchOutputTextBox.Text = result;
+    }
+
     private void CloseButton_Click(object? sender, RoutedEventArgs e)
     {
         Close();

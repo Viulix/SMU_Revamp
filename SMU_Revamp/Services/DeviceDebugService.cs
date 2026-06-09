@@ -91,5 +91,20 @@ namespace SMU_Revamp.Services
                 return $"Failed to create connection: {ex.Message}";
             }
         }
+
+        public async Task<string> ReadSwitchMatrixConnectionAsync()
+        {
+            try
+            {
+                await _switch.ConnectAsync();
+                var connectionInfo = await _switch.ReadConnectionAsync();
+                await _switch.DisconnectAsync();
+                return $"Switch matrix connections: {connectionInfo}";
+            }
+            catch (Exception ex)
+            {
+                return $"Failed to read switch matrix connections: {ex.Message}";
+            }
+        }
     }
 }
