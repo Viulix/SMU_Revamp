@@ -39,4 +39,14 @@ public class AppConfig
     /// File storing sample name (Probename).
     /// </summary>
     public string Probename { get; set; } = "";
+
+    /// <summary>
+    /// E5263 SMU GPIB resource string.
+    /// </summary>
+    public string SMUResource { get; set; } = "GPIB0::17::INSTR";
+
+    /// <summary>
+    /// E5263 SMU timeout in milliseconds.
+    /// </summary>
+    public int SMUTimeoutMs { get; set; } = 300000;
 }

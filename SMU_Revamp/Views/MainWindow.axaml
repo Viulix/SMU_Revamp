@@ -24,7 +24,7 @@
         </StackPanel>
 
         <!-- Main Content with Tabs -->
-        <TabControl Margin="20" Padding="20">
+        <TabControl SelectedIndex="{Binding SelectedTabIndex}" Margin="20" Padding="20">
             <TabItem Header="Configuration">
                 <ScrollViewer Margin="20">
                     <StackPanel Spacing="20">
@@ -45,6 +45,22 @@
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <TextBlock Text="Kontakt:" Width="120" VerticalAlignment="Center" />
                                 <TextBox Text="{Binding TargetContact}" Width="150" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Stay Here:" Width="120" VerticalAlignment="Center" />
+                                <CheckBox IsChecked="{Binding StayHere}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Debugging:" Width="120" VerticalAlignment="Center" />
+                                <CheckBox IsChecked="{Binding Debugging}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Adv Path A:" Width="120" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding AdvPathA}" Width="200" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Adv Path B:" Width="120" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding AdvPathB}" Width="200" />
                             </StackPanel>
                             <Button Content="Go To Contact" Command="{Binding GoToContactCommand}" Classes="Primary" Width="150" Margin="0,10,0,0" />
                             <TextBlock Text="{Binding ErrorMessage}" Foreground="#D32F2F" TextWrapping="Wrap" MaxWidth="400" HorizontalAlignment="Left" />
@@ -87,18 +103,73 @@
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Measurements">
-                <StackPanel Margin="20" Spacing="14">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Measurement Mode" FontWeight="SemiBold" />
-                        <ComboBox ItemsSource="{Binding MeasurementModes}"
-                                  SelectedItem="{Binding SelectedMeasurementMode}"
-                                  Width="220"
-                                  HorizontalAlignment="Left" />
-                    </StackPanel>
+                <ScrollViewer Margin="20">
+                    <StackPanel Spacing="20">
+                        <TextBlock Text="I-V Sweep Configuration" FontSize="18" FontWeight="SemiBold" />
+                        
+                        <StackPanel Spacing="10" Margin="10,0,0,0" MaxWidth="500" HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Channel:" Width="150" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding SweepChannel}" Width="150" />
+                            </StackPanel>
+                            
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Start Voltage (V):" Width="150" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding SweepStart}" Width="150" />
+                            </StackPanel>
 
-                    <TextBlock Text="Selected mode:" Foreground="#808080" />
-                    <TextBlock Text="{Binding SelectedMeasurementMode}" FontSize="16" FontWeight="SemiBold" />
-                </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Stop Voltage (V):" Width="150" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding SweepStop}" Width="150" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Points:" Width="150" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding SweepPoints}" Width="150" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Compliance (A):" Width="150" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding SweepCompliance}" Width="150" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="ADC Samples (PLC):" Width="150" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding SweepAdcSamples}" Width="150" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Sweep Mode:" Width="150" VerticalAlignment="Center" />
+                                <ComboBox ItemsSource="{Binding SweepModes}"
+                                          SelectedItem="{Binding SelectedSweepMode}"
+                                          Width="200" />
+                            </StackPanel>
+
+                            <Button Content="Run Measurement" 
+                                    Command="{Binding RunMeasurementCommand}" 
+                                    IsEnabled="{Binding !IsMeasuring}"
+                                    Classes="Primary" 
+                                    Width="180" 
+                                    Margin="0,15,0,0" />
+
+                            <Separator Margin="0,15" />
+
+                            <TextBlock Text="Measurement Status" FontSize="14" FontWeight="SemiBold" />
+                            <Border BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="10" Background="#F9F9F9">
+                                <TextBlock Text="{Binding MeasurementStatus}" 
+                                           FontFamily="Courier New" 
+                                           FontSize="12" 
+                                           TextWrapping="Wrap" />
+                            </Border>
+
+                            <TextBlock Text="{Binding ErrorMessage}" 
+                                       Foreground="#D32F2F" 
+                                       TextWrapping="Wrap" 
+                                       MaxWidth="400" 
+                                       HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
         </TabControl>
     </DockPanel>
