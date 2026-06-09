@@ -411,7 +411,18 @@ public partial class MainWindowViewModel : ViewModelBase
 
             await smu.SendCommandAsync($"RI {SweepChannel},0");
             await smu.SendCommandAsync($"MM 2,{SweepChannel}");
+            var mmError = await smu.CheckErrorAsync();
+            if (mmError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected MM command: {mmError}");
+            }
+
             await smu.SendCommandAsync($"CMM {SweepChannel},1");
+            var cmmError = await smu.CheckErrorAsync();
+            if (cmmError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected CMM command: {cmmError}");
+            }
 
             MeasurementStatus = "Executing Sweep Measurement...";
             await smu.SendCommandAsync("TSR");
@@ -462,30 +473,40 @@ public partial class MainWindowViewModel : ViewModelBase
         var items = rawData.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
         var parsedCurrents = new List<double>();
+        var parsedVoltages = new List<double>();
         var parsedTimes = new List<double>();
 
-        for (int i = 0; i < items.Length - 1; i += 2)
+        foreach (var item in items)
         {
-            var timeItem = items[i];
-            var valItem = items[i + 1];
+            var trimmed = item.Trim();
+            if (trimmed.Length < 4) continue;
 
-            // Parse time
-            if (timeItem.Length >= 15)
+            char firstChar = trimmed[0];
+            char thirdChar = trimmed[2];
+            string numStr = trimmed.Substring(3);
+
+            if (firstChar == 'T')
             {
-                var timeStr = timeItem.Substring(3); // strip header "TAV"
-                if (double.TryParse(timeStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double t))
+                // Time stamp (e.g. TAV...)
+                if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double t))
                 {
                     parsedTimes.Add(t);
                 }
             }
-
-            // Parse measured value
-            if (valItem.Length >= 15)
+            else if (thirdChar == 'I')
             {
-                var valStr = valItem.Substring(3); // strip header e.g. "CAI"
-                if (double.TryParse(valStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double v))
+                // Current measurement (e.g. N2I..., C2I...)
+                if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double iVal))
                 {
-                    parsedCurrents.Add(v);
+                    parsedCurrents.Add(iVal);
+                }
+            }
+            else if (thirdChar == 'V')
+            {
+                // Voltage measurement (e.g. N2V..., C2V...)
+                if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double vVal))
+                {
+                    parsedVoltages.Add(vVal);
                 }
             }
         }
@@ -493,43 +514,55 @@ public partial class MainWindowViewModel : ViewModelBase
         int count = parsedCurrents.Count;
         if (count == 0) return points;
 
-        if (modeValue == 1)
+        // If the instrument returned both voltage and current measurements for each point, pair them directly
+        if (parsedVoltages.Count == count)
         {
-            // Single sweep: start -> stop
             for (int i = 0; i < count; i++)
             {
-                double v = SweepStart;
-                if (count > 1)
-                {
-                    v = SweepStart + i * (SweepStop - SweepStart) / (count - 1);
-                }
-                points.Add(new CurvePoint(v, parsedCurrents[i]));
+                points.Add(new CurvePoint(parsedVoltages[i], parsedCurrents[i]));
             }
         }
         else
         {
-            // Double sweep: start -> stop -> start
-            int halfPoints = (count + 1) / 2;
-            for (int i = 0; i < count; i++)
+            // Otherwise, fall back to calculating step voltage based on sweep parameters
+            if (modeValue == 1)
             {
-                double v;
-                if (i < halfPoints)
+                // Single sweep: start -> stop
+                for (int i = 0; i < count; i++)
                 {
-                    v = SweepStart;
-                    if (halfPoints > 1)
+                    double v = SweepStart;
+                    if (count > 1)
                     {
-                        v = SweepStart + i * (SweepStop - SweepStart) / (halfPoints - 1);
+                        v = SweepStart + i * (SweepStop - SweepStart) / (count - 1);
                     }
+                    points.Add(new CurvePoint(v, parsedCurrents[i]));
                 }
-                else
+            }
+            else
+            {
+                // Double sweep: start -> stop -> start
+                int halfPoints = (count + 1) / 2;
+                for (int i = 0; i < count; i++)
                 {
-                    v = SweepStop;
-                    if (halfPoints > 1)
+                    double v;
+                    if (i < halfPoints)
                     {
-                        v = SweepStop - (i - halfPoints + 1) * (SweepStop - SweepStart) / (halfPoints - 1);
+                        v = SweepStart;
+                        if (halfPoints > 1)
+                        {
+                            v = SweepStart + i * (SweepStop - SweepStart) / (halfPoints - 1);
+                        }
                     }
+                    else
+                    {
+                        v = SweepStop;
+                        if (halfPoints > 1)
+                        {
+                            v = SweepStop - (i - halfPoints + 1) * (SweepStop - SweepStart) / (halfPoints - 1);
+                        }
+                    }
+                    points.Add(new CurvePoint(v, parsedCurrents[i]));
                 }
-                points.Add(new CurvePoint(v, parsedCurrents[i]));
             }
         }
 
