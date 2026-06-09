@@ -92,24 +92,46 @@ namespace SMU_Revamp.Services
 
 
         /// <summary>
-        /// Send a command that does not expect a response.
+        /// Sends a command to the switch matrix that does not expect a response.
+        /// </summary>
+        public async Task SendWriteCommandAsync(string command)
+        {
+            if (!IsConnected || _session == null)
+                throw new InvalidOperationException("Not connected to switch matrix.");
+            try
+            {
+                _session.RawIO.Write(command + "\n");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Error sending command: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Sends a command to the switch matrix and reads a response.
         /// </summary>
         public async Task<string> SendReadCommandAsync(string command, int readBufferChars = 50, int postWriteDelayMs = 0)
         {
             if (!IsConnected || _session == null)
-                throw new InvalidOperationException("Not connected to an instrument.");
+                throw new InvalidOperationException("Not connected to switch matrix.");
             try
             {
                 _session.RawIO.Write(command + "\n");
-                Thread.Sleep(postWriteDelayMs);
+                if (postWriteDelayMs > 0)
+                {
+                    await Task.Delay(postWriteDelayMs);
+                }
                 return _session.RawIO.ReadString(readBufferChars);
             }
             catch (Exception ex)
             {
-                return $"Error sending command: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Error reading response: {ex.Message}");
                 throw;
             }
         }
+
         public void SetTimeout(int timeoutMilliseconds)
         {
             _timeoutMilliseconds = timeoutMilliseconds;
@@ -164,21 +186,21 @@ namespace SMU_Revamp.Services
                 else
                     channelstring = "@1" + xs + ", 1" + ys;
 
-                Thread.Sleep(10);
+                await Task.Delay(10);
 
-                await SendReadCommandAsync("*RST");
-                await SendReadCommandAsync(":ROUT:CONN:RULE ALL,FREE");
-                await SendReadCommandAsync(":ROUT:CONN:SEQ ALL,BBM");
-                await SendReadCommandAsync(":ROUT:CLOSE (" + channelstring + ")");
+                await SendWriteCommandAsync("*RST");
+                await SendWriteCommandAsync(":ROUT:CONN:RULE ALL,FREE");
+                await SendWriteCommandAsync(":ROUT:CONN:SEQ ALL,BBM");
+                await SendWriteCommandAsync(":ROUT:CLOSE (" + channelstring + ")");
 
-                Thread.Sleep(5);
+                await Task.Delay(5);
                 await SendReadCommandAsync("*OPC?", readBufferChars: 10);
-                Thread.Sleep(5);
+                await Task.Delay(5);
                 return channelstring;
             }
             catch (Exception ex)
             {
-                return $"Error creating connection: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Error creating connection: {ex.Message}");
                 throw;
             }
         }
