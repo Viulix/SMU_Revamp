@@ -67,6 +67,56 @@ public partial class DebugWindow : Window
         SwitchOutputTextBox.Text = result;
     }
 
+    private async void TestSMUConnection_Click(object? sender, RoutedEventArgs e)
+    {
+        SmuOutputTextBox.Text = "Testing SMU connection...";
+        var result = await _debugService.TestSMUConnectionAsync();
+        SmuOutputTextBox.Text = result;
+    }
+
+    private async void QuerySMUIdentity_Click(object? sender, RoutedEventArgs e)
+    {
+        SmuOutputTextBox.Text = "Querying SMU identity...";
+        var result = await _debugService.QuerySMUIdentityAsync();
+        SmuOutputTextBox.Text = result;
+    }
+
+    private async void ForceSmuVoltage_Click(object? sender, RoutedEventArgs e)
+    {
+        var channel = SmuChannelTextBox.Text ?? string.Empty;
+        var voltStr = (SmuVoltageTextBox.Text ?? string.Empty).Replace(',', '.');
+        var compStr = (SmuComplianceTextBox.Text ?? string.Empty).Replace(',', '.');
+        var durStr = (SmuDurationTextBox.Text ?? string.Empty).Replace(',', '.');
+
+        if (string.IsNullOrWhiteSpace(channel))
+        {
+            SmuOutputTextBox.Text = "Error: Please specify a channel.";
+            return;
+        }
+
+        if (!double.TryParse(voltStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double voltage))
+        {
+            SmuOutputTextBox.Text = "Error: Voltage must be a valid number.";
+            return;
+        }
+
+        if (!double.TryParse(compStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double compliance))
+        {
+            SmuOutputTextBox.Text = "Error: Compliance must be a valid number.";
+            return;
+        }
+
+        if (!double.TryParse(durStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double duration) || duration <= 0)
+        {
+            SmuOutputTextBox.Text = "Error: Duration must be a positive number.";
+            return;
+        }
+
+        SmuOutputTextBox.Text = $"Connecting and forcing {voltage:F3} V on channel {channel} for {duration:F1} seconds...";
+        var result = await _debugService.ForceSMUDCVoltageAsync(channel, voltage, compliance, duration);
+        SmuOutputTextBox.Text = result;
+    }
+
     private void CloseButton_Click(object? sender, RoutedEventArgs e)
     {
         Close();

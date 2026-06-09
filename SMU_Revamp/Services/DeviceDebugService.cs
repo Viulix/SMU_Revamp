@@ -106,5 +106,96 @@ namespace SMU_Revamp.Services
                 return $"Failed to read switch matrix connections: {ex.Message}";
             }
         }
+
+        public async Task<string> TestSMUConnectionAsync()
+        {
+            try
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                var smu = E5263_SMU.Instance;
+                smu.ResourceString = config.SMUResource;
+                smu.SetTimeout(config.SMUTimeoutMs);
+                await smu.ConnectAsync();
+                var identity = await smu.QueryAsync("*IDN?");
+                await smu.DisconnectAsync();
+                return $"SMU connected (resource={smu.ResourceString}). Identity: {identity.Trim()}";
+            }
+            catch (Exception ex)
+            {
+                return $"SMU connection failed: {ex.Message}";
+            }
+        }
+
+        public async Task<string> QuerySMUIdentityAsync()
+        {
+            try
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                var smu = E5263_SMU.Instance;
+                smu.ResourceString = config.SMUResource;
+                smu.SetTimeout(config.SMUTimeoutMs);
+                await smu.ConnectAsync();
+                var identity = await smu.QueryAsync("*IDN?");
+                await smu.DisconnectAsync();
+                return $"SMU Identity: {identity.Trim()}";
+            }
+            catch (Exception ex)
+            {
+                return $"Error querying SMU identity: {ex.Message}";
+            }
+        }
+
+        public async Task<string> ForceSMUDCVoltageAsync(string channel, double voltage, double compliance, double seconds)
+        {
+            try
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                var smu = E5263_SMU.Instance;
+                smu.ResourceString = config.SMUResource;
+                smu.SetTimeout(config.SMUTimeoutMs);
+                await smu.ConnectAsync();
+
+                // Reset and base configuration
+                await smu.SendCommandAsync("*RST");
+                await smu.SendCommandAsync($"CN {channel}");
+
+                // Force DC Voltage: DV <ch>,0,<voltage>,<compliance> (0 is auto-range for voltage)
+                var dvCommand = System.FormattableString.Invariant($"DV {channel},0,{voltage},{compliance}");
+                await smu.SendCommandAsync(dvCommand);
+
+                // Error detection after configuration
+                var error = await smu.CheckErrorAsync();
+                if (error != null)
+                {
+                    await smu.SendCommandAsync($"CL {channel}");
+                    await smu.DisconnectAsync();
+                    return $"SMU configuration failed: {error}";
+                }
+
+                // Hold voltage for specified duration
+                int delayMs = (int)(seconds * 1000);
+                await Task.Delay(delayMs);
+
+                // Disable channel and disconnect
+                await smu.SendCommandAsync($"CL {channel}");
+                await smu.DisconnectAsync();
+
+                return $"Successfully forced {voltage:F3}V on channel {channel} for {seconds} seconds.";
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    await E5263_SMU.Instance.SendCommandAsync($"CL {channel}");
+                }
+                catch {}
+                try
+                {
+                    await E5263_SMU.Instance.DisconnectAsync();
+                }
+                catch {}
+                return $"Failed to force SMU voltage: {ex.Message}";
+            }
+        }
     }
 }
