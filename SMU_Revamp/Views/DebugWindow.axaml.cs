@@ -44,6 +44,22 @@ public partial class DebugWindow : Window
         SwitchOutputTextBox.Text = result;
     }
 
+    private async void CreateSwitchConnection_Click(object? sender, RoutedEventArgs e)
+    {
+        var x = ConnectionXTextBox.Text ?? string.Empty;
+        var y = ConnectionYTextBox.Text ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(x) || string.IsNullOrWhiteSpace(y))
+        {
+            SwitchOutputTextBox.Text = "Error: Please specify endpoints X and Y to create a connection.";
+            return;
+        }
+
+        SwitchOutputTextBox.Text = $"Creating connection between {x} and {y}...";
+        var result = await _debugService.CreateSwitchMatrixConnectionAsync(x, y);
+        SwitchOutputTextBox.Text = result;
+    }
+
     private void CloseButton_Click(object? sender, RoutedEventArgs e)
     {
         Close();

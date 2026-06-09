@@ -76,5 +76,20 @@ namespace SMU_Revamp.Services
                 return $"Error querying switch matrix identity: {ex.Message}";
             }
         }
+
+        public async Task<string> CreateSwitchMatrixConnectionAsync(string x, string y)
+        {
+            try
+            {
+                await _switch.ConnectAsync();
+                var channel = await _switch.CreateConnectionAsync(x, y, overrideCheck: true);
+                await _switch.DisconnectAsync();
+                return $"Connection successfully created! Channel: {channel}";
+            }
+            catch (Exception ex)
+            {
+                return $"Failed to create connection: {ex.Message}";
+            }
+        }
     }
 }
