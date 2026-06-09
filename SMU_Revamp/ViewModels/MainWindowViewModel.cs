@@ -375,7 +375,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
             // WV command defines sweep
             // Format: WV <channel>,<mode>,<range>,<start>,<stop>,<steps>,<Icomp>
-            await smu.SendCommandAsync($"WV {SweepChannel},{modeValue},0,{SweepStart},{SweepStop},{SweepPoints},{SweepCompliance}");
+            // We use System.FormattableString.Invariant to format floating-point parameters (Start, Stop, Compliance) 
+            // with a dot decimal separator, regardless of the system's locale (e.g., German).
+            var wvCommand = System.FormattableString.Invariant($"WV {SweepChannel},{modeValue},0,{SweepStart},{SweepStop},{SweepPoints},{SweepCompliance}");
+            await smu.SendCommandAsync(wvCommand);
+
+            // Error detection right after the WV configuration command
+            var wvError = await smu.CheckErrorAsync();
+            if (wvError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected WV command parameters: {wvError}");
+            }
 
             await smu.SendCommandAsync($"RI {SweepChannel},0");
             await smu.SendCommandAsync($"MM 2,{SweepChannel}");

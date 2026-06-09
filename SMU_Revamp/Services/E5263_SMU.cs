@@ -149,5 +149,31 @@ namespace SMU_Revamp.Services
         }
 
         public int GetTimeout() => _timeoutMilliseconds;
+
+        /// <summary>
+        /// Queries the instrument's error register. If an error is present, returns the error code and its message.
+        /// Otherwise returns null.
+        /// </summary>
+        public async Task<string?> CheckErrorAsync()
+        {
+            if (!IsConnected || _session == null)
+                return "Not connected to E5263 SMU.";
+            try
+            {
+                // Query the oldest error code
+                string errCodeStr = await QueryAsync("ERR? 1", readBufferChars: 20);
+                if (int.TryParse(errCodeStr.Trim(), out int errorCode) && errorCode != 0)
+                {
+                    // Query the error message text
+                    string message = await QueryAsync($"EMG? {errorCode}", readBufferChars: 256);
+                    return $"Error {errorCode}: {message.Trim()}";
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[E5263_SMU] Error querying device errors: {ex.Message}");
+            }
+            return null;
+        }
     }
 }

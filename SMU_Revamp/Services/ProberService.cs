@@ -99,25 +99,25 @@ namespace SMU_Revamp.Services
         /// <inheritdoc />
         public Task<string> MoveProberAsync(double x, double y)
         {
-            return SendProberAsync($"MoveChuck {x} {y} R", MoveXYTimeoutMs);
+            return SendProberAsync(System.FormattableString.Invariant($"MoveChuck {x} {y} R"), MoveXYTimeoutMs);
         }
 
         /// <inheritdoc />
         public Task<string> MoveProberZAsync(double z)
         {
-            return SendProberAsync($"MoveChuckZ {z} R", MoveZTimeoutMs);
+            return SendProberAsync(System.FormattableString.Invariant($"MoveChuckZ {z} R"), MoveZTimeoutMs);
         }
 
         /// <inheritdoc />
         public Task<string> MoveProberAbsoluteAsync(double x, double y)
         {
-            return SendProberAsync($"MoveChuck {x} {y} H", AbsoluteMoveTimeoutMs, AbsoluteReadDelayMs);
+            return SendProberAsync(System.FormattableString.Invariant($"MoveChuck {x} {y} H"), AbsoluteMoveTimeoutMs, AbsoluteReadDelayMs);
         }
 
         /// <inheritdoc />
         public Task<string> MoveProberAbsAsync(double x, double y)
         {
-            return SendProberAsync($"MoveChuck {x} {y} Z", AbsoluteMoveTimeoutMs, AbsoluteReadDelayMs);
+            return SendProberAsync(System.FormattableString.Invariant($"MoveChuck {x} {y} Z"), AbsoluteMoveTimeoutMs, AbsoluteReadDelayMs);
         }
 
 
