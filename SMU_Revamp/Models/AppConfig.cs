@@ -49,4 +49,39 @@ public class AppConfig
     /// E5263 SMU timeout in milliseconds.
     /// </summary>
     public int SMUTimeoutMs { get; set; } = 300000;
+
+    /// <summary>
+    /// Sweep channel configuration.
+    /// </summary>
+    public string SweepChannel { get; set; } = "2";
+
+    /// <summary>
+    /// Sweep start voltage (V).
+    /// </summary>
+    public double SweepStart { get; set; } = 0.0;
+
+    /// <summary>
+    /// Sweep stop voltage (V).
+    /// </summary>
+    public double SweepStop { get; set; } = 1.5;
+
+    /// <summary>
+    /// Number of sweep points.
+    /// </summary>
+    public int SweepPoints { get; set; } = 41;
+
+    /// <summary>
+    /// Sweep compliance current (A).
+    /// </summary>
+    public double SweepCompliance { get; set; } = 0.1;
+
+    /// <summary>
+    /// Sweep ADC Samples (PLC).
+    /// </summary>
+    public int SweepAdcSamples { get; set; } = 1;
+
+    /// <summary>
+    /// Sweep Mode selection.
+    /// </summary>
+    public string SelectedSweepMode { get; set; } = "Double Staircase (3)";
 }

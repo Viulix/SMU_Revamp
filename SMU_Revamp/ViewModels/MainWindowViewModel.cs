@@ -120,8 +120,19 @@ public partial class MainWindowViewModel : ViewModelBase
             "U-Sweep"
         ]);
         Settings = new SettingsViewModel();
+
+        // Load measurement configuration from settings
+        var config = ConfigurationService.Instance.GetConfig();
+        _sweepChannel = config.SweepChannel;
+        _sweepStart = config.SweepStart;
+        _sweepStop = config.SweepStop;
+        _sweepPoints = config.SweepPoints;
+        _sweepCompliance = config.SweepCompliance;
+        _sweepAdcSamples = config.SweepAdcSamples;
+        _selectedSweepMode = config.SelectedSweepMode;
+
         GoToContactCommand = new AsyncRelayCommand(GoToContactAsync);
-        SaveSettingsCommand = new AsyncRelayCommand(Settings.ApplySettingsAsync);
+        SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAndConfigurationAsync);
         RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync);
     }
 
@@ -355,6 +366,9 @@ public partial class MainWindowViewModel : ViewModelBase
         MeasurementStatus = "Starting...";
         SelectedTabIndex = 1; // Auto switch to Viewer tab
 
+        // Persist measurement settings automatically when running
+        await SaveMeasurementConfigAsync();
+
         try
         {
             // Connect to SMU
@@ -541,6 +555,52 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ErrorMessage = $"Failed to export CSV: {ex.Message}";
             Console.WriteLine($"Error exporting CSV: {ex.Message}");
+        }
+    }
+
+    private async Task SaveMeasurementConfigAsync()
+    {
+        try
+        {
+            var config = ConfigurationService.Instance.GetConfig();
+            config.SweepChannel = SweepChannel;
+            config.SweepStart = SweepStart;
+            config.SweepStop = SweepStop;
+            config.SweepPoints = SweepPoints;
+            config.SweepCompliance = SweepCompliance;
+            config.SweepAdcSamples = SweepAdcSamples;
+            config.SelectedSweepMode = SelectedSweepMode;
+            await ConfigurationService.Instance.SaveAsync(config);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to save measurement configuration: {ex.Message}");
+        }
+    }
+
+    private async Task SaveSettingsAndConfigurationAsync()
+    {
+        try
+        {
+            // First apply settings from Settings VM (which updates ConfigurationService internally)
+            await Settings.ApplySettingsAsync();
+
+            // Then retrieve updated config, merge our measurement settings, and save
+            var config = ConfigurationService.Instance.GetConfig();
+            config.SweepChannel = SweepChannel;
+            config.SweepStart = SweepStart;
+            config.SweepStop = SweepStop;
+            config.SweepPoints = SweepPoints;
+            config.SweepCompliance = SweepCompliance;
+            config.SweepAdcSamples = SweepAdcSamples;
+            config.SelectedSweepMode = SelectedSweepMode;
+
+            await ConfigurationService.Instance.SaveAsync(config);
+            Settings.ApplyStatusMessage = "Settings and measurement configuration saved.";
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to save configuration: {ex.Message}";
         }
     }
 }
