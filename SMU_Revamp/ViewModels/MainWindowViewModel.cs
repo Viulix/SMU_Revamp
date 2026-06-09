@@ -17,8 +17,16 @@ public partial class MainWindowViewModel : ViewModelBase
     public IReadOnlyList<CurvePoint> CurvePoints
     {
         get => _curvePoints;
-        set => SetProperty(ref _curvePoints, value);
+        set
+        {
+            if (SetProperty(ref _curvePoints, value))
+            {
+                OnPropertyChanged(nameof(HasCurvePoints));
+            }
+        }
     }
+
+    public bool HasCurvePoints => _curvePoints != null && _curvePoints.Count > 0;
 
     public ReadOnlyCollection<string> MeasurementModes { get; }
 
@@ -512,5 +520,27 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         return points;
+    }
+
+    /// <summary>
+    /// Exports the current curve points to a CSV file.
+    /// </summary>
+    public async Task SaveCurvePointsToCsvAsync(string filePath)
+    {
+        try
+        {
+            var lines = new List<string> { "Voltage (V),Current (A)" };
+            foreach (var point in CurvePoints)
+            {
+                lines.Add(System.FormattableString.Invariant($"{point.Voltage},{point.Current}"));
+            }
+            await System.IO.File.WriteAllLinesAsync(filePath, lines);
+            MeasurementStatus = $"Data successfully exported to {System.IO.Path.GetFileName(filePath)}.";
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to export CSV: {ex.Message}";
+            Console.WriteLine($"Error exporting CSV: {ex.Message}");
+        }
     }
 }
