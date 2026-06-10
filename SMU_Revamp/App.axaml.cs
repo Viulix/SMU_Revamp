@@ -46,6 +46,13 @@ public partial class App : Application
             ProberService.Instance.ResourceString = config.ProberResource;
             ProberService.Instance.QuietMode = config.ProberQuietMode;
             SwitchMatrixService.Instance.SetTimeout(config.SwitchMatrixTimeoutMs);
+
+            // Trigger loading defaults for the initial selected plan once config is loaded
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop &&
+                desktop.MainWindow?.DataContext is MainWindowViewModel vm)
+            {
+                vm.SelectedPlan?.LoadDefaults();
+            }
         }
         catch (Exception ex)
         {

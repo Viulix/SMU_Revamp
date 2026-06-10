@@ -11,7 +11,7 @@
         ShowInTaskbar="False"
         CanResize="True"
         Width="600"
-        Height="520">
+        Height="600">
 
     <Design.DataContext>
         <vm:SettingsViewModel />
@@ -19,6 +19,19 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Orientation="Vertical" Margin="20" Spacing="15">
+            <!-- Warning Disclaimer Box -->
+            <Border Background="#FEEBEE" BorderBrush="#EF5350" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,5">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="⚠️" FontSize="20" VerticalAlignment="Center" />
+                    <TextBlock Text="Warning: Modifying connection settings, GPIB resources, or timeouts can lead to severe communication issues, device timeouts, or unexpected hardware state changes. Adjust these parameters with caution."
+                               Foreground="#C62828"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Width="480" />
+                </StackPanel>
+            </Border>
+
             <!-- Prober Section -->
             <TextBlock Text="Prober / Stager" FontSize="16" FontWeight="Bold" />
 
@@ -30,12 +43,12 @@
 
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Text="Resource:" Width="120" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding ProberResource}" Width="200" />
+                    <TextBox Text="{Binding ProberResource}" Width="160" />
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Text="Timeout (ms):" Width="120" VerticalAlignment="Center" />
-                    <NumericUpDown Value="{Binding ProberTimeoutMs}" Minimum="1000" Maximum="60000" Increment="1000" Width="160" />
+                    <NumericUpDown Value="{Binding ProberTimeoutMs}" Minimum="1000" Maximum="60000" Increment="1000" ShowButtonSpinner="False" Width="160" />
                 </StackPanel>
             </StackPanel>
 
@@ -48,12 +61,12 @@
             <StackPanel Orientation="Vertical" Spacing="10" Margin="20,0,0,0">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Text="Resource:" Width="120" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding SwitchMatrixResource}" Width="200" />
+                    <TextBox Text="{Binding SwitchMatrixResource}" Width="160" />
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Text="Timeout (ms):" Width="120" VerticalAlignment="Center" />
-                    <NumericUpDown Value="{Binding SwitchMatrixTimeoutMs}" Minimum="1000" Maximum="60000" Increment="1000" Width="160" />
+                    <NumericUpDown Value="{Binding SwitchMatrixTimeoutMs}" Minimum="1000" Maximum="60000" Increment="1000" ShowButtonSpinner="False" Width="160" />
                 </StackPanel>
             </StackPanel>
 
@@ -66,12 +79,12 @@
             <StackPanel Orientation="Vertical" Spacing="10" Margin="20,0,0,0">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Text="Resource:" Width="120" VerticalAlignment="Center" />
-                    <TextBox Text="{Binding SMUResource}" Width="200" />
+                    <TextBox Text="{Binding SMUResource}" Width="160" />
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Text="Timeout (ms):" Width="120" VerticalAlignment="Center" />
-                    <NumericUpDown Value="{Binding SMUTimeoutMs}" Minimum="1000" Maximum="600000" Increment="5000" Width="160" />
+                    <NumericUpDown Value="{Binding SMUTimeoutMs}" Minimum="1000" Maximum="600000" Increment="5000" ShowButtonSpinner="False" Width="160" />
                 </StackPanel>
             </StackPanel>
 

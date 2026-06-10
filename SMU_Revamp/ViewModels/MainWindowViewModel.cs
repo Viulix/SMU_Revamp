@@ -28,7 +28,29 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool HasCurvePoints => _curvePoints != null && _curvePoints.Count > 0;
 
-    public ReadOnlyCollection<string> MeasurementModes { get; }
+    private List<IMeasurementPlan> _measurementPlans = new();
+    public List<IMeasurementPlan> MeasurementPlans
+    {
+        get => _measurementPlans;
+        set => SetProperty(ref _measurementPlans, value);
+    }
+
+    private IMeasurementPlan _selectedPlan;
+    public IMeasurementPlan SelectedPlan
+    {
+        get => _selectedPlan;
+        set
+        {
+            if (SetProperty(ref _selectedPlan, value))
+            {
+                if (_selectedPlan != null)
+                {
+                    _selectedPlan.LoadDefaults();
+                }
+                CurvePoints = _selectedPlan?.ResultPoints ?? new List<CurvePoint>();
+            }
+        }
+    }
 
     public SettingsViewModel Settings { get; }
 
@@ -37,13 +59,6 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         get => _selectedTabIndex;
         set => SetProperty(ref _selectedTabIndex, value);
-    }
-
-    private string _selectedMeasurementMode = "Measure Point";
-    public string SelectedMeasurementMode
-    {
-        get => _selectedMeasurementMode;
-        set => SetProperty(ref _selectedMeasurementMode, value);
     }
 
     private string _targetCell = string.Empty;
@@ -115,21 +130,14 @@ public partial class MainWindowViewModel : ViewModelBase
     public MainWindowViewModel()
     {
         CurvePoints = CreateCurvePoints();
-        MeasurementModes = new ReadOnlyCollection<string>([
-            "Measure Point",
-            "U-Sweep"
-        ]);
         Settings = new SettingsViewModel();
 
-        // Load measurement configuration from settings
-        var config = ConfigurationService.Instance.GetConfig();
-        _sweepChannel = config.SweepChannel;
-        _sweepStart = config.SweepStart;
-        _sweepStop = config.SweepStop;
-        _sweepPoints = config.SweepPoints;
-        _sweepCompliance = config.SweepCompliance;
-        _sweepAdcSamples = config.SweepAdcSamples;
-        _selectedSweepMode = config.SelectedSweepMode;
+        MeasurementPlans = new List<IMeasurementPlan>
+        {
+            new MeasurePointMeasurementPlan(),
+            new USweepMeasurementPlan()
+        };
+        _selectedPlan = MeasurementPlans[0]; // Default to Measure Point
 
         GoToContactCommand = new AsyncRelayCommand(GoToContactAsync);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAndConfigurationAsync);
@@ -288,65 +296,18 @@ public partial class MainWindowViewModel : ViewModelBase
         return voltage >= 0 ? forward * 1e-6 : reverse;
     }
 
-    private string _sweepChannel = "2";
-    public string SweepChannel
-    {
-        get => _sweepChannel;
-        set => SetProperty(ref _sweepChannel, value);
-    }
-
-    private double _sweepStart = 0.0;
-    public double SweepStart
-    {
-        get => _sweepStart;
-        set => SetProperty(ref _sweepStart, value);
-    }
-
-    private double _sweepStop = 1.5;
-    public double SweepStop
-    {
-        get => _sweepStop;
-        set => SetProperty(ref _sweepStop, value);
-    }
-
-    private int _sweepPoints = 41;
-    public int SweepPoints
-    {
-        get => _sweepPoints;
-        set => SetProperty(ref _sweepPoints, value);
-    }
-
-    private double _sweepCompliance = 0.1;
-    public double SweepCompliance
-    {
-        get => _sweepCompliance;
-        set => SetProperty(ref _sweepCompliance, value);
-    }
-
-    private int _sweepAdcSamples = 1;
-    public int SweepAdcSamples
-    {
-        get => _sweepAdcSamples;
-        set => SetProperty(ref _sweepAdcSamples, value);
-    }
-
-    private string _selectedSweepMode = "Double Staircase (3)";
-    public string SelectedSweepMode
-    {
-        get => _selectedSweepMode;
-        set => SetProperty(ref _selectedSweepMode, value);
-    }
-
-    public ReadOnlyCollection<string> SweepModes { get; } = new ReadOnlyCollection<string>([
-        "Single Staircase (1)",
-        "Double Staircase (3)"
-    ]);
-
     private string _measurementStatus = "Ready";
     public string MeasurementStatus
     {
         get => _measurementStatus;
         set => SetProperty(ref _measurementStatus, value);
+    }
+
+    private bool _autoSwitchToViewer = true;
+    public bool AutoSwitchToViewer
+    {
+        get => _autoSwitchToViewer;
+        set => SetProperty(ref _autoSwitchToViewer, value);
     }
 
     private bool _isMeasuring;
@@ -361,10 +322,11 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task RunMeasurementAsync()
     {
         if (IsMeasuring) return;
+        if (SelectedPlan == null) return;
+
         IsMeasuring = true;
         ErrorMessage = string.Empty;
         MeasurementStatus = "Starting...";
-        SelectedTabIndex = 1; // Auto switch to Viewer tab
 
         // Persist measurement settings automatically when running
         await SaveMeasurementConfigAsync();
@@ -382,79 +344,31 @@ public partial class MainWindowViewModel : ViewModelBase
 
             await smu.ConnectAsync();
 
-            MeasurementStatus = "Configuring SMU...";
-            // Setup sequence according to legacy guidelines
-            await smu.SendCommandAsync("*RST");
-            await smu.SendCommandAsync("FMT 1");
-            await smu.SendCommandAsync("TSC 1");
-            await smu.SendCommandAsync($"CN {SweepChannel}");
-            await smu.SendCommandAsync($"AV -{SweepAdcSamples},0");
+            MeasurementStatus = $"Executing plan {SelectedPlan.Name}...";
+            await SelectedPlan.RunMeasurementAsync(smu);
 
-            // Extract the numeric sweep mode (e.g. 1 or 3) from SelectedSweepMode
-            int modeValue = 3;
-            if (SelectedSweepMode.Contains("(1)")) modeValue = 1;
-            else if (SelectedSweepMode.Contains("(3)")) modeValue = 3;
+            // Update CurvePoints to selected plan's result points
+            CurvePoints = new List<CurvePoint>(SelectedPlan.ResultPoints);
 
-            // WV command defines sweep
-            // Format: WV <channel>,<mode>,<range>,<start>,<stop>,<steps>,<Icomp>
-            // We use System.FormattableString.Invariant to format floating-point parameters (Start, Stop, Compliance) 
-            // with a dot decimal separator, regardless of the system's locale (e.g., German).
-            var wvCommand = System.FormattableString.Invariant($"WV {SweepChannel},{modeValue},0,{SweepStart},{SweepStop},{SweepPoints},{SweepCompliance}");
-            await smu.SendCommandAsync(wvCommand);
-
-            // Error detection right after the WV configuration command
-            var wvError = await smu.CheckErrorAsync();
-            if (wvError != null)
+            if (CurvePoints.Count > 0)
             {
-                throw new InvalidOperationException($"SMU rejected WV command parameters: {wvError}");
-            }
-
-            await smu.SendCommandAsync($"RI {SweepChannel},0");
-            await smu.SendCommandAsync($"MM 2,{SweepChannel}");
-            var mmError = await smu.CheckErrorAsync();
-            if (mmError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected MM command: {mmError}");
-            }
-
-            await smu.SendCommandAsync($"CMM {SweepChannel},1");
-            var cmmError = await smu.CheckErrorAsync();
-            if (cmmError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected CMM command: {cmmError}");
-            }
-
-            MeasurementStatus = "Executing Sweep Measurement...";
-            await smu.SendCommandAsync("TSR");
-            await smu.SendCommandAsync("XE");
-
-            // Wait for completion using TSQ query
-            string tsqResponse = await smu.QueryAsync("TSQ", readBufferChars: 50);
-
-            MeasurementStatus = "Reading sweep results...";
-            // Calculate buffer size:
-            // Under FMT 1 + TSC 1: each data point outputs 32 bytes (2 blocks: time block 16 chars + data block 16 chars).
-            int expectedBufferLength = SweepPoints * 32 * (modeValue == 3 ? 2 : 1) + 200;
-            string rawData = await smu.ReadResponseAsync(expectedBufferLength);
-
-            MeasurementStatus = "Parsing sweep results...";
-            var parsedPoints = ParseSmuData(rawData, modeValue);
-
-            if (parsedPoints.Count > 0)
-            {
-                CurvePoints = parsedPoints;
-                MeasurementStatus = $"Finished. Measured {parsedPoints.Count} points.";
+                MeasurementStatus = $"Finished. Measured {CurvePoints.Count} points.";
             }
             else
             {
                 MeasurementStatus = "Finished. No data points parsed.";
             }
+
+            if (AutoSwitchToViewer)
+            {
+                SelectedTabIndex = 1; // Auto switch to Viewer tab
+            }
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"Error during sweep: {ex.Message}";
+            ErrorMessage = $"Error during measurement: {ex.Message}";
             MeasurementStatus = $"Error: {ex.Message}";
-            Console.WriteLine($"Error running sweep: {ex.Message}");
+            Console.WriteLine($"Error running measurement: {ex.Message}");
         }
         finally
         {
@@ -462,111 +376,6 @@ public partial class MainWindowViewModel : ViewModelBase
             try { await E5263_SMU.Instance.DisconnectAsync(); } catch { }
             IsMeasuring = false;
         }
-    }
-
-    private List<CurvePoint> ParseSmuData(string rawData, int modeValue)
-    {
-        var points = new List<CurvePoint>();
-        if (string.IsNullOrWhiteSpace(rawData)) return points;
-
-        // Under FMT 1 + TSC 1, data is comma-separated ASCII items
-        var items = rawData.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-
-        var parsedCurrents = new List<double>();
-        var parsedVoltages = new List<double>();
-        var parsedTimes = new List<double>();
-
-        foreach (var item in items)
-        {
-            var trimmed = item.Trim();
-            if (trimmed.Length < 4) continue;
-
-            char firstChar = trimmed[0];
-            char thirdChar = trimmed[2];
-            string numStr = trimmed.Substring(3);
-
-            if (firstChar == 'T')
-            {
-                // Time stamp (e.g. TAV...)
-                if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double t))
-                {
-                    parsedTimes.Add(t);
-                }
-            }
-            else if (thirdChar == 'I')
-            {
-                // Current measurement (e.g. N2I..., C2I...)
-                if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double iVal))
-                {
-                    parsedCurrents.Add(iVal);
-                }
-            }
-            else if (thirdChar == 'V')
-            {
-                // Voltage measurement (e.g. N2V..., C2V...)
-                if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double vVal))
-                {
-                    parsedVoltages.Add(vVal);
-                }
-            }
-        }
-
-        int count = parsedCurrents.Count;
-        if (count == 0) return points;
-
-        // If the instrument returned both voltage and current measurements for each point, pair them directly
-        if (parsedVoltages.Count == count)
-        {
-            for (int i = 0; i < count; i++)
-            {
-                points.Add(new CurvePoint(parsedVoltages[i], parsedCurrents[i]));
-            }
-        }
-        else
-        {
-            // Otherwise, fall back to calculating step voltage based on sweep parameters
-            if (modeValue == 1)
-            {
-                // Single sweep: start -> stop
-                for (int i = 0; i < count; i++)
-                {
-                    double v = SweepStart;
-                    if (count > 1)
-                    {
-                        v = SweepStart + i * (SweepStop - SweepStart) / (count - 1);
-                    }
-                    points.Add(new CurvePoint(v, parsedCurrents[i]));
-                }
-            }
-            else
-            {
-                // Double sweep: start -> stop -> start
-                int halfPoints = (count + 1) / 2;
-                for (int i = 0; i < count; i++)
-                {
-                    double v;
-                    if (i < halfPoints)
-                    {
-                        v = SweepStart;
-                        if (halfPoints > 1)
-                        {
-                            v = SweepStart + i * (SweepStop - SweepStart) / (halfPoints - 1);
-                        }
-                    }
-                    else
-                    {
-                        v = SweepStop;
-                        if (halfPoints > 1)
-                        {
-                            v = SweepStop - (i - halfPoints + 1) * (SweepStop - SweepStart) / (halfPoints - 1);
-                        }
-                    }
-                    points.Add(new CurvePoint(v, parsedCurrents[i]));
-                }
-            }
-        }
-
-        return points;
     }
 
     /// <summary>
@@ -596,13 +405,42 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var config = ConfigurationService.Instance.GetConfig();
-            config.SweepChannel = SweepChannel;
-            config.SweepStart = SweepStart;
-            config.SweepStop = SweepStop;
-            config.SweepPoints = SweepPoints;
-            config.SweepCompliance = SweepCompliance;
-            config.SweepAdcSamples = SweepAdcSamples;
-            config.SelectedSweepMode = SelectedSweepMode;
+
+            // Save parameters from any active plan if they exist
+            foreach (var plan in MeasurementPlans)
+            {
+                foreach (var param in plan.Parameters)
+                {
+                    switch (param.Name)
+                    {
+                        case "Channel":
+                            config.SweepChannel = param.GetValueAsString();
+                            break;
+                        case "StartVoltage":
+                            config.SweepStart = param.GetValueAsDouble();
+                            break;
+                        case "Voltage":
+                            config.SweepStart = param.GetValueAsDouble(); // Map to SweepStart for backward compatibility
+                            break;
+                        case "StopVoltage":
+                            config.SweepStop = param.GetValueAsDouble();
+                            break;
+                        case "Points":
+                            config.SweepPoints = param.GetValueAsInt();
+                            break;
+                        case "Compliance":
+                            config.SweepCompliance = param.GetValueAsDouble();
+                            break;
+                        case "AdcSamples":
+                            config.SweepAdcSamples = param.GetValueAsInt();
+                            break;
+                        case "SweepMode":
+                            config.SelectedSweepMode = param.GetValueAsString();
+                            break;
+                    }
+                }
+            }
+
             await ConfigurationService.Instance.SaveAsync(config);
         }
         catch (Exception ex)
@@ -619,21 +457,26 @@ public partial class MainWindowViewModel : ViewModelBase
             await Settings.ApplySettingsAsync();
 
             // Then retrieve updated config, merge our measurement settings, and save
-            var config = ConfigurationService.Instance.GetConfig();
-            config.SweepChannel = SweepChannel;
-            config.SweepStart = SweepStart;
-            config.SweepStop = SweepStop;
-            config.SweepPoints = SweepPoints;
-            config.SweepCompliance = SweepCompliance;
-            config.SweepAdcSamples = SweepAdcSamples;
-            config.SelectedSweepMode = SelectedSweepMode;
-
-            await ConfigurationService.Instance.SaveAsync(config);
+            await SaveMeasurementConfigAsync();
             Settings.ApplyStatusMessage = "Settings and measurement configuration saved.";
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Failed to save configuration: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Reloads measurement plans to reflect new parameter defaults.
+    /// </summary>
+    public void ReloadPlanParameters()
+    {
+        MeasurementPlans = new List<IMeasurementPlan>
+        {
+            new MeasurePointMeasurementPlan(),
+            new USweepMeasurementPlan()
+        };
+        var prevPlanName = SelectedPlan?.Name;
+        SelectedPlan = MeasurementPlans.Find(p => p.Name == prevPlanName) ?? MeasurementPlans[0];
     }
 }

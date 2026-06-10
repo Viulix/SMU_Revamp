@@ -84,4 +84,9 @@ public class AppConfig
     /// Sweep Mode selection.
     /// </summary>
     public string SelectedSweepMode { get; set; } = "Double Staircase (3)";
+
+    /// <summary>
+    /// Default values for plan parameters, keyed by Plan Name -> Parameter Name -> Parameter Value.
+    /// </summary>
+    public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, string>> DefaultPlanParameters { get; set; } = new();
 }

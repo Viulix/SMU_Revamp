@@ -1,0 +1,109 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SMU_Revamp.ViewModels"
+        xmlns:models="using:SMU_Revamp.Models"
+        xmlns:views="using:SMU_Revamp.Views"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="400"
+        x:Class="SMU_Revamp.Views.DefaultsWindow"
+        x:DataType="vm:DefaultsViewModel"
+        Title="Edit Measurement Defaults"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        CanResize="True"
+        Width="600"
+        Height="500">
+
+    <Design.DataContext>
+        <vm:DefaultsViewModel />
+    </Design.DataContext>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Orientation="Vertical" Margin="20" Spacing="15">
+            <!-- Warning Disclaimer Box -->
+            <Border Background="#FEEBEE" BorderBrush="#EF5350" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,5">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="⚠️" FontSize="20" VerticalAlignment="Center" />
+                    <TextBlock Text="Warning: Modifying default parameter values changes the baseline parameters loaded at application startup. Ensure these values match your instrument's safety thresholds."
+                               Foreground="#C62828"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Width="480" />
+                </StackPanel>
+            </Border>
+
+            <!-- Plan Selector -->
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Measurement Plan:" Width="150" VerticalAlignment="Center" FontWeight="Bold" />
+                <ComboBox ItemsSource="{Binding MeasurementPlans}"
+                          SelectedItem="{Binding SelectedPlan}"
+                          Width="200">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+
+            <TextBlock Text="{Binding SelectedPlan.Description}" 
+                       TextWrapping="Wrap" 
+                       FontStyle="Italic" 
+                       Opacity="0.7" 
+                       Margin="0,5,0,10" />
+
+            <Separator Margin="0,5" />
+
+            <!-- Dynamic Parameters editor -->
+            <TextBlock Text="Default Values Configuration" FontSize="14" FontWeight="SemiBold" Margin="0,5,0,5" />
+            
+            <ItemsControl ItemsSource="{Binding SelectedPlan.Parameters}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:MeasurementParameter">
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,10" ToolTip.Tip="{Binding Tooltip}">
+                            <TextBlock Text="{Binding DisplayName}" Width="150" VerticalAlignment="Center" />
+                            <ContentControl Content="{Binding}">
+                                <ContentControl.ContentTemplate>
+                                    <views:ParameterTemplateSelector>
+                                        <views:ParameterTemplateSelector.TextTemplate>
+                                            <DataTemplate x:DataType="models:MeasurementParameter">
+                                                <TextBox Text="{Binding Value, Mode=TwoWay}" Width="150" />
+                                            </DataTemplate>
+                                        </views:ParameterTemplateSelector.TextTemplate>
+                                        <views:ParameterTemplateSelector.CheckboxTemplate>
+                                            <DataTemplate x:DataType="models:MeasurementParameter">
+                                                <CheckBox IsChecked="{Binding Value, Mode=TwoWay}" />
+                                            </DataTemplate>
+                                        </views:ParameterTemplateSelector.CheckboxTemplate>
+                                        <views:ParameterTemplateSelector.DropdownTemplate>
+                                            <DataTemplate x:DataType="models:MeasurementParameter">
+                                                <ComboBox ItemsSource="{Binding Options}" 
+                                                          SelectedItem="{Binding Value, Mode=TwoWay}" 
+                                                          Width="200" />
+                                            </DataTemplate>
+                                        </views:ParameterTemplateSelector.DropdownTemplate>
+                                    </views:ParameterTemplateSelector>
+                                </ContentControl.ContentTemplate>
+                            </ContentControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Separator Margin="0,10" />
+
+            <!-- Action Buttons -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                <Button Content="Save Defaults" Command="{Binding SaveDefaultsCommand}" Classes="Primary" Padding="15,8" />
+                <Button Content="Close" Click="CloseButton_Click" Classes="Tertiary" Padding="15,8" />
+            </StackPanel>
+
+            <TextBlock Text="{Binding StatusMessage}"
+                       HorizontalAlignment="Right"
+                       Foreground="#2E7D32"
+                       FontWeight="SemiBold" />
+        </StackPanel>
+    </ScrollViewer>
+</Window>

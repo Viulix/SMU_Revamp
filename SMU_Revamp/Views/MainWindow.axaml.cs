@@ -22,6 +22,12 @@ public partial class MainWindow : Window
         await settingsWindow.ShowDialog(this);
     }
 
+    private async void DefaultsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var defaultsWindow = new DefaultsWindow();
+        await defaultsWindow.ShowDialog(this);
+    }
+
     private async void ExportCsvButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is ViewModels.MainWindowViewModel vm)
