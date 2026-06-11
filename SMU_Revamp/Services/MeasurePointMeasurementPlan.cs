@@ -21,6 +21,7 @@ namespace SMU_Revamp.Services
             Parameters = new List<MeasurementParameter>
             {
                 new() { Name = "Channel", DisplayName = "Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel number (e.g. 2)" },
+                new() { Name = "ReadingChannel", DisplayName = "Reading Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel to measure (e.g. 1 or 2)" },
                 new() { Name = "Voltage", DisplayName = "Voltage (V):", Type = ParameterType.Number, Tooltip = "The forced DC voltage (in Volts)" },
                 new() { Name = "Compliance", DisplayName = "Compliance (A):", Type = ParameterType.Number, Tooltip = "The current compliance limit (in Amperes)" },
                 new() { Name = "AdcSamples", DisplayName = "ADC Samples (PLC):", Type = ParameterType.Number, Tooltip = "Number of Power Line Cycles (PLC) for averaging" }
@@ -37,6 +38,9 @@ namespace SMU_Revamp.Services
                 {
                     case "Channel":
                         param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Channel", config.SweepChannel);
+                        break;
+                    case "ReadingChannel":
+                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadingChannel", config.SweepChannel);
                         break;
                     case "Voltage":
                         param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Voltage", config.SweepStart);
@@ -56,6 +60,9 @@ namespace SMU_Revamp.Services
             ResultPoints.Clear();
 
             string channel = GetParamValueString("Channel");
+            string readingChannel = GetParamValueString("ReadingChannel");
+            if (string.IsNullOrWhiteSpace(readingChannel)) readingChannel = channel;
+
             double voltage = GetParamValueDouble("Voltage");
             double compliance = GetParamValueDouble("Compliance");
             int adcSamples = GetParamValueInt("AdcSamples");
@@ -64,6 +71,10 @@ namespace SMU_Revamp.Services
             await smu.SendCommandAsync("FMT 1");
             await smu.SendCommandAsync("TSC 1");
             await smu.SendCommandAsync($"CN {channel}");
+            if (readingChannel != channel)
+            {
+                await smu.SendCommandAsync($"CN {readingChannel}");
+            }
             await smu.SendCommandAsync($"AV -{adcSamples},0");
 
             var dvCommand = System.FormattableString.Invariant($"DV {channel},0,{voltage},{compliance}");
@@ -75,14 +86,14 @@ namespace SMU_Revamp.Services
                 throw new InvalidOperationException($"SMU rejected DV command parameters: {dvError}");
             }
 
-            await smu.SendCommandAsync($"MM 1,{channel}");
+            await smu.SendCommandAsync($"MM 1,{readingChannel}");
             var mmError = await smu.CheckErrorAsync();
             if (mmError != null)
             {
                 throw new InvalidOperationException($"SMU rejected MM command: {mmError}");
             }
 
-            await smu.SendCommandAsync($"CMM {channel},1");
+            await smu.SendCommandAsync($"CMM {readingChannel},1");
             var cmmError = await smu.CheckErrorAsync();
             if (cmmError != null)
             {
@@ -107,7 +118,7 @@ namespace SMU_Revamp.Services
             {
                 foreach (var pt in parsed)
                 {
-                    var msg = System.FormattableString.Invariant($"[Measure Point] Channel: {channel}, Force Voltage: {voltage:F4} V, Measured Voltage: {pt.Voltage:F6} V, Measured Current: {pt.Current:E6} A");
+                    var msg = System.FormattableString.Invariant($"[Measure Point] Channel: {channel}, Reading Channel: {readingChannel}, Force Voltage: {voltage:F4} V, Measured Voltage: {pt.Voltage:F6} V, Measured Current: {pt.Current:E6} A");
                     Console.WriteLine(msg);
                     System.Diagnostics.Debug.WriteLine(msg);
                 }

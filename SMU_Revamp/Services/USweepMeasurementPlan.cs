@@ -21,6 +21,7 @@ namespace SMU_Revamp.Services
             Parameters = new List<MeasurementParameter>
             {
                 new() { Name = "Channel", DisplayName = "Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel number (e.g. 2)" },
+                new() { Name = "ReadingChannel", DisplayName = "Reading Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel to measure (e.g. 1 or 2)" },
                 new() { Name = "StartVoltage", DisplayName = "Start Voltage (V):", Type = ParameterType.Number, Tooltip = "The starting voltage of the linear sweep" },
                 new() { Name = "StopVoltage", DisplayName = "Stop Voltage (V):", Type = ParameterType.Number, Tooltip = "The ending voltage of the linear sweep" },
                 new() { Name = "Points", DisplayName = "Points:", Type = ParameterType.Number, Tooltip = "The number of sweep measurement points" },
@@ -40,6 +41,9 @@ namespace SMU_Revamp.Services
                 {
                     case "Channel":
                         param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Channel", config.SweepChannel);
+                        break;
+                    case "ReadingChannel":
+                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadingChannel", config.SweepChannel);
                         break;
                     case "StartVoltage":
                         param.Value = ParameterConfigHelper.GetDefaultValue(Name, "StartVoltage", config.SweepStart);
@@ -68,6 +72,9 @@ namespace SMU_Revamp.Services
             ResultPoints.Clear();
 
             string channel = GetParamValueString("Channel");
+            string readingChannel = GetParamValueString("ReadingChannel");
+            if (string.IsNullOrWhiteSpace(readingChannel)) readingChannel = channel;
+
             double start = GetParamValueDouble("StartVoltage");
             double stop = GetParamValueDouble("StopVoltage");
             int pointsCount = GetParamValueInt("Points");
@@ -79,6 +86,10 @@ namespace SMU_Revamp.Services
             await smu.SendCommandAsync("FMT 1");
             await smu.SendCommandAsync("TSC 1");
             await smu.SendCommandAsync($"CN {channel}");
+            if (readingChannel != channel)
+            {
+                await smu.SendCommandAsync($"CN {readingChannel}");
+            }
             await smu.SendCommandAsync($"AV -{adcSamples},0");
 
             int modeValue = 3;
@@ -94,15 +105,15 @@ namespace SMU_Revamp.Services
                 throw new InvalidOperationException($"SMU rejected WV command parameters: {wvError}");
             }
 
-            await smu.SendCommandAsync($"RI {channel},0");
-            await smu.SendCommandAsync($"MM 2,{channel}");
+            await smu.SendCommandAsync($"RI {readingChannel},0");
+            await smu.SendCommandAsync($"MM 2,{readingChannel}");
             var mmError = await smu.CheckErrorAsync();
             if (mmError != null)
             {
                 throw new InvalidOperationException($"SMU rejected MM command: {mmError}");
             }
 
-            await smu.SendCommandAsync($"CMM {channel},1");
+            await smu.SendCommandAsync($"CMM {readingChannel},1");
             var cmmError = await smu.CheckErrorAsync();
             if (cmmError != null)
             {
