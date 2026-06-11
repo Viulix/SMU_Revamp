@@ -92,11 +92,13 @@ namespace SMU_Revamp.Services
             await smu.SendCommandAsync("TSR");
             await smu.SendCommandAsync("XE");
 
-            // Wait for completion using TSQ query
-            string tsqResponse = await smu.QueryAsync("TSQ", readBufferChars: 50);
+            await smu.SendCommandAsync("TSQ");
 
             // Read the single-point response block
             string rawData = await smu.ReadResponseAsync(100);
+
+            // Read the TSQ response block to clear it from the session output queue
+            string tsqResponse = await smu.ReadResponseAsync(50);
 
             var parsed = ParseSmuData(rawData, voltage);
             ResultPoints.AddRange(parsed);

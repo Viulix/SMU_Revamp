@@ -112,12 +112,14 @@ namespace SMU_Revamp.Services
             await smu.SendCommandAsync("TSR");
             await smu.SendCommandAsync("XE");
 
-            // Wait for completion using TSQ query
-            string tsqResponse = await smu.QueryAsync("TSQ", readBufferChars: 50);
+            await smu.SendCommandAsync("TSQ");
 
             // Calculate buffer size
             int expectedBufferLength = pointsCount * 32 * (modeValue == 3 ? 2 : 1) + 200;
             string rawData = await smu.ReadResponseAsync(expectedBufferLength);
+
+            // Read the TSQ response block to clear it from the session output queue
+            string tsqResponse = await smu.ReadResponseAsync(50);
 
             var parsed = ParseSmuData(rawData, modeValue, start, stop);
             ResultPoints.AddRange(parsed);
@@ -214,7 +216,7 @@ namespace SMU_Revamp.Services
                             v = sweepStop;
                             if (halfPoints > 1)
                             {
-                                v = sweepStop - (i - halfPoints + 1) * (sweepStop - sweepStart) / (halfPoints - 1);
+                                v = sweepStop - (i - halfPoints) * (sweepStop - sweepStart) / (halfPoints - 1);
                             }
                         }
                         points.Add(new CurvePoint(v, parsedCurrents[i]));
