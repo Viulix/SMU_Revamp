@@ -84,7 +84,7 @@ namespace SMU_Revamp.Services
             int adcSamples = GetParamValueInt("AdcSamples");
             string mode = GetParamValueString("SweepMode");
 
-            progress?.Report(5);
+            progress?.Report(1);
             await smu.SendCommandAsync("*RST");
             await smu.SendCommandAsync("FMT 1");
             await smu.SendCommandAsync("TSC 1");
@@ -97,7 +97,7 @@ namespace SMU_Revamp.Services
                 await smu.SendCommandAsync($"CN {channel}");
             }
             await smu.SendCommandAsync($"AV -{adcSamples},0");
-            progress?.Report(10);
+            progress?.Report(2);
 
             int modeValue = 3;
             if (mode.Contains("(1)")) modeValue = 1;
@@ -111,7 +111,7 @@ namespace SMU_Revamp.Services
             {
                 throw new InvalidOperationException($"SMU rejected WV command parameters: {wvError}");
             }
-            progress?.Report(15);
+            progress?.Report(3);
 
             await smu.SendCommandAsync($"RI {readingChannel},0");
             await smu.SendCommandAsync($"MM 2,{readingChannel}");
@@ -120,7 +120,7 @@ namespace SMU_Revamp.Services
             {
                 throw new InvalidOperationException($"SMU rejected MM command: {mmError}");
             }
-            progress?.Report(20);
+            progress?.Report(4);
 
             await smu.SendCommandAsync($"CMM {readingChannel},1");
             var cmmError = await smu.CheckErrorAsync();
@@ -128,7 +128,7 @@ namespace SMU_Revamp.Services
             {
                 throw new InvalidOperationException($"SMU rejected CMM command: {cmmError}");
             }
-            progress?.Report(25);
+            progress?.Report(5);
 
             await smu.SendCommandAsync("TSR");
             await smu.SendCommandAsync("XE");
@@ -136,28 +136,36 @@ namespace SMU_Revamp.Services
 
             // Calculate estimated duration
             int totalPoints = modeValue == 3 ? pointsCount * 2 : pointsCount;
-            // 20 ms per PLC at 50 Hz. Let's assume 20ms per PLC + 40ms overhead per point, plus 1s GPIB/device overhead
+            // 20 ms per PLC at 50 Hz. Let's assume 20ms per PLC + 5ms overhead per point, plus 0.5s GPIB/device overhead
             double plcTime = adcSamples * 0.02;
-            double estimatedDurationSeconds = totalPoints * (plcTime + 0.04) + 1.0;
-            if (estimatedDurationSeconds < 1.0) estimatedDurationSeconds = 1.0;
-
-            progress?.Report(30);
+            double estimatedDurationSeconds = totalPoints * (plcTime + 0.005) + 0.5;
+            if (estimatedDurationSeconds < 0.5) estimatedDurationSeconds = 0.5;
 
             using var cts = new CancellationTokenSource();
             var progressTask = Task.Run(async () =>
             {
                 try
                 {
-                    double currentProgress = 30.0;
-                    double targetProgress = 90.0;
+                    double currentProgress = 5.0;
+                    double targetProgress = 95.0;
                     double totalSteps = estimatedDurationSeconds * 10.0; // 100ms interval
-                    double stepSize = (targetProgress - currentProgress) / totalSteps;
+                    double stepIndex = 0;
 
                     while (!cts.Token.IsCancellationRequested && currentProgress < targetProgress)
                     {
                         progress?.Report(currentProgress);
                         await Task.Delay(100, cts.Token);
-                        currentProgress += stepSize;
+                        stepIndex++;
+
+                        if (stepIndex < totalSteps)
+                        {
+                            currentProgress = 5.0 + (targetProgress - 5.0) * (stepIndex / totalSteps);
+                        }
+                        else
+                        {
+                            // Asymptotically approach 98% if it takes longer than estimated
+                            currentProgress += (98.0 - currentProgress) * 0.05;
+                        }
                     }
                 }
                 catch (TaskCanceledException) { }
@@ -173,14 +181,14 @@ namespace SMU_Revamp.Services
                 // Cancel the background progress task since we got the data
                 cts.Cancel();
                 try { await progressTask; } catch { }
-                progress?.Report(90);
+                progress?.Report(95);
 
                 // Read the TSQ response block to clear it from the session output queue
                 string tsqResponse = await smu.ReadResponseAsync(50);
 
                 var parsed = ParseSmuData(rawData, modeValue, start, stop);
                 ResultPoints.AddRange(parsed);
-                progress?.Report(95);
+                progress?.Report(98);
 
                 var finalError = await smu.CheckErrorAsync();
                 if (finalError != null)
