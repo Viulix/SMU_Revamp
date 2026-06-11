@@ -200,6 +200,13 @@
                                            TextWrapping="Wrap" />
                             </Border>
 
+                            <TextBlock Text="{Binding WarningMessage}" 
+                                       Foreground="#E65100" 
+                                       TextWrapping="Wrap" 
+                                       MaxWidth="400" 
+                                       HorizontalAlignment="Left"
+                                       IsVisible="{Binding HasWarningMessage}" />
+
                             <TextBlock Text="{Binding ErrorMessage}" 
                                        Foreground="#D32F2F" 
                                        TextWrapping="Wrap" 

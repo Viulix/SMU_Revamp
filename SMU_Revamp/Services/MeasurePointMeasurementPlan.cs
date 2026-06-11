@@ -20,7 +20,7 @@ namespace SMU_Revamp.Services
         {
             Parameters = new List<MeasurementParameter>
             {
-                new() { Name = "Channel", DisplayName = "Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel number (e.g. 2)" },
+                new() { Name = "WriteChannel", DisplayName = "Write Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel number (e.g. 2)" },
                 new() { Name = "ReadingChannel", DisplayName = "Reading Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel to measure (e.g. 1 or 2)" },
                 new() { Name = "Voltage", DisplayName = "Voltage (V):", Type = ParameterType.Number, Tooltip = "The forced DC voltage (in Volts)" },
                 new() { Name = "Compliance", DisplayName = "Compliance (A):", Type = ParameterType.Number, Tooltip = "The current compliance limit (in Amperes)" },
@@ -36,8 +36,8 @@ namespace SMU_Revamp.Services
             {
                 switch (param.Name)
                 {
-                    case "Channel":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Channel", config.SweepChannel);
+                    case "WriteChannel":
+                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "WriteChannel", config.SweepChannel);
                         break;
                     case "ReadingChannel":
                         param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadingChannel", config.SweepChannel);
@@ -59,7 +59,7 @@ namespace SMU_Revamp.Services
         {
             ResultPoints.Clear();
 
-            string channel = GetParamValueString("Channel");
+            string channel = GetParamValueString("WriteChannel");
             string readingChannel = GetParamValueString("ReadingChannel");
             if (string.IsNullOrWhiteSpace(readingChannel)) readingChannel = channel;
 
@@ -190,7 +190,7 @@ namespace SMU_Revamp.Services
             if (count == 0) return points;
 
             string readingChannel = GetParamValueString("ReadingChannel");
-            string channel = GetParamValueString("Channel");
+            string channel = GetParamValueString("WriteChannel");
             if (string.IsNullOrWhiteSpace(readingChannel)) readingChannel = channel;
             bool invertCurrent = readingChannel != channel;
 

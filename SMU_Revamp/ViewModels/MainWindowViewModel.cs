@@ -35,19 +35,30 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _measurementPlans, value);
     }
 
-    private IMeasurementPlan _selectedPlan;
+    private IMeasurementPlan _selectedPlan = null!;
     public IMeasurementPlan SelectedPlan
     {
         get => _selectedPlan;
         set
         {
+            var oldPlan = _selectedPlan;
             if (SetProperty(ref _selectedPlan, value))
             {
+                if (oldPlan?.Parameters != null)
+                {
+                    foreach (var param in oldPlan.Parameters)
+                    {
+                        param.PropertyChanged -= OnParameterPropertyChanged;
+                    }
+                }
+
                 if (_selectedPlan != null)
                 {
                     _selectedPlan.LoadDefaults();
+                    SubscribeToParameterChanges();
                 }
                 CurvePoints = _selectedPlan?.ResultPoints ?? new List<CurvePoint>();
+                UpdateWarningMessage();
             }
         }
     }
@@ -124,6 +135,21 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _errorMessage, value);
     }
 
+    private string _warningMessage = string.Empty;
+    public string WarningMessage
+    {
+        get => _warningMessage;
+        set
+        {
+            if (SetProperty(ref _warningMessage, value))
+            {
+                OnPropertyChanged(nameof(HasWarningMessage));
+            }
+        }
+    }
+
+    public bool HasWarningMessage => !string.IsNullOrEmpty(_warningMessage);
+
     public ICommand GoToContactCommand { get; }
     public ICommand SaveSettingsCommand { get; }
 
@@ -137,7 +163,7 @@ public partial class MainWindowViewModel : ViewModelBase
             new MeasurePointMeasurementPlan(),
             new USweepMeasurementPlan()
         };
-        _selectedPlan = MeasurementPlans[0]; // Default to Measure Point
+        SelectedPlan = MeasurementPlans[0]; // Default to Measure Point
 
         GoToContactCommand = new AsyncRelayCommand(GoToContactAsync);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAndConfigurationAsync);
@@ -426,6 +452,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 {
                     switch (param.Name)
                     {
+                        case "WriteChannel":
                         case "Channel":
                             config.SweepChannel = param.GetValueAsString();
                             break;
@@ -491,5 +518,49 @@ public partial class MainWindowViewModel : ViewModelBase
         };
         var prevPlanName = SelectedPlan?.Name;
         SelectedPlan = MeasurementPlans.Find(p => p.Name == prevPlanName) ?? MeasurementPlans[0];
+    }
+
+    private void SubscribeToParameterChanges()
+    {
+        if (_selectedPlan?.Parameters == null) return;
+        foreach (var param in _selectedPlan.Parameters)
+        {
+            param.PropertyChanged -= OnParameterPropertyChanged;
+            param.PropertyChanged += OnParameterPropertyChanged;
+        }
+    }
+
+    private void OnParameterPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MeasurementParameter.Value))
+        {
+            UpdateWarningMessage();
+        }
+    }
+
+    private void UpdateWarningMessage()
+    {
+        if (_selectedPlan == null)
+        {
+            WarningMessage = string.Empty;
+            return;
+        }
+
+        var writeChannelParam = _selectedPlan.Parameters.Find(p => p.Name == "WriteChannel" || p.Name == "Channel");
+        var readChannelParam = _selectedPlan.Parameters.Find(p => p.Name == "ReadingChannel");
+
+        if (writeChannelParam != null && readChannelParam != null)
+        {
+            var writeVal = writeChannelParam.GetValueAsString()?.Trim();
+            var readVal = readChannelParam.GetValueAsString()?.Trim();
+
+            if (!string.IsNullOrEmpty(writeVal) && !string.IsNullOrEmpty(readVal) && writeVal == readVal)
+            {
+                WarningMessage = "Warning: Write Channel and Reading Channel are the same. The setup is generally designed for different write and read channels.";
+                return;
+            }
+        }
+
+        WarningMessage = string.Empty;
     }
 }
