@@ -419,19 +419,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 config.DefaultPlanParameters = new();
             }
 
-            // Save parameters from any active plan if they exist
+            // Save top-level app config parameters from active plans
             foreach (var plan in MeasurementPlans)
             {
-                if (!config.DefaultPlanParameters.TryGetValue(plan.Name, out var planParams))
-                {
-                    planParams = new();
-                    config.DefaultPlanParameters[plan.Name] = planParams;
-                }
-
                 foreach (var param in plan.Parameters)
                 {
-                    planParams[param.Name] = param.GetValueAsString();
-
                     switch (param.Name)
                     {
                         case "Channel":
