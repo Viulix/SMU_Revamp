@@ -70,10 +70,13 @@ namespace SMU_Revamp.Services
             await smu.SendCommandAsync("*RST");
             await smu.SendCommandAsync("FMT 1");
             await smu.SendCommandAsync("TSC 1");
-            await smu.SendCommandAsync($"CN {channel}");
             if (readingChannel != channel)
             {
-                await smu.SendCommandAsync($"CN {readingChannel}");
+                await smu.SendCommandAsync($"CN {channel},{readingChannel}");
+            }
+            else
+            {
+                await smu.SendCommandAsync($"CN {channel}");
             }
             await smu.SendCommandAsync($"AV -{adcSamples},0");
 
@@ -113,6 +116,12 @@ namespace SMU_Revamp.Services
 
             var parsed = ParseSmuData(rawData, voltage);
             ResultPoints.AddRange(parsed);
+
+            var finalError = await smu.CheckErrorAsync();
+            if (finalError != null)
+            {
+                throw new InvalidOperationException($"SMU Error during measurement: {finalError}");
+            }
 
             if (parsed.Count > 0)
             {
@@ -180,18 +189,25 @@ namespace SMU_Revamp.Services
             int count = parsedCurrents.Count;
             if (count == 0) return points;
 
+            string readingChannel = GetParamValueString("ReadingChannel");
+            string channel = GetParamValueString("Channel");
+            if (string.IsNullOrWhiteSpace(readingChannel)) readingChannel = channel;
+            bool invertCurrent = readingChannel != channel;
+
             if (parsedVoltages.Count == count)
             {
                 for (int i = 0; i < count; i++)
                 {
-                    points.Add(new CurvePoint(parsedVoltages[i], parsedCurrents[i]));
+                    double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
+                    points.Add(new CurvePoint(parsedVoltages[i], current));
                 }
             }
             else
             {
                 for (int i = 0; i < count; i++)
                 {
-                    points.Add(new CurvePoint(forcedVoltage, parsedCurrents[i]));
+                    double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
+                    points.Add(new CurvePoint(forcedVoltage, current));
                 }
             }
 
