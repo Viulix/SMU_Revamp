@@ -71,15 +71,21 @@ namespace SMU_Revamp.Services
             {
                 if (_isConnected && _session != null)
                     return;
-                var rm = new ResourceManager();
-                _session = rm.Open(_resourceString) as MessageBasedSession;
-                if (_session != null)
+                await Task.Run(() => 
                 {
-                    // SUSS ProberBench responses are terminated by a Carriage Return (\r, ASCII 13)
-                    _session.TerminationCharacter = 13;
-                    _session.TerminationCharacterEnabled = true;
-                    _isConnected = true;
+                    var rm = new ResourceManager();
+                    _session = rm.Open(_resourceString) as MessageBasedSession;
+                    if (_session != null)
+                    {
+                        // SUSS ProberBench responses are terminated by a Carriage Return (\r, ASCII 13)
+                        _session.TerminationCharacter = 13;
+                        _session.TerminationCharacterEnabled = true;
+                        _isConnected = true;
+                    }
+                });
 
+                if (_isConnected)
+                {
                     // Apply quiet mode setting to the motor if enabled (non-fatal if unsupported)
                     if (QuietMode)
                     {
@@ -97,7 +103,7 @@ namespace SMU_Revamp.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[ProberService] Error during connect: {ex.Message}");
-                throw new InvalidOperationException("Failed to connect to prober. Check resource string and connection.", ex);
+                throw new InvalidOperationException($"Failed to connect to prober. Check resource string and connection. Details: {ex.Message}", ex);
             }
         }
 
@@ -108,9 +114,12 @@ namespace SMU_Revamp.Services
         {
             try
             {
-                _session?.Dispose();
-                _session = null;
-                _isConnected = false;
+                await Task.Run(() => 
+                {
+                    _session?.Dispose();
+                    _session = null;
+                    _isConnected = false;
+                });
             }
             catch (Exception ex)
             {
@@ -308,14 +317,14 @@ namespace SMU_Revamp.Services
                 _session.TimeoutMilliseconds = timeoutMs;
                 
                 // SUSS ProberBench commands must be terminated by a Carriage Return (\r, ASCII 13)
-                _session.RawIO.Write(command + "\r");
+                await Task.Run(() => _session.RawIO.Write(command + "\r"));
 
                 if (postWriteDelayMs > 0)
                 {
                     await Task.Delay(postWriteDelayMs);
                 }
 
-                response = _session.RawIO.ReadString(readBufferChars) ?? "No response received.";
+                response = await Task.Run(() => _session.RawIO.ReadString(readBufferChars)) ?? "No response received.";
             }
             catch (Exception ex)
             {

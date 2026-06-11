@@ -63,8 +63,11 @@ namespace SMU_Revamp.Services
             {
                 if (_isConnected && _session != null)
                     return;
-                _session = CreateSession();
-                _isConnected = _session != null;
+                await Task.Run(() => 
+                {
+                    _session = CreateSession();
+                    _isConnected = _session != null;
+                });
             }
             catch (Exception ex)
             {
@@ -80,9 +83,12 @@ namespace SMU_Revamp.Services
         {
             try
             {
-                _session?.Dispose();
-                _session = null;
-                _isConnected = false;
+                await Task.Run(() => 
+                {
+                    _session?.Dispose();
+                    _session = null;
+                    _isConnected = false;
+                });
             }
             catch (Exception ex)
             {
@@ -100,7 +106,7 @@ namespace SMU_Revamp.Services
                 throw new InvalidOperationException("Not connected to switch matrix.");
             try
             {
-                _session.RawIO.Write(command + "\n");
+                await Task.Run(() => _session.RawIO.Write(command + "\n"));
             }
             catch (Exception ex)
             {
@@ -118,12 +124,12 @@ namespace SMU_Revamp.Services
                 throw new InvalidOperationException("Not connected to switch matrix.");
             try
             {
-                _session.RawIO.Write(command + "\n");
+                await Task.Run(() => _session.RawIO.Write(command + "\n"));
                 if (postWriteDelayMs > 0)
                 {
                     await Task.Delay(postWriteDelayMs);
                 }
-                return _session.RawIO.ReadString(readBufferChars);
+                return await Task.Run(() => _session.RawIO.ReadString(readBufferChars));
             }
             catch (Exception ex)
             {
