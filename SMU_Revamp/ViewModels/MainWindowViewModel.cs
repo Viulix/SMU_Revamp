@@ -352,7 +352,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
             if (CurvePoints.Count > 0)
             {
-                MeasurementStatus = $"Finished. Measured {CurvePoints.Count} points.";
+                if (CurvePoints.Count == 1)
+                {
+                    var pt = CurvePoints[0];
+                    MeasurementStatus = System.FormattableString.Invariant($"Finished. Measured Point - V: {pt.Voltage:F4} V, I: {pt.Current:E6} A");
+                }
+                else
+                {
+                    MeasurementStatus = $"Finished. Measured {CurvePoints.Count} points.";
+                }
             }
             else
             {

@@ -102,6 +102,22 @@ namespace SMU_Revamp.Services
 
             var parsed = ParseSmuData(rawData, voltage);
             ResultPoints.AddRange(parsed);
+
+            if (parsed.Count > 0)
+            {
+                foreach (var pt in parsed)
+                {
+                    var msg = System.FormattableString.Invariant($"[Measure Point] Channel: {channel}, Force Voltage: {voltage:F4} V, Measured Voltage: {pt.Voltage:F6} V, Measured Current: {pt.Current:E6} A");
+                    Console.WriteLine(msg);
+                    System.Diagnostics.Debug.WriteLine(msg);
+                }
+            }
+            else
+            {
+                var errMsg = $"[Measure Point] Error: No data points parsed. Raw data received: '{rawData}'";
+                Console.WriteLine(errMsg);
+                System.Diagnostics.Debug.WriteLine(errMsg);
+            }
         }
 
         private List<CurvePoint> ParseSmuData(string rawData, double forcedVoltage)
