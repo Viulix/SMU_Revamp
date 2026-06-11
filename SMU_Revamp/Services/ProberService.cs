@@ -33,8 +33,23 @@ namespace SMU_Revamp.Services
         /// </summary>
         public static ProberService Instance => _instance.Value;
 
+        private bool _quietMode;
         /// <inheritdoc />
-        public bool QuietMode { get; set; }
+        public bool QuietMode
+        {
+            get => _quietMode;
+            set
+            {
+                if (_quietMode != value)
+                {
+                    _quietMode = value;
+                    if (_isConnected && _session != null)
+                    {
+                        _ = SendProberAsync(_quietMode ? "EnableMotorQuiet 1" : "EnableMotorQuiet 0");
+                    }
+                }
+            }
+        }
 
         /// <inheritdoc />
         public string ResourceString
@@ -58,7 +73,16 @@ namespace SMU_Revamp.Services
                     return;
                 var rm = new ResourceManager();
                 _session = rm.Open(_resourceString) as MessageBasedSession;
-                _isConnected = true;
+                if (_session != null)
+                {
+                    // SUSS ProberBench responses are terminated by a Carriage Return (\r, ASCII 13)
+                    _session.TerminationCharacter = 13;
+                    _session.TerminationCharacterEnabled = true;
+                    _isConnected = true;
+
+                    // Apply quiet mode setting to the motor
+                    await SendProberAsync(QuietMode ? "EnableMotorQuiet 1" : "EnableMotorQuiet 0");
+                }
             }
             catch (Exception ex)
             {
@@ -85,15 +109,17 @@ namespace SMU_Revamp.Services
         }
 
         /// <inheritdoc />
-        public Task ProberAlignAsync()
+        public async Task ProberAlignAsync()
         {
-            return SendProberAsync("MoveChuckSeparation").ContinueWith(_ => Thread.Sleep(AlignContactDelayMs));
+            await SendProberAsync("MoveChuckSeparation");
+            await Task.Delay(AlignContactDelayMs);
         }
 
         /// <inheritdoc />
-        public Task ProberContactAsync()
+        public async Task ProberContactAsync()
         {
-            return SendProberAsync("MoveChuckContact").ContinueWith(_ => Thread.Sleep(AlignContactDelayMs));
+            await SendProberAsync("MoveChuckContact");
+            await Task.Delay(AlignContactDelayMs);
         }
 
         /// <inheritdoc />
@@ -270,25 +296,22 @@ namespace SMU_Revamp.Services
                     throw new InvalidOperationException("GPIB session is not initialized. Call ConnectAsync first.");
                 }
                 _session.TimeoutMilliseconds = timeoutMs;
-                _session.RawIO.Write(command + "\n");
+                
+                // SUSS ProberBench commands must be terminated by a Carriage Return (\r, ASCII 13)
+                _session.RawIO.Write(command + "\r");
 
-                Thread.Sleep(postWriteDelayMs);
-
-                // Not particular clear what quite mode does
-                // -> Copied from original code.
-                response = _session.RawIO.ReadString(readBufferChars) ?? "No response received.";
-
-                if (QuietMode)
+                if (postWriteDelayMs > 0)
                 {
-                    _session.RawIO.Write("EnableMotorQuiet 1\n");
-
-                    // Reading 90 chars here. Based on original code. Not sure if this is correct. TODO: Verify if this is the intended behavior.
-                    response = _session.RawIO.ReadString(readBufferChars) ?? "No response received.";
+                    await Task.Delay(postWriteDelayMs);
                 }
+
+                response = _session.RawIO.ReadString(readBufferChars) ?? "No response received.";
             }
-            catch
+            catch (Exception ex)
             {
-                Thread.Sleep(ExceptionPauseMs);
+                System.Diagnostics.Debug.WriteLine($"[ProberService] Exception in SendProberAsync for command '{command}': {ex.Message}");
+                // Allow a brief cooling down period, fully async without blocking the thread
+                await Task.Delay(1000);
                 throw;
             }
 
