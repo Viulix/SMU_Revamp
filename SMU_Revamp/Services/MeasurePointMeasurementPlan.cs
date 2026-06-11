@@ -55,9 +55,10 @@ namespace SMU_Revamp.Services
             }
         }
 
-        public async Task RunMeasurementAsync(E5263_SMU smu)
+        public async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
         {
             ResultPoints.Clear();
+            progress?.Report(0);
 
             string channel = GetParamValueString("WriteChannel");
             string readingChannel = GetParamValueString("ReadingChannel");
@@ -67,6 +68,7 @@ namespace SMU_Revamp.Services
             double compliance = GetParamValueDouble("Compliance");
             int adcSamples = GetParamValueInt("AdcSamples");
 
+            progress?.Report(10);
             await smu.SendCommandAsync("*RST");
             await smu.SendCommandAsync("FMT 1");
             await smu.SendCommandAsync("TSC 1");
@@ -79,6 +81,7 @@ namespace SMU_Revamp.Services
                 await smu.SendCommandAsync($"CN {channel}");
             }
             await smu.SendCommandAsync($"AV -{adcSamples},0");
+            progress?.Report(30);
 
             var dvCommand = System.FormattableString.Invariant($"DV {channel},0,{voltage},{compliance}");
             await smu.SendCommandAsync(dvCommand);
@@ -88,6 +91,7 @@ namespace SMU_Revamp.Services
             {
                 throw new InvalidOperationException($"SMU rejected DV command parameters: {dvError}");
             }
+            progress?.Report(40);
 
             await smu.SendCommandAsync($"MM 1,{readingChannel}");
             var mmError = await smu.CheckErrorAsync();
@@ -95,6 +99,7 @@ namespace SMU_Revamp.Services
             {
                 throw new InvalidOperationException($"SMU rejected MM command: {mmError}");
             }
+            progress?.Report(50);
 
             await smu.SendCommandAsync($"CMM {readingChannel},1");
             var cmmError = await smu.CheckErrorAsync();
@@ -102,26 +107,32 @@ namespace SMU_Revamp.Services
             {
                 throw new InvalidOperationException($"SMU rejected CMM command: {cmmError}");
             }
+            progress?.Report(60);
 
             await smu.SendCommandAsync("TSR");
             await smu.SendCommandAsync("XE");
+            progress?.Report(70);
 
             await smu.SendCommandAsync("TSQ");
+            progress?.Report(80);
 
             // Read the single-point response block
             string rawData = await smu.ReadResponseAsync(100);
+            progress?.Report(90);
 
             // Read the TSQ response block to clear it from the session output queue
             string tsqResponse = await smu.ReadResponseAsync(50);
 
             var parsed = ParseSmuData(rawData, voltage);
             ResultPoints.AddRange(parsed);
+            progress?.Report(95);
 
             var finalError = await smu.CheckErrorAsync();
             if (finalError != null)
             {
                 throw new InvalidOperationException($"SMU Error during measurement: {finalError}");
             }
+            progress?.Report(100);
 
             if (parsed.Count > 0)
             {

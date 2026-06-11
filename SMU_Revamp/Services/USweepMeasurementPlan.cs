@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using SMU_Revamp.Models;
 
@@ -67,9 +68,10 @@ namespace SMU_Revamp.Services
             }
         }
 
-        public async Task RunMeasurementAsync(E5263_SMU smu)
+        public async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
         {
             ResultPoints.Clear();
+            progress?.Report(0);
 
             string channel = GetParamValueString("WriteChannel");
             string readingChannel = GetParamValueString("ReadingChannel");
@@ -82,6 +84,7 @@ namespace SMU_Revamp.Services
             int adcSamples = GetParamValueInt("AdcSamples");
             string mode = GetParamValueString("SweepMode");
 
+            progress?.Report(5);
             await smu.SendCommandAsync("*RST");
             await smu.SendCommandAsync("FMT 1");
             await smu.SendCommandAsync("TSC 1");
@@ -94,6 +97,7 @@ namespace SMU_Revamp.Services
                 await smu.SendCommandAsync($"CN {channel}");
             }
             await smu.SendCommandAsync($"AV -{adcSamples},0");
+            progress?.Report(10);
 
             int modeValue = 3;
             if (mode.Contains("(1)")) modeValue = 1;
@@ -107,6 +111,7 @@ namespace SMU_Revamp.Services
             {
                 throw new InvalidOperationException($"SMU rejected WV command parameters: {wvError}");
             }
+            progress?.Report(15);
 
             await smu.SendCommandAsync($"RI {readingChannel},0");
             await smu.SendCommandAsync($"MM 2,{readingChannel}");
@@ -115,6 +120,7 @@ namespace SMU_Revamp.Services
             {
                 throw new InvalidOperationException($"SMU rejected MM command: {mmError}");
             }
+            progress?.Report(20);
 
             await smu.SendCommandAsync($"CMM {readingChannel},1");
             var cmmError = await smu.CheckErrorAsync();
@@ -122,26 +128,70 @@ namespace SMU_Revamp.Services
             {
                 throw new InvalidOperationException($"SMU rejected CMM command: {cmmError}");
             }
+            progress?.Report(25);
 
             await smu.SendCommandAsync("TSR");
             await smu.SendCommandAsync("XE");
-
             await smu.SendCommandAsync("TSQ");
 
-            // Calculate buffer size
-            int expectedBufferLength = pointsCount * 32 * (modeValue == 3 ? 2 : 1) + 200;
-            string rawData = await smu.ReadResponseAsync(expectedBufferLength);
+            // Calculate estimated duration
+            int totalPoints = modeValue == 3 ? pointsCount * 2 : pointsCount;
+            // 20 ms per PLC at 50 Hz. Let's assume 20ms per PLC + 40ms overhead per point, plus 1s GPIB/device overhead
+            double plcTime = adcSamples * 0.02;
+            double estimatedDurationSeconds = totalPoints * (plcTime + 0.04) + 1.0;
+            if (estimatedDurationSeconds < 1.0) estimatedDurationSeconds = 1.0;
 
-            // Read the TSQ response block to clear it from the session output queue
-            string tsqResponse = await smu.ReadResponseAsync(50);
+            progress?.Report(30);
 
-            var parsed = ParseSmuData(rawData, modeValue, start, stop);
-            ResultPoints.AddRange(parsed);
-
-            var finalError = await smu.CheckErrorAsync();
-            if (finalError != null)
+            using var cts = new CancellationTokenSource();
+            var progressTask = Task.Run(async () =>
             {
-                throw new InvalidOperationException($"SMU Error during sweep: {finalError}");
+                try
+                {
+                    double currentProgress = 30.0;
+                    double targetProgress = 90.0;
+                    double totalSteps = estimatedDurationSeconds * 10.0; // 100ms interval
+                    double stepSize = (targetProgress - currentProgress) / totalSteps;
+
+                    while (!cts.Token.IsCancellationRequested && currentProgress < targetProgress)
+                    {
+                        progress?.Report(currentProgress);
+                        await Task.Delay(100, cts.Token);
+                        currentProgress += stepSize;
+                    }
+                }
+                catch (TaskCanceledException) { }
+                catch (Exception) { }
+            });
+
+            try
+            {
+                // Calculate buffer size
+                int expectedBufferLength = pointsCount * 32 * (modeValue == 3 ? 2 : 1) + 200;
+                string rawData = await smu.ReadResponseAsync(expectedBufferLength);
+
+                // Cancel the background progress task since we got the data
+                cts.Cancel();
+                try { await progressTask; } catch { }
+                progress?.Report(90);
+
+                // Read the TSQ response block to clear it from the session output queue
+                string tsqResponse = await smu.ReadResponseAsync(50);
+
+                var parsed = ParseSmuData(rawData, modeValue, start, stop);
+                ResultPoints.AddRange(parsed);
+                progress?.Report(95);
+
+                var finalError = await smu.CheckErrorAsync();
+                if (finalError != null)
+                {
+                    throw new InvalidOperationException($"SMU Error during sweep: {finalError}");
+                }
+                progress?.Report(100);
+            }
+            finally
+            {
+                cts.Cancel();
             }
         }
 

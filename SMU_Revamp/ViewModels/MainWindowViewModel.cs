@@ -59,6 +59,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
                 CurvePoints = _selectedPlan?.ResultPoints ?? new List<CurvePoint>();
                 UpdateWarningMessage();
+                OnPropertyChanged(nameof(IsMeasuringSweep));
             }
         }
     }
@@ -340,8 +341,44 @@ public partial class MainWindowViewModel : ViewModelBase
     public bool IsMeasuring
     {
         get => _isMeasuring;
-        set => SetProperty(ref _isMeasuring, value);
+        set
+        {
+            if (SetProperty(ref _isMeasuring, value))
+            {
+                OnPropertyChanged(nameof(IsMeasuringSweep));
+            }
+        }
     }
+
+    private double _measurementProgress;
+    public double MeasurementProgress
+    {
+        get => _measurementProgress;
+        set
+        {
+            if (SetProperty(ref _measurementProgress, value))
+            {
+                OnPropertyChanged(nameof(MeasurementProgressText));
+            }
+        }
+    }
+
+    private bool _isProgressIndeterminate;
+    public bool IsProgressIndeterminate
+    {
+        get => _isProgressIndeterminate;
+        set
+        {
+            if (SetProperty(ref _isProgressIndeterminate, value))
+            {
+                OnPropertyChanged(nameof(MeasurementProgressText));
+            }
+        }
+    }
+
+    public string MeasurementProgressText => IsProgressIndeterminate ? "Running..." : $"{MeasurementProgress:F0}%";
+
+    public bool IsMeasuringSweep => IsMeasuring && SelectedPlan is USweepMeasurementPlan;
 
     public ICommand RunMeasurementCommand { get; }
 
@@ -353,6 +390,8 @@ public partial class MainWindowViewModel : ViewModelBase
         IsMeasuring = true;
         ErrorMessage = string.Empty;
         MeasurementStatus = "Starting...";
+        MeasurementProgress = 0;
+        IsProgressIndeterminate = false;
 
         // Persist measurement settings automatically when running
         await SaveMeasurementConfigAsync();
@@ -371,7 +410,11 @@ public partial class MainWindowViewModel : ViewModelBase
             await smu.ConnectAsync();
 
             MeasurementStatus = $"Executing plan {SelectedPlan.Name}...";
-            await SelectedPlan.RunMeasurementAsync(smu);
+            var progressReporter = new Progress<double>(p =>
+            {
+                MeasurementProgress = p;
+            });
+            await SelectedPlan.RunMeasurementAsync(smu, progressReporter);
 
             // Update CurvePoints to selected plan's result points
             CurvePoints = new List<CurvePoint>(SelectedPlan.ResultPoints);
@@ -409,6 +452,8 @@ public partial class MainWindowViewModel : ViewModelBase
             // Close sessions
             try { await E5263_SMU.Instance.DisconnectAsync(); } catch { }
             IsMeasuring = false;
+            MeasurementProgress = 100;
+            IsProgressIndeterminate = false;
         }
     }
 
