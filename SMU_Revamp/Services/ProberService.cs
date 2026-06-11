@@ -80,8 +80,18 @@ namespace SMU_Revamp.Services
                     _session.TerminationCharacterEnabled = true;
                     _isConnected = true;
 
-                    // Apply quiet mode setting to the motor
-                    await SendProberAsync(QuietMode ? "EnableMotorQuiet 1" : "EnableMotorQuiet 0");
+                    // Apply quiet mode setting to the motor if enabled (non-fatal if unsupported)
+                    if (QuietMode)
+                    {
+                        try
+                        {
+                            await SendProberAsync("EnableMotorQuiet 1");
+                        }
+                        catch (Exception quietEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[ProberService] Failed to enable motor quiet mode: {quietEx.Message}");
+                        }
+                    }
                 }
             }
             catch (Exception ex)
