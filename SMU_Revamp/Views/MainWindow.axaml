@@ -57,19 +57,7 @@
                                 <TextBlock Text="Debugging:" Width="120" VerticalAlignment="Center" />
                                 <CheckBox IsChecked="{Binding Debugging}" />
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <TextBlock Text="Adv Path A (In 1-10):" Width="150" VerticalAlignment="Center" />
-                                <TextBox Text="{Binding AdvPathA}" Width="200" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <TextBlock Text="Adv Path B (Out 1-12):" Width="150" VerticalAlignment="Center" />
-                                <TextBox Text="{Binding AdvPathB}" Width="200" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
-                                <Button Content="Go To Contact" Command="{Binding GoToContactCommand}" Classes="Primary" Width="150" />
-                                <Button Content="Disconnect Route" Command="{Binding DisconnectRouteCommand}" Classes="Secondary" Width="150" />
-                                <Button Content="Clear Switch Matrix" Command="{Binding ClearAllMatrixCommand}" Classes="Secondary" Width="150" />
-                            </StackPanel>
+                            <Button Content="Go To Contact" Command="{Binding GoToContactCommand}" Classes="Primary" Width="150" Margin="0,10,0,0" />
                             <TextBlock Text="{Binding ErrorMessage}" Foreground="#D32F2F" TextWrapping="Wrap" MaxWidth="400" HorizontalAlignment="Left" />
                         </StackPanel>
 
@@ -140,7 +128,7 @@
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="Measurement Status &amp; Diagnostics" FontSize="18" FontWeight="SemiBold" Margin="20,0,0,0" />
                         
                         <!-- Left Column: Configuration -->
-                        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="10" Margin="10,15,10,0" MaxWidth="550" HorizontalAlignment="Left">
+                        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="10" Margin="10,15,10,0" MaxWidth="800" HorizontalAlignment="Left">
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <TextBlock Text="Measurement Plan:" Width="150" VerticalAlignment="Center" />
                                 <ComboBox ItemsSource="{Binding MeasurementPlans}"
@@ -168,7 +156,7 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="models:ParameterSection">
-                                        <StackPanel Spacing="5" Margin="0,0,20,15" Width="225">
+                                        <StackPanel Spacing="5" Margin="0,0,20,15" Width="370">
                                             <!-- Section Header -->
                                             <TextBlock Text="{Binding Name}" 
                                                        FontSize="11" 
