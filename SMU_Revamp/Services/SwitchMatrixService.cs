@@ -334,7 +334,7 @@ namespace SMU_Revamp.Services
             try
             {
                 await Task.Delay(10);
-                await SendWriteCommandAsync(":ROUT:OPEN:ALL");
+                await SendWriteCommandAsync(":ROUT:OPEN:CARD ALL");
 
                 await Task.Delay(5);
                 await SendReadCommandAsync("*OPC?", readBufferChars: 10);
