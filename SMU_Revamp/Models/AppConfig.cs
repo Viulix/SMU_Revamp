@@ -89,4 +89,9 @@ public class AppConfig
     /// Default values for plan parameters, keyed by Plan Name -> Parameter Name -> Parameter Value.
     /// </summary>
     public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, string>> DefaultPlanParameters { get; set; } = new();
+
+    /// <summary>
+    /// Flag to automatically save measurement results to a Profile-named folder.
+    /// </summary>
+    public bool AutoSaveMeasurements { get; set; } = true;
 }

@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="250"
+        x:Class="SMU_Revamp.Views.SavePromptWindow"
+        Title="Save Measurement Settings"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        CanResize="False"
+        Width="420"
+        Height="260">
+
+    <Border Padding="20">
+        <StackPanel Spacing="15">
+            <TextBlock Text="Automatic Saving Configuration" FontSize="16" FontWeight="Bold" />
+            <TextBlock Text="Please specify a Profile and Sample Name to automatically save this measurement." TextWrapping="Wrap" FontSize="12" Foreground="#666666" />
+            
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Profile:" Width="100" VerticalAlignment="Center" />
+                <TextBox x:Name="ProfileTextBox" Width="260" PlaceholderText="e.g. ProfileA" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Sample Name:" Width="100" VerticalAlignment="Center" />
+                <TextBox x:Name="SampleNameTextBox" Width="260" PlaceholderText="e.g. Sample01" />
+            </StackPanel>
+
+            <Border Height="10" />
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                <Button Content="Cancel" Click="CancelButton_Click" Classes="Secondary" Padding="15,8" />
+                <Button Content="Start Measurement" Click="OkButton_Click" Classes="Primary" Padding="15,8" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

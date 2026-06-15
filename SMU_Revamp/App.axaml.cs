@@ -51,6 +51,8 @@ public partial class App : Application
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop &&
                 desktop.MainWindow?.DataContext is MainWindowViewModel vm)
             {
+                vm.Settings.ResetSettings();
+                vm.LoadConfigState();
                 vm.SelectedPlan?.LoadDefaults();
             }
         }

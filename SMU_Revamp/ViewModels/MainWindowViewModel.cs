@@ -116,6 +116,19 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _stayHere, value);
     }
 
+    private bool _autoSaveMeasurements = true;
+    public bool AutoSaveMeasurements
+    {
+        get => _autoSaveMeasurements;
+        set
+        {
+            if (SetProperty(ref _autoSaveMeasurements, value))
+            {
+                _ = SaveAutoSaveSettingAsync(value);
+            }
+        }
+    }
+
 
 
     private string _advPathA = string.Empty;
@@ -492,6 +505,30 @@ public partial class MainWindowViewModel : ViewModelBase
         MeasurementProgress = 0;
         IsProgressIndeterminate = false;
 
+        // Check auto-save if active and prompt if Profile or Sample Name is empty
+        if (AutoSaveMeasurements)
+        {
+            if (string.IsNullOrWhiteSpace(Settings.Profile) || string.IsNullOrWhiteSpace(Settings.SampleName))
+            {
+                if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+                {
+                    var promptWindow = new SMU_Revamp.Views.SavePromptWindow(Settings.Profile, Settings.SampleName);
+                    var result = await promptWindow.ShowDialog<SMU_Revamp.Views.SavePromptResult>(desktop.MainWindow);
+                    if (result == null || result.Cancelled)
+                    {
+                        MeasurementStatus = "Measurement aborted: Profile and Sample Name are required for auto-saving.";
+                        IsMeasuring = false;
+                        return;
+                    }
+                    
+                    // Update settings values
+                    Settings.Profile = result.Profile;
+                    Settings.SampleName = result.SampleName;
+                    await SaveSettingsAndConfigurationAsync();
+                }
+            }
+        }
+
         // Persist measurement settings automatically when running
         await SaveMeasurementConfigAsync();
 
@@ -528,6 +565,49 @@ public partial class MainWindowViewModel : ViewModelBase
                 else
                 {
                     MeasurementStatus = $"Finished. Measured {CurvePoints.Count} points.";
+                }
+
+                // Auto-save measurement if enabled and has data points
+                if (AutoSaveMeasurements)
+                {
+                    try
+                    {
+                        var profile = Settings.Profile;
+                        var sampleName = Settings.SampleName;
+                        
+                        string folderPath;
+                        try
+                        {
+                            var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                            folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile);
+                        }
+                        catch
+                        {
+                            folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile);
+                        }
+                        
+                        if (!System.IO.Directory.Exists(folderPath))
+                        {
+                            System.IO.Directory.CreateDirectory(folderPath);
+                        }
+                        
+                        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                        var fileName = $"{sampleName}_{timestamp}.csv";
+                        var fullPath = System.IO.Path.Combine(folderPath, fileName);
+                        
+                        var lines = new List<string> { "Voltage (V),Current (A)" };
+                        foreach (var point in SelectedPlan.ResultPoints)
+                        {
+                            lines.Add(System.FormattableString.Invariant($"{point.Voltage},{point.Current}"));
+                        }
+                        await System.IO.File.WriteAllLinesAsync(fullPath, lines);
+                        
+                        MeasurementStatus = $"Finished. Data autosaved to {System.IO.Path.Combine(profile, fileName)}.";
+                    }
+                    catch (Exception saveEx)
+                    {
+                        WarningMessage = $"Measurement finished, but failed to autosave: {saveEx.Message}";
+                    }
                 }
             }
             else
@@ -744,5 +824,18 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         SelectedPlanSections = sections;
+    }
+
+    public void LoadConfigState()
+    {
+        var config = ConfigurationService.Instance.GetConfig();
+        AutoSaveMeasurements = config.AutoSaveMeasurements;
+    }
+
+    private async Task SaveAutoSaveSettingAsync(bool value)
+    {
+        var config = ConfigurationService.Instance.GetConfig();
+        config.AutoSaveMeasurements = value;
+        await ConfigurationService.Instance.SaveAsync(config);
     }
 }
