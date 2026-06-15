@@ -63,9 +63,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 CurvePoints = _selectedPlan?.ResultPoints ?? new List<CurvePoint>();
                 UpdateWarningMessage();
                 OnPropertyChanged(nameof(IsMeasuringSweep));
+                OnPropertyChanged(nameof(XAxisTitle));
             }
         }
     }
+
+    public string XAxisTitle => SelectedPlan is PotDepMeasurementPlan ? "Cycle" : "Voltage (V)";
 
     private List<ParameterSection> _selectedPlanSections = new();
     public List<ParameterSection> SelectedPlanSections
@@ -200,7 +203,8 @@ public partial class MainWindowViewModel : ViewModelBase
             new MeasurePointMeasurementPlan(),
             new USweepMeasurementPlan(),
             new PulseSpotMeasurementPlan(),
-            new PulseSweepMeasurementPlan()
+            new PulseSweepMeasurementPlan(),
+            new PotDepMeasurementPlan()
         };
         SelectedPlan = MeasurementPlans[0]; // Default to Measure Point
 
@@ -755,7 +759,8 @@ public partial class MainWindowViewModel : ViewModelBase
             new MeasurePointMeasurementPlan(),
             new USweepMeasurementPlan(),
             new PulseSpotMeasurementPlan(),
-            new PulseSweepMeasurementPlan()
+            new PulseSweepMeasurementPlan(),
+            new PotDepMeasurementPlan()
         };
         var prevPlanName = SelectedPlan?.Name;
         SelectedPlan = MeasurementPlans.Find(p => p.Name == prevPlanName) ?? MeasurementPlans[0];

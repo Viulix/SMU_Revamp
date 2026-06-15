@@ -102,13 +102,13 @@
                                 HorizontalAlignment="Right" />
 
                         <views:CurvePlotView Title="I/U Curve - Linear"
-                                             XAxisLabel="Voltage (V)"
+                                             XAxisLabel="{Binding XAxisTitle}"
                                              YAxisLabel="Current (A)"
                                              Points="{Binding CurvePoints}"
                                              Height="340" />
 
                         <views:CurvePlotView Title="I/U Curve - Logarithmic"
-                                             XAxisLabel="Voltage (V)"
+                                             XAxisLabel="{Binding XAxisTitle}"
                                              YAxisLabel="Current (A)"
                                              Points="{Binding CurvePoints}"
                                              LogarithmicY="True"
