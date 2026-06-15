@@ -210,6 +210,65 @@ namespace SMU_Revamp.Services
             }
         }
 
+        private string FormatChannelString(object x, object y)
+        {
+            string xs = x?.ToString()?.Trim() ?? string.Empty;
+            string ys = y?.ToString()?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrEmpty(xs) || string.IsNullOrEmpty(ys))
+            {
+                throw new ArgumentException("Input (x) and output (y) ports cannot be empty.");
+            }
+
+            string channelstring;
+            if (xs.StartsWith("@") || xs.Length >= 5)
+            {
+                channelstring = xs.StartsWith("@") ? xs : "@" + xs;
+                if (!string.IsNullOrEmpty(ys) && !xs.StartsWith("@"))
+                {
+                    channelstring = "@" + xs + "," + ys;
+                }
+            }
+            else
+            {
+                var inputs = xs.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                var outputs = ys.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                if (inputs.Length == 1 && outputs.Length == 1)
+                {
+                    if (int.TryParse(inputs[0], out int inPort) && int.TryParse(outputs[0], out int outPort))
+                    {
+                        channelstring = $"@1{inPort:D2}{outPort:D2}";
+                    }
+                    else
+                    {
+                        channelstring = $"@1{inputs[0].PadLeft(2, '0')}{outputs[0].PadLeft(2, '0')}";
+                    }
+                }
+                else if (inputs.Length == outputs.Length)
+                {
+                    var channels = new System.Collections.Generic.List<string>();
+                    for (int i = 0; i < inputs.Length; i++)
+                    {
+                        if (int.TryParse(inputs[i], out int inPort) && int.TryParse(outputs[i], out int outPort))
+                        {
+                            channels.Add($"1{inPort:D2}{outPort:D2}");
+                        }
+                        else
+                        {
+                            channels.Add($"1{inputs[i].PadLeft(2, '0')}{outputs[i].PadLeft(2, '0')}");
+                        }
+                    }
+                    channelstring = "@" + string.Join(",", channels);
+                }
+                else
+                {
+                    channelstring = $"@1{xs.PadLeft(2, '0')}{ys.PadLeft(2, '0')}";
+                }
+            }
+            return channelstring;
+        }
+
         /// <summary>
         /// Creates a connection on the switch matrix using the E5250A 5-digit crosspoint format:
         /// Card/Slot (1 digit, e.g. 1) + Input Port (2 digits, e.g. 01-10) + Output Port (2 digits, e.g. 01-12).
@@ -222,60 +281,7 @@ namespace SMU_Revamp.Services
 
             try
             {
-                string xs = x?.ToString()?.Trim() ?? string.Empty;
-                string ys = y?.ToString()?.Trim() ?? string.Empty;
-
-                if (string.IsNullOrEmpty(xs) || string.IsNullOrEmpty(ys))
-                {
-                    throw new ArgumentException("Input (x) and output (y) ports cannot be empty.");
-                }
-
-                string channelstring;
-                if (xs.StartsWith("@") || xs.Length >= 5)
-                {
-                    channelstring = xs.StartsWith("@") ? xs : "@" + xs;
-                    if (!string.IsNullOrEmpty(ys) && !xs.StartsWith("@"))
-                    {
-                        channelstring = "@" + xs + "," + ys;
-                    }
-                }
-                else
-                {
-                    var inputs = xs.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    var outputs = ys.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-                    if (inputs.Length == 1 && outputs.Length == 1)
-                    {
-                        if (int.TryParse(inputs[0], out int inPort) && int.TryParse(outputs[0], out int outPort))
-                        {
-                            channelstring = $"@1{inPort:D2}{outPort:D2}";
-                        }
-                        else
-                        {
-                            channelstring = $"@1{inputs[0].PadLeft(2, '0')}{outputs[0].PadLeft(2, '0')}";
-                        }
-                    }
-                    else if (inputs.Length == outputs.Length)
-                    {
-                        var channels = new System.Collections.Generic.List<string>();
-                        for (int i = 0; i < inputs.Length; i++)
-                        {
-                            if (int.TryParse(inputs[i], out int inPort) && int.TryParse(outputs[i], out int outPort))
-                            {
-                                channels.Add($"1{inPort:D2}{outPort:D2}");
-                            }
-                            else
-                            {
-                                channels.Add($"1{inputs[i].PadLeft(2, '0')}{outputs[i].PadLeft(2, '0')}");
-                            }
-                        }
-                        channelstring = "@" + string.Join(",", channels);
-                    }
-                    else
-                    {
-                        channelstring = $"@1{xs.PadLeft(2, '0')}{ys.PadLeft(2, '0')}";
-                    }
-                }
+                string channelstring = FormatChannelString(x, y);
 
                 await Task.Delay(10);
 
@@ -292,6 +298,51 @@ namespace SMU_Revamp.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Error creating connection: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Removes the requested connection on the switch matrix.
+        /// </summary>
+        public async Task<string> RemoveConnectionAsync(object x, object y)
+        {
+            try
+            {
+                string channelstring = FormatChannelString(x, y);
+
+                await Task.Delay(10);
+                await SendWriteCommandAsync(":ROUT:OPEN (" + channelstring + ")");
+
+                await Task.Delay(5);
+                await SendReadCommandAsync("*OPC?", readBufferChars: 10);
+                await Task.Delay(5);
+                return channelstring;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Error removing connection: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Clears all connections on the switch matrix.
+        /// </summary>
+        public async Task ClearAllConnectionsAsync()
+        {
+            try
+            {
+                await Task.Delay(10);
+                await SendWriteCommandAsync(":ROUT:OPEN:ALL");
+
+                await Task.Delay(5);
+                await SendReadCommandAsync("*OPC?", readBufferChars: 10);
+                await Task.Delay(5);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Error clearing connections: {ex.Message}");
                 throw;
             }
         }

@@ -60,6 +60,29 @@ public partial class DebugWindow : Window
         SwitchOutputTextBox.Text = result;
     }
 
+    private async void DisconnectSwitchConnection_Click(object? sender, RoutedEventArgs e)
+    {
+        var x = ConnectionXTextBox.Text ?? string.Empty;
+        var y = ConnectionYTextBox.Text ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(x) || string.IsNullOrWhiteSpace(y))
+        {
+            SwitchOutputTextBox.Text = "Error: Please specify endpoints X and Y to disconnect.";
+            return;
+        }
+
+        SwitchOutputTextBox.Text = $"Removing connection between {x} and {y}...";
+        var result = await _debugService.RemoveSwitchMatrixConnectionAsync(x, y);
+        SwitchOutputTextBox.Text = result;
+    }
+
+    private async void ClearAllSwitchConnections_Click(object? sender, RoutedEventArgs e)
+    {
+        SwitchOutputTextBox.Text = "Clearing all Switch Matrix connections...";
+        var result = await _debugService.ClearAllSwitchMatrixConnectionsAsync();
+        SwitchOutputTextBox.Text = result;
+    }
+
     private async void ReadSwitchConnection_Click(object? sender, RoutedEventArgs e)
     {
         SwitchOutputTextBox.Text = "Reading active Switch Matrix connections...";

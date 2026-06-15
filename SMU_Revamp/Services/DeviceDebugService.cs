@@ -92,6 +92,36 @@ namespace SMU_Revamp.Services
             }
         }
 
+        public async Task<string> RemoveSwitchMatrixConnectionAsync(string x, string y)
+        {
+            try
+            {
+                await _switch.ConnectAsync();
+                var channel = await _switch.RemoveConnectionAsync(x, y);
+                await _switch.DisconnectAsync();
+                return $"Connection successfully removed! Channel: {channel}";
+            }
+            catch (Exception ex)
+            {
+                return $"Failed to remove connection: {ex.Message}";
+            }
+        }
+
+        public async Task<string> ClearAllSwitchMatrixConnectionsAsync()
+        {
+            try
+            {
+                await _switch.ConnectAsync();
+                await _switch.ClearAllConnectionsAsync();
+                await _switch.DisconnectAsync();
+                return "Successfully cleared all switch matrix connections.";
+            }
+            catch (Exception ex)
+            {
+                return $"Failed to clear connections: {ex.Message}";
+            }
+        }
+
         public async Task<string> ReadSwitchMatrixConnectionAsync()
         {
             try

@@ -43,6 +43,7 @@
                         <Button Content="Test Connection" Click="TestSwitchConnection_Click" Classes="Primary" Padding="15,8" />
                         <Button Content="Query Identity" Click="QuerySwitchIdentity_Click" Classes="Secondary" Padding="15,8" />
                         <Button Content="Read Connection" Click="ReadSwitchConnection_Click" Classes="Secondary" Padding="15,8" />
+                        <Button Content="Clear All" Click="ClearAllSwitchConnections_Click" Classes="Secondary" Padding="15,8" />
                     </StackPanel>
 
                     <Separator Margin="0,4" />
@@ -62,7 +63,8 @@
                                 <TextBox x:Name="ConnectionYTextBox" PlaceholderText="e.g. 01" Width="90" />
                             </StackPanel>
                             
-                            <Button Content="Create Connection" Click="CreateSwitchConnection_Click" Classes="Secondary" Padding="15,8" Margin="0,0,0,10" />
+                            <Button Content="Create Connection" Click="CreateSwitchConnection_Click" Classes="Secondary" Padding="15,8" Margin="0,0,8,10" />
+                            <Button Content="Disconnect Route" Click="DisconnectSwitchConnection_Click" Classes="Secondary" Padding="15,8" Margin="0,0,0,10" />
                         </WrapPanel>
                         
                         <TextBlock Text="Note: HP E5250A channel format is Card (1) + Input Port (2 digits) + Output Port (2 digits), e.g. 10501" FontSize="11" Foreground="#6B7280" />

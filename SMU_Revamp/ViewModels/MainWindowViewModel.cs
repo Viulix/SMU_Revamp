@@ -155,6 +155,8 @@ public partial class MainWindowViewModel : ViewModelBase
     public ICommand SaveSettingsCommand { get; }
     public ICommand MoveRelativeCommand { get; }
     public ICommand MoveAbsoluteCommand { get; }
+    public ICommand DisconnectRouteCommand { get; }
+    public ICommand ClearAllMatrixCommand { get; }
 
     private double _moveX;
     public double MoveX
@@ -189,6 +191,8 @@ public partial class MainWindowViewModel : ViewModelBase
         RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync);
         MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync);
         MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync);
+        DisconnectRouteCommand = new AsyncRelayCommand(DisconnectRouteAsync);
+        ClearAllMatrixCommand = new AsyncRelayCommand(ClearAllMatrixAsync);
     }
 
     private async Task GoToContactAsync()
@@ -216,6 +220,42 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ErrorMessage = $"Error: {ex.Message}";
             Console.WriteLine($"Error moving to contact: {ex.Message}");
+        }
+    }
+
+    private async Task DisconnectRouteAsync()
+    {
+        ErrorMessage = string.Empty;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(AdvPathA) || string.IsNullOrWhiteSpace(AdvPathB))
+            {
+                ErrorMessage = "Please specify Adv Path A and Adv Path B to disconnect.";
+                return;
+            }
+
+            await SwitchMatrixService.Instance.ConnectAsync();
+            var channel = await SwitchMatrixService.Instance.RemoveConnectionAsync(AdvPathA, AdvPathB);
+            MeasurementStatus = $"Successfully disconnected route {channel}.";
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error disconnecting route: {ex.Message}";
+        }
+    }
+
+    private async Task ClearAllMatrixAsync()
+    {
+        ErrorMessage = string.Empty;
+        try
+        {
+            await SwitchMatrixService.Instance.ConnectAsync();
+            await SwitchMatrixService.Instance.ClearAllConnectionsAsync();
+            MeasurementStatus = "Successfully cleared all switch matrix connections.";
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error clearing matrix: {ex.Message}";
         }
     }
 

@@ -29,5 +29,18 @@ namespace SMU_Revamp.Services
         /// <param name="overrideCheck">If true, perform the routing; otherwise skip (legacy override flag).</param>
         /// <returns>The channel string used for the connection (for logging).</returns>
         Task<string> CreateConnectionAsync(object x, object y, bool overrideCheck = false);
+
+        /// <summary>
+        /// Removes the requested connection on the switch matrix.
+        /// </summary>
+        /// <param name="x">First endpoint identifier.</param>
+        /// <param name="y">Second endpoint identifier.</param>
+        /// <returns>The channel string that was opened.</returns>
+        Task<string> RemoveConnectionAsync(object x, object y);
+
+        /// <summary>
+        /// Clears all connections on the switch matrix.
+        /// </summary>
+        Task ClearAllConnectionsAsync();
     }
 }
