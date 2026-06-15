@@ -33,12 +33,12 @@ public class AppConfig
     /// <summary>
     /// File storing profile.
     /// </summary>
-    public string Profil { get; set; } = "";
+    public string Profile { get; set; } = "";
 
     /// <summary>
-    /// File storing sample name (Probename).
+    /// File storing sample name (SampleName).
     /// </summary>
-    public string Probename { get; set; } = "";
+    public string SampleName { get; set; } = "";
 
     /// <summary>
     /// E5263 SMU GPIB resource string.

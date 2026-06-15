@@ -116,12 +116,7 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _stayHere, value);
     }
 
-    private bool _debugging;
-    public bool Debugging
-    {
-        get => _debugging;
-        set => SetProperty(ref _debugging, value);
-    }
+
 
     private string _advPathA = string.Empty;
     public string AdvPathA
@@ -199,6 +194,16 @@ public partial class MainWindowViewModel : ViewModelBase
         RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync);
         MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync);
         MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync);
+
+        // Auto-save settings when Profile or SampleName changes
+        Settings.PropertyChanged += async (s, e) =>
+        {
+            if (e.PropertyName == nameof(SettingsViewModel.Profile) || e.PropertyName == nameof(SettingsViewModel.SampleName))
+            {
+                await SaveSettingsAndConfigurationAsync();
+            }
+        };
+
         DisconnectRouteCommand = new AsyncRelayCommand(DisconnectRouteAsync);
         ClearAllMatrixCommand = new AsyncRelayCommand(ClearAllMatrixAsync);
     }
@@ -220,7 +225,6 @@ public partial class MainWindowViewModel : ViewModelBase
                 col,
                 contact,
                 StayHere,
-                Debugging,
                 AdvPathA,
                 AdvPathB);
         }
@@ -354,13 +358,12 @@ public partial class MainWindowViewModel : ViewModelBase
         int col,
         int contact,
         bool stayHere,
-        bool debugging,
         string advPathA,
         string advPathB)
     {
         var (deltaX, deltaY) = ComputeHugeDeltaB(cellPosition, row, col, contact);
 
-        if (!stayHere || debugging)
+        if (!stayHere)
         {
             await ProberService.Instance.ConnectAsync();
             await ProberService.Instance.MoveProberAbsoluteAsync(-deltaX, deltaY);
@@ -673,11 +676,12 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private void OnParameterPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private async void OnParameterPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MeasurementParameter.Value))
         {
             UpdateWarningMessage();
+            await SaveSettingsAndConfigurationAsync();
         }
     }
 

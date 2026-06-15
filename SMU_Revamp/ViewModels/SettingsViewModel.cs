@@ -23,8 +23,8 @@ namespace SMU_Revamp.ViewModels
         private int _smuTimeoutMs = 300000;
         private string _applyStatusMessage = string.Empty;
 
-        private string _profil = string.Empty;
-        private string _probename = string.Empty;
+        private string _profile = string.Empty;
+        private string _sampleName = string.Empty;
 
         public bool ProberQuietMode
         {
@@ -68,16 +68,16 @@ namespace SMU_Revamp.ViewModels
             set => SetProperty(ref _smuTimeoutMs, value);
         }
 
-        public string Profil
+        public string Profile
         {
-            get => _profil;
-            set => SetProperty(ref _profil, value ?? string.Empty);
+            get => _profile;
+            set => SetProperty(ref _profile, value ?? string.Empty);
         }
 
-        public string Probename
+        public string SampleName
         {
-            get => _probename;
-            set => SetProperty(ref _probename, value ?? string.Empty);
+            get => _sampleName;
+            set => SetProperty(ref _sampleName, value ?? string.Empty);
         }
 
         public string ApplyStatusMessage
@@ -104,8 +104,8 @@ namespace SMU_Revamp.ViewModels
             ProberTimeoutMs = config.ProberTimeoutMs;
             SwitchMatrixResource = config.SwitchMatrixResource;
             SMUResource = config.SMUResource;
-            Profil = config.Profil;
-            Probename = config.Probename;
+            Profile = config.Profile;
+            SampleName = config.SampleName;
         }
 
         /// <summary>
@@ -121,18 +121,16 @@ namespace SMU_Revamp.ViewModels
             E5263_SMU.Instance.SetTimeout(SMUTimeoutMs);
 
             // Save to persistent configuration
-            var config = new AppConfig
-            {
-                ProberQuietMode = ProberQuietMode,
-                ProberResource = ProberResource,
-                ProberTimeoutMs = ProberTimeoutMs,
-                SwitchMatrixResource = SwitchMatrixResource,
-                SwitchMatrixTimeoutMs = SwitchMatrixTimeoutMs,
-                SMUResource = SMUResource,
-                SMUTimeoutMs = SMUTimeoutMs,
-                Profil = Profil,
-                Probename = Probename
-            };
+            var config = _configService.GetConfig();
+            config.ProberQuietMode = ProberQuietMode;
+            config.ProberResource = ProberResource;
+            config.ProberTimeoutMs = ProberTimeoutMs;
+            config.SwitchMatrixResource = SwitchMatrixResource;
+            config.SwitchMatrixTimeoutMs = SwitchMatrixTimeoutMs;
+            config.SMUResource = SMUResource;
+            config.SMUTimeoutMs = SMUTimeoutMs;
+            config.Profile = Profile;
+            config.SampleName = SampleName;
 
             await _configService.SaveAsync(config);
             ApplyStatusMessage = "Settings saved.";
@@ -151,8 +149,8 @@ namespace SMU_Revamp.ViewModels
             ProberTimeoutMs = config.ProberTimeoutMs;
             SwitchMatrixResource = config.SwitchMatrixResource;
             SMUResource = config.SMUResource;
-            Profil = config.Profil;
-            Probename = config.Probename;
+            Profile = config.Profile;
+            SampleName = config.SampleName;
         }
     }
 }
