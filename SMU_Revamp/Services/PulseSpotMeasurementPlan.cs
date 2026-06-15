@@ -20,14 +20,14 @@ namespace SMU_Revamp.Services
         {
             Parameters = new List<MeasurementParameter>
             {
-                new() { Name = "WriteChannel", DisplayName = "Write Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel number (e.g. 2)" },
-                new() { Name = "ReadingChannel", DisplayName = "Reading Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel to measure (e.g. 1 or 2)" },
-                new() { Name = "BaseVoltage", DisplayName = "Base Voltage (V):", Type = ParameterType.Number, Tooltip = "The base DC voltage before the pulse (in Volts)" },
-                new() { Name = "PulseVoltage", DisplayName = "Pulse Voltage (V):", Type = ParameterType.Number, Tooltip = "The pulse voltage (in Volts)" },
-                new() { Name = "HoldTime", DisplayName = "Hold Time (s):", Type = ParameterType.Number, Tooltip = "Hold time before pulse measurement starts (in seconds)" },
-                new() { Name = "PulseWidth", DisplayName = "Pulse Width (s):", Type = ParameterType.Number, Tooltip = "Width of the pulse (in seconds)" },
-                new() { Name = "PulsePeriod", DisplayName = "Pulse Period (s):", Type = ParameterType.Number, Tooltip = "Period of the pulse (in seconds)" },
-                new() { Name = "Compliance", DisplayName = "Compliance (A):", Type = ParameterType.Number, Tooltip = "The current compliance limit (in Amperes)" }
+                new() { Name = "WriteChannel", DisplayName = "Write Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel number (e.g. 2)", Section = "Channel Settings" },
+                new() { Name = "ReadingChannel", DisplayName = "Reading Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel to measure (e.g. 1 or 2)", Section = "Channel Settings" },
+                new() { Name = "BaseVoltage", DisplayName = "Base Voltage (V):", Type = ParameterType.Number, Tooltip = "The base DC voltage before the pulse (in Volts)", Section = "Voltage Settings" },
+                new() { Name = "PulseVoltage", DisplayName = "Pulse Voltage (V):", Type = ParameterType.Number, Tooltip = "The pulse voltage (in Volts)", Section = "Voltage Settings" },
+                new() { Name = "HoldTime", DisplayName = "Hold Time (s):", Type = ParameterType.Number, Tooltip = "Hold time before pulse measurement starts (in seconds)", Section = "Pulse Settings" },
+                new() { Name = "PulseWidth", DisplayName = "Pulse Width (s):", Type = ParameterType.Number, Tooltip = "Width of the pulse (in seconds)", Section = "Pulse Settings" },
+                new() { Name = "PulsePeriod", DisplayName = "Pulse Period (s):", Type = ParameterType.Number, Tooltip = "Period of the pulse (in seconds)", Section = "Pulse Settings" },
+                new() { Name = "Compliance", DisplayName = "Compliance (A):", Type = ParameterType.Number, Tooltip = "The current compliance limit (in Amperes)", Section = "Voltage Settings" }
             };
             LoadDefaults();
         }

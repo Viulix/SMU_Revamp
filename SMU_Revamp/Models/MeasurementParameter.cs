@@ -27,6 +27,13 @@ namespace SMU_Revamp.Models
             set => SetProperty(ref _displayName, value);
         }
 
+        private string _section = string.Empty;
+        public string Section
+        {
+            get => _section;
+            set => SetProperty(ref _section, value);
+        }
+
         private object _value = string.Empty;
         public object Value
         {

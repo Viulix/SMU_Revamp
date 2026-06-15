@@ -57,11 +57,19 @@ public partial class MainWindowViewModel : ViewModelBase
                     _selectedPlan.LoadDefaults();
                     SubscribeToParameterChanges();
                 }
+                UpdateSelectedPlanSections();
                 CurvePoints = _selectedPlan?.ResultPoints ?? new List<CurvePoint>();
                 UpdateWarningMessage();
                 OnPropertyChanged(nameof(IsMeasuringSweep));
             }
         }
+    }
+
+    private List<ParameterSection> _selectedPlanSections = new();
+    public List<ParameterSection> SelectedPlanSections
+    {
+        get => _selectedPlanSections;
+        set => SetProperty(ref _selectedPlanSections, value);
     }
 
     public SettingsViewModel Settings { get; }
@@ -697,5 +705,40 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         WarningMessage = string.Empty;
+    }
+
+    private void UpdateSelectedPlanSections()
+    {
+        if (SelectedPlan == null)
+        {
+            SelectedPlanSections = new List<ParameterSection>();
+            return;
+        }
+
+        var sections = new List<ParameterSection>();
+        var grouped = new Dictionary<string, List<MeasurementParameter>>();
+        var sectionOrder = new List<string>();
+
+        foreach (var param in SelectedPlan.Parameters)
+        {
+            var secName = param.Section ?? string.Empty;
+            if (!grouped.ContainsKey(secName))
+            {
+                grouped[secName] = new List<MeasurementParameter>();
+                sectionOrder.Add(secName);
+            }
+            grouped[secName].Add(param);
+        }
+
+        foreach (var secName in sectionOrder)
+        {
+            sections.Add(new ParameterSection
+            {
+                Name = secName,
+                Parameters = grouped[secName]
+            });
+        }
+
+        SelectedPlanSections = sections;
     }
 }
