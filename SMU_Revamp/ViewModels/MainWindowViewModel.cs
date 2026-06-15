@@ -11,6 +11,8 @@ namespace SMU_Revamp.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
+    public event Action<string, string, string?>? NotificationRequested;
+
     public string Greeting { get; } = "Welcome to Avalonia!";
 
     private IReadOnlyList<CurvePoint> _curvePoints = Array.Empty<CurvePoint>();
@@ -591,8 +593,9 @@ public partial class MainWindowViewModel : ViewModelBase
                             System.IO.Directory.CreateDirectory(folderPath);
                         }
                         
+                        var planName = SelectedPlan.Name.Replace(" ", "_").Replace("-", "_");
                         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                        var fileName = $"{sampleName}_{timestamp}.csv";
+                        var fileName = $"{sampleName}_{planName}_{timestamp}.csv";
                         var fullPath = System.IO.Path.Combine(folderPath, fileName);
                         
                         var lines = new List<string> { "Voltage (V),Current (A)" };
@@ -603,6 +606,12 @@ public partial class MainWindowViewModel : ViewModelBase
                         await System.IO.File.WriteAllLinesAsync(fullPath, lines);
                         
                         MeasurementStatus = $"Finished. Data autosaved to {System.IO.Path.Combine(profile, fileName)}.";
+
+                        NotificationRequested?.Invoke(
+                            "Measurement Saved",
+                            $"File saved to {fileName}.\nClick to open in Explorer.",
+                            fullPath
+                        );
                     }
                     catch (Exception saveEx)
                     {
@@ -650,6 +659,12 @@ public partial class MainWindowViewModel : ViewModelBase
             }
             await System.IO.File.WriteAllLinesAsync(filePath, lines);
             MeasurementStatus = $"Data successfully exported to {System.IO.Path.GetFileName(filePath)}.";
+
+            NotificationRequested?.Invoke(
+                "Export Successful",
+                $"File exported to {System.IO.Path.GetFileName(filePath)}.\nClick to open in Explorer.",
+                filePath
+            );
         }
         catch (Exception ex)
         {
