@@ -153,6 +153,22 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public ICommand GoToContactCommand { get; }
     public ICommand SaveSettingsCommand { get; }
+    public ICommand MoveRelativeCommand { get; }
+    public ICommand MoveAbsoluteCommand { get; }
+
+    private double _moveX;
+    public double MoveX
+    {
+        get => _moveX;
+        set => SetProperty(ref _moveX, value);
+    }
+
+    private double _moveY;
+    public double MoveY
+    {
+        get => _moveY;
+        set => SetProperty(ref _moveY, value);
+    }
 
     public MainWindowViewModel()
     {
@@ -162,13 +178,17 @@ public partial class MainWindowViewModel : ViewModelBase
         MeasurementPlans = new List<IMeasurementPlan>
         {
             new MeasurePointMeasurementPlan(),
-            new USweepMeasurementPlan()
+            new USweepMeasurementPlan(),
+            new PulseSpotMeasurementPlan(),
+            new PulseSweepMeasurementPlan()
         };
         SelectedPlan = MeasurementPlans[0]; // Default to Measure Point
 
         GoToContactCommand = new AsyncRelayCommand(GoToContactAsync);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAndConfigurationAsync);
         RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync);
+        MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync);
+        MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync);
     }
 
     private async Task GoToContactAsync()
@@ -196,6 +216,34 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ErrorMessage = $"Error: {ex.Message}";
             Console.WriteLine($"Error moving to contact: {ex.Message}");
+        }
+    }
+
+    private async Task MoveRelativeAsync()
+    {
+        ErrorMessage = string.Empty;
+        try
+        {
+            await ProberService.Instance.ConnectAsync();
+            await ProberService.Instance.MoveProberAsync(MoveX, MoveY);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error moving relative: {ex.Message}";
+        }
+    }
+
+    private async Task MoveAbsoluteAsync()
+    {
+        ErrorMessage = string.Empty;
+        try
+        {
+            await ProberService.Instance.ConnectAsync();
+            await ProberService.Instance.MoveProberAbsoluteAsync(MoveX, MoveY);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error moving absolute: {ex.Message}";
         }
     }
 
@@ -378,7 +426,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public string MeasurementProgressText => IsProgressIndeterminate ? "Running..." : $"{MeasurementProgress:F0}%";
 
-    public bool IsMeasuringSweep => IsMeasuring && SelectedPlan is USweepMeasurementPlan;
+    public bool IsMeasuringSweep => IsMeasuring && (SelectedPlan is USweepMeasurementPlan || SelectedPlan is PulseSweepMeasurementPlan);
 
     public ICommand RunMeasurementCommand { get; }
 
@@ -559,7 +607,9 @@ public partial class MainWindowViewModel : ViewModelBase
         MeasurementPlans = new List<IMeasurementPlan>
         {
             new MeasurePointMeasurementPlan(),
-            new USweepMeasurementPlan()
+            new USweepMeasurementPlan(),
+            new PulseSpotMeasurementPlan(),
+            new PulseSweepMeasurementPlan()
         };
         var prevPlanName = SelectedPlan?.Name;
         SelectedPlan = MeasurementPlans.Find(p => p.Name == prevPlanName) ?? MeasurementPlans[0];

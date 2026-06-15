@@ -77,9 +77,7 @@ namespace SMU_Revamp.Services
                     _session = rm.Open(_resourceString) as MessageBasedSession;
                     if (_session != null)
                     {
-                        // SUSS ProberBench responses are terminated by a Carriage Return (\r, ASCII 13)
-                        _session.TerminationCharacter = 13;
-                        _session.TerminationCharacterEnabled = true;
+                        // Default NI VISA termination is \n (10).
                         _isConnected = true;
                     }
                 });
@@ -316,7 +314,13 @@ namespace SMU_Revamp.Services
                 }
                 _session.TimeoutMilliseconds = timeoutMs;
                 
+                var prevTermChar = _session.TerminationCharacter;
+                var prevTermEnabled = _session.TerminationCharacterEnabled;
+
                 // SUSS ProberBench commands must be terminated by a Carriage Return (\r, ASCII 13)
+                _session.TerminationCharacter = 13;
+                _session.TerminationCharacterEnabled = true;
+
                 await Task.Run(() => _session.RawIO.Write(command + "\r"));
 
                 if (postWriteDelayMs > 0)
@@ -325,6 +329,10 @@ namespace SMU_Revamp.Services
                 }
 
                 response = await Task.Run(() => _session.RawIO.ReadString(readBufferChars)) ?? "No response received.";
+                
+                // Reset to default
+                _session.TerminationCharacter = prevTermChar;
+                _session.TerminationCharacterEnabled = prevTermEnabled;
             }
             catch (Exception ex)
             {

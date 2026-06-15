@@ -45,7 +45,9 @@ namespace SMU_Revamp.ViewModels
             MeasurementPlans = new List<IMeasurementPlan>
             {
                 new MeasurePointMeasurementPlan(),
-                new USweepMeasurementPlan()
+                new USweepMeasurementPlan(),
+                new PulseSpotMeasurementPlan(),
+                new PulseSweepMeasurementPlan()
             };
             _selectedPlan = MeasurementPlans[0];
 
