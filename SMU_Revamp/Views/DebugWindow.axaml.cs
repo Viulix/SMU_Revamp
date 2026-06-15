@@ -23,12 +23,7 @@ public partial class DebugWindow : Window
         ProberOutputTextBox.Text = result;
     }
 
-    private async void QueryProberIdentity_Click(object? sender, RoutedEventArgs e)
-    {
-        ProberOutputTextBox.Text = "Querying Prober identity...";
-        var result = await _debugService.QueryProberIdentityAsync();
-        ProberOutputTextBox.Text = result;
-    }
+
 
     private async void TestSwitchConnection_Click(object? sender, RoutedEventArgs e)
     {

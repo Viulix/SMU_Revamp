@@ -24,7 +24,6 @@
                     
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Button Content="Test Connection" Click="TestProberConnection_Click" Classes="Primary" Padding="15,8" />
-                        <Button Content="Query Identity" Click="QueryProberIdentity_Click" Classes="Secondary" Padding="15,8" />
                     </StackPanel>
                     
                     <StackPanel Spacing="6">

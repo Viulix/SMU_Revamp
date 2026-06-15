@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="SMU_Revamp.Views.CurvePlotView">
-    <Border Background="#FFFFFF" CornerRadius="10" Padding="12">
+    <Border Background="#FFFFFF" CornerRadius="10" Padding="12" BorderBrush="#E5E7EB" BorderThickness="1">
         <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="Auto,*" RowSpacing="8" ColumnSpacing="8">
             <TextBlock x:Name="TitleText"
                        Grid.Row="0"

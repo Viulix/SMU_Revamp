@@ -35,19 +35,7 @@ namespace SMU_Revamp.Services
             }
         }
 
-        public Task<string> QueryProberIdentityAsync()
-        {
-            try
-            {
-                // Prober does not expose a raw query in the public interface.
-                // Provide basic information that is safe to retrieve.
-                return Task.FromResult($"Prober resource: {_prober.ResourceString}");
-            }
-            catch (Exception ex)
-            {
-                return Task.FromResult($"Error querying prober identity: {ex.Message}");
-            }
-        }
+
 
         public async Task<string> TestSwitchMatrixConnectionAsync()
         {

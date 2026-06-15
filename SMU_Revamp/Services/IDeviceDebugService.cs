@@ -9,7 +9,6 @@ namespace SMU_Revamp.Services
     public interface IDeviceDebugService
     {
         Task<string> TestProberConnectionAsync();
-        Task<string> QueryProberIdentityAsync();
 
         Task<string> TestSwitchMatrixConnectionAsync();
         Task<string> QuerySwitchMatrixIdentityAsync();
