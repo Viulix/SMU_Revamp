@@ -310,8 +310,8 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             await ProberService.Instance.ConnectAsync();
             await ProberService.Instance.DisconnectChuckAsync();
-            await ProberService.Instance.GoToWaferContactAsync("0104", 1, 1, 1);
-            WaferScanLog = "Moved to scan start point (Cell 0104, Row 1, Col 1, Contact 1).";
+            await ProberService.Instance.ProberGoHomeAsync();
+            WaferScanLog = "Moved to Home point (Cell 0104).";
         }
         catch (Exception ex)
         {
