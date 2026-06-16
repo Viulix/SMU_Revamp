@@ -152,14 +152,14 @@ namespace SMU_Revamp.Services
                     cts.Token.ThrowIfCancellationRequested();
                     
                     await smu.SendCommandAsync($"DZ {channel}");
-                    await smu.SendCommandAsync($"DV {channel},0,{vpot},{compliance}");
+                    await smu.SendCommandAsync(System.FormattableString.Invariant($"DV {channel},0,{vpot},{compliance}"));
                     await WaitMillisecondsAccurateAsync(tpot, cts.Token);
                     await smu.SendCommandAsync($"DZ {channel}");
 
                     if (waitBR > 0) await WaitMillisecondsAccurateAsync(waitBR, cts.Token);
 
                     await WaitMillisecondsAccurateAsync(1, cts.Token);
-                    await smu.SendCommandAsync($"DV {channel},0,{vreadPD},{compliance}");
+                    await smu.SendCommandAsync(System.FormattableString.Invariant($"DV {channel},0,{vreadPD},{compliance}"));
                     await WaitMillisecondsAccurateAsync(5, cts.Token);
                     
                     await smu.SendCommandAsync("XE");
@@ -188,14 +188,14 @@ namespace SMU_Revamp.Services
                     cts.Token.ThrowIfCancellationRequested();
 
                     await smu.SendCommandAsync($"DZ {channel}");
-                    await smu.SendCommandAsync($"DV {channel},0,{vdep},{compliance}");
+                    await smu.SendCommandAsync(System.FormattableString.Invariant($"DV {channel},0,{vdep},{compliance}"));
                     await WaitMillisecondsAccurateAsync(tdep, cts.Token);
                     await smu.SendCommandAsync($"DZ {channel}");
 
                     if (waitBR > 0) await WaitMillisecondsAccurateAsync(waitBR, cts.Token);
 
                     await WaitMillisecondsAccurateAsync(1, cts.Token);
-                    await smu.SendCommandAsync($"DV {channel},0,{vreadPD},{compliance}");
+                    await smu.SendCommandAsync(System.FormattableString.Invariant($"DV {channel},0,{vreadPD},{compliance}"));
                     await WaitMillisecondsAccurateAsync(5, cts.Token);
                     
                     await smu.SendCommandAsync("XE");

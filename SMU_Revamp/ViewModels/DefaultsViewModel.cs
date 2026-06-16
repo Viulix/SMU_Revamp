@@ -47,7 +47,8 @@ namespace SMU_Revamp.ViewModels
                 new MeasurePointMeasurementPlan(),
                 new USweepMeasurementPlan(),
                 new PulseSpotMeasurementPlan(),
-                new PulseSweepMeasurementPlan()
+                new PulseSweepMeasurementPlan(),
+                new PotDepMeasurementPlan()
             };
             _selectedPlan = MeasurementPlans[0];
 
