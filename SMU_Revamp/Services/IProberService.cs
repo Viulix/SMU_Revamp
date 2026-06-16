@@ -41,6 +41,16 @@ namespace SMU_Revamp.Services
         Task ProberContactAsync();
 
         /// <summary>
+        /// Connects the prober chuck (moves to contact).
+        /// </summary>
+        Task ConnectChuckAsync();
+
+        /// <summary>
+        /// Disconnects the prober chuck (moves to separation).
+        /// </summary>
+        Task DisconnectChuckAsync();
+
+        /// <summary>
         /// Moves the chuck relative by the given X/Y values using the legacy command format.
         /// </summary>
         Task<string> MoveProberAsync(double x, double y);

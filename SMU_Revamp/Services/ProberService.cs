@@ -140,6 +140,20 @@ namespace SMU_Revamp.Services
         }
 
         /// <inheritdoc />
+        public async Task ConnectChuckAsync()
+        {
+            await SendProberAsync("MoveChuckContact");
+            await Task.Delay(AlignContactDelayMs);
+        }
+
+        /// <inheritdoc />
+        public async Task DisconnectChuckAsync()
+        {
+            await SendProberAsync("MoveChuckSeparation");
+            await Task.Delay(AlignContactDelayMs);
+        }
+
+        /// <inheritdoc />
         public Task<string> MoveProberAsync(double x, double y)
         {
             return SendProberAsync(System.FormattableString.Invariant($"MoveChuck {x} {y} R"), MoveXYTimeoutMs);
