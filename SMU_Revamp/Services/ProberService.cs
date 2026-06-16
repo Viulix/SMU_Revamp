@@ -298,6 +298,83 @@ namespace SMU_Revamp.Services
             return (pos - 1) * 5 + subpos;
         }
 
+        /// <inheritdoc />
+        public async Task GoToWaferContactAsync(string cell, int row, int col, int contactId)
+        {
+            if (cell.Length != 4)
+                throw new ArgumentException("Cell must be a 4-digit string 'YYXX'.");
+            
+            if (!int.TryParse(cell.Substring(0, 2), out int cellY) || !int.TryParse(cell.Substring(2, 2), out int cellX))
+                throw new ArgumentException("Cell must be a 4-digit string 'YYXX' containing numbers.");
+
+            double grossx = (cellX - 4) * 5000;
+            double grossy = (cellY - 1) * 5000;
+
+            double subOffsetX = (col - 1) * 1000;
+            double subOffsetY = (row - 1) * 1000;
+
+            double contactOffsetX = 0;
+            double contactOffsetY = 0;
+
+            switch (contactId)
+            {
+                case 1: contactOffsetX = 0; contactOffsetY = 0; break;
+                case 2: contactOffsetX = 290; contactOffsetY = 0; break;
+                case 3: contactOffsetX = 580; contactOffsetY = 0; break;
+                case 4: contactOffsetX = 0; contactOffsetY = 350; break;
+                case 5: contactOffsetX = 290; contactOffsetY = 350; break;
+                case 6: contactOffsetX = 580; contactOffsetY = 350; break;
+                default: throw new ArgumentException("Contact ID must be between 1 and 6.");
+            }
+
+            double deltaX = grossx + subOffsetX + contactOffsetX;
+            double deltaY = grossy + subOffsetY + contactOffsetY;
+
+            await MoveProberAbsoluteAsync(-1 * deltaX, deltaY);
+        }
+
+        /// <inheritdoc />
+        public async Task ScanWaferAsync(System.Collections.Generic.IEnumerable<int> targetContacts, Func<string, int, int, int, Task> onContactReached, CancellationToken ct = default)
+        {
+            var invalidCells = new System.Collections.Generic.HashSet<string>
+            {
+                "0101", "0102", "0103", "0114", "0115", "0116",
+                "0201", "0202", "0215", "0216",
+                "0301", "0316",
+                "1401", "1416",
+                "1501", "1502", "1515", "1516",
+                "1601", "1602", "1603", "1614", "1615", "1616"
+            };
+
+            for (int y = 1; y <= 16; y++)
+            {
+                for (int x = 1; x <= 16; x++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    
+                    string cell = $"{y:D2}{x:D2}";
+                    if (invalidCells.Contains(cell))
+                        continue;
+
+                    for (int row = 1; row <= 5; row++)
+                    {
+                        for (int col = 1; col <= 5; col++)
+                        {
+                            if ((row == 2 && col == 2) || (row == 5 && col == 5))
+                                continue; // Standard sub-cell exclusions
+
+                            foreach (var contact in targetContacts)
+                            {
+                                ct.ThrowIfCancellationRequested();
+                                await GoToWaferContactAsync(cell, row, col, contact);
+                                await onContactReached(cell, row, col, contact);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         private async Task<string> SendProberAsync(string command, int timeoutMs = GenericCommandTimeoutMs, int postWriteDelayMs = 100, int readBufferChars = ReadBufferChars)
         {
             string response;

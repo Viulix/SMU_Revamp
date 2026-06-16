@@ -179,6 +179,39 @@ public partial class MainWindowViewModel : ViewModelBase
     public ICommand DisconnectRouteCommand { get; }
     public ICommand ClearAllMatrixCommand { get; }
 
+    public ICommand ScanWaferCommand { get; }
+    public ICommand StopScanWaferCommand { get; }
+
+    private bool _isScanningWafer;
+    public bool IsScanningWafer
+    {
+        get => _isScanningWafer;
+        set => SetProperty(ref _isScanningWafer, value);
+    }
+
+    private double _waferScanProgress;
+    public double WaferScanProgress
+    {
+        get => _waferScanProgress;
+        set => SetProperty(ref _waferScanProgress, value);
+    }
+
+    private string _waferScanLog = string.Empty;
+    public string WaferScanLog
+    {
+        get => _waferScanLog;
+        set => SetProperty(ref _waferScanLog, value);
+    }
+
+    private string _targetScanContacts = "1, 2, 3";
+    public string TargetScanContacts
+    {
+        get => _targetScanContacts;
+        set => SetProperty(ref _targetScanContacts, value);
+    }
+
+    private System.Threading.CancellationTokenSource? _scanCts;
+
     private double _moveX;
     public double MoveX
     {
@@ -225,6 +258,90 @@ public partial class MainWindowViewModel : ViewModelBase
 
         DisconnectRouteCommand = new AsyncRelayCommand(DisconnectRouteAsync);
         ClearAllMatrixCommand = new AsyncRelayCommand(ClearAllMatrixAsync);
+
+        ScanWaferCommand = new AsyncRelayCommand(StartWaferScanAsync, () => !IsScanningWafer);
+        StopScanWaferCommand = new RelayCommand(StopWaferScan, () => IsScanningWafer);
+    }
+
+    private void StopWaferScan()
+    {
+        _scanCts?.Cancel();
+    }
+
+    private async Task StartWaferScanAsync()
+    {
+        if (IsScanningWafer) return;
+
+        WaferScanLog = "Parsing target contacts...";
+        WaferScanProgress = 0;
+        
+        var contacts = new List<int>();
+        var parts = TargetScanContacts.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var part in parts)
+        {
+            if (int.TryParse(part, out int c) && c >= 1 && c <= 6)
+            {
+                contacts.Add(c);
+            }
+        }
+
+        if (contacts.Count == 0)
+        {
+            WaferScanLog = "Error: Invalid target contacts.";
+            return;
+        }
+
+        IsScanningWafer = true;
+        _scanCts = new System.Threading.CancellationTokenSource();
+
+        try
+        {
+            WaferScanLog = "Connecting to Prober...";
+            await ProberService.Instance.ConnectAsync();
+            
+            // For rough progress estimating
+            int totalExpectedCells = 16 * 16 - 24; // 24 excluded
+            int totalExpectedContacts = totalExpectedCells * 23 * contacts.Count; // 23 sub-cells (5x5 - 2 exclusions)
+            int currentContact = 0;
+
+            WaferScanLog = "Starting wafer scan...";
+            
+            await ProberService.Instance.ScanWaferAsync(contacts, async (cell, row, col, contact) =>
+            {
+                WaferScanLog = $"Measuring Cell: {cell}, Row: {row}, Col: {col}, Contact: {contact}";
+                
+                // Update UI state for auto-save filenames
+                TargetCell = cell;
+                TargetRow = row.ToString();
+                TargetColumn = col.ToString();
+                TargetContact = contact.ToString();
+                
+                // Trigger the actual measurement
+                await RunMeasurementAsync();
+                
+                currentContact++;
+                WaferScanProgress = (double)currentContact / totalExpectedContacts * 100.0;
+            }, _scanCts.Token);
+
+            WaferScanLog = "Wafer scan completed.";
+            WaferScanProgress = 100;
+        }
+        catch (OperationCanceledException)
+        {
+            WaferScanLog = "Wafer scan canceled.";
+        }
+        catch (Exception ex)
+        {
+            WaferScanLog = $"Error during scan: {ex.Message}";
+        }
+        finally
+        {
+            IsScanningWafer = false;
+            _scanCts?.Dispose();
+            _scanCts = null;
+            (ScanWaferCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+            (StopScanWaferCommand as RelayCommand)?.NotifyCanExecuteChanged();
+        }
     }
 
     private async Task GoToContactAsync()

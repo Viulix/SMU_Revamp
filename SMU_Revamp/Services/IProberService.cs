@@ -85,5 +85,15 @@ namespace SMU_Revamp.Services
         /// Converts a legacy relative row/subrow position back to an absolute contact index.
         /// </summary>
         int RelToAbs(int pos, int subpos);
+
+        /// <summary>
+        /// Computes absolute Prober X and Y coordinates based on the 3-tier hierarchy and moves the prober.
+        /// </summary>
+        Task GoToWaferContactAsync(string cell, int row, int col, int contactId);
+
+        /// <summary>
+        /// Iterates over the entire wafer, skipping specific boundary and sub-cell exclusions, and calls the callback for each target contact.
+        /// </summary>
+        Task ScanWaferAsync(System.Collections.Generic.IEnumerable<int> targetContacts, System.Func<string, int, int, int, Task> onContactReached, System.Threading.CancellationToken ct = default);
     }
 }

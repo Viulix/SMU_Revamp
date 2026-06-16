@@ -263,6 +263,27 @@
                     </Grid>
                 </ScrollViewer>
             </TabItem>
+
+            <TabItem Header="Wafermap">
+                <ScrollViewer Margin="20" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="20">
+                        <TextBlock Text="Automatic Wafer Scan" FontSize="20" FontWeight="Bold" Margin="0,0,0,10" />
+                        
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="Target Contacts (1-6, comma separated):" VerticalAlignment="Center" />
+                            <TextBox Text="{Binding TargetScanContacts}" PlaceholderText="e.g. 1, 2, 3" Width="200" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,20,0,0">
+                            <Button Content="Start Wafer Scan" Command="{Binding ScanWaferCommand}" Classes="Primary" Width="150" />
+                            <Button Content="Stop Scan" Command="{Binding StopScanWaferCommand}" Classes="Secondary" Width="100" />
+                        </StackPanel>
+
+                        <ProgressBar Value="{Binding WaferScanProgress}" Minimum="0" Maximum="100" Height="20" Margin="0,20,0,0" />
+                        <TextBlock Text="{Binding WaferScanLog}" Foreground="#4B5563" TextWrapping="Wrap" Margin="0,10,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
     </DockPanel>
 </Window>
