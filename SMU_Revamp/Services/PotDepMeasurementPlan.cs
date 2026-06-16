@@ -123,7 +123,14 @@ namespace SMU_Revamp.Services
             if (totalCycles <= 0) return;
 
             await smu.SendCommandAsync("*RST");
-            await smu.SendCommandAsync($"CN {channel},{readingChannel}");
+            if (readingChannel != channel)
+            {
+                await smu.SendCommandAsync($"CN {channel},{readingChannel}");
+            }
+            else
+            {
+                await smu.SendCommandAsync($"CN {channel}");
+            }
             await smu.SendCommandAsync($"MM 1,{readingChannel}");
             await smu.SendCommandAsync($"CMM {readingChannel},1");
             await smu.SendCommandAsync($"RV {channel},0");

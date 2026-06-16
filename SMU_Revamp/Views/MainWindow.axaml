@@ -271,7 +271,8 @@
                         
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <TextBlock Text="Target Contacts (1-6, comma separated):" VerticalAlignment="Center" />
-                            <TextBox Text="{Binding TargetScanContacts}" PlaceholderText="e.g. 1, 2, 3" Width="200" />
+                            <TextBox Text="{Binding TargetScanContacts}" PlaceholderText="e.g. 1, 2, 3" Width="200" IsEnabled="{Binding !IsAllContactsChecked}" />
+                            <CheckBox Content="All Contacts" IsChecked="{Binding IsAllContactsChecked}" VerticalAlignment="Center" Margin="10,0,0,0" />
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,20,0,0">
@@ -279,7 +280,11 @@
                             <Button Content="Stop Scan" Command="{Binding StopScanWaferCommand}" Classes="Secondary" Width="100" />
                         </StackPanel>
 
-                        <ProgressBar Value="{Binding WaferScanProgress}" Minimum="0" Maximum="100" Height="20" Margin="0,20,0,0" />
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,20,0,0">
+                            <ProgressBar Value="{Binding WaferScanProgress}" Minimum="0" Maximum="100" Height="20" Foreground="Black" Width="400" />
+                            <TextBlock Text="{Binding WaferScanCountText}" VerticalAlignment="Center" FontWeight="Bold" />
+                        </StackPanel>
+                        
                         <TextBlock Text="{Binding WaferScanLog}" Foreground="#4B5563" TextWrapping="Wrap" Margin="0,10,0,0" />
                     </StackPanel>
                 </ScrollViewer>

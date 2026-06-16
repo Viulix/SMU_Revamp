@@ -186,7 +186,31 @@ public partial class MainWindowViewModel : ViewModelBase
     public bool IsScanningWafer
     {
         get => _isScanningWafer;
-        set => SetProperty(ref _isScanningWafer, value);
+        set
+        {
+            if (SetProperty(ref _isScanningWafer, value))
+            {
+                (ScanWaferCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (StopScanWaferCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                (RunMeasurementCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    private bool _isAllContactsChecked;
+    public bool IsAllContactsChecked
+    {
+        get => _isAllContactsChecked;
+        set
+        {
+            if (SetProperty(ref _isAllContactsChecked, value))
+            {
+                if (value)
+                {
+                    TargetScanContacts = "1, 2, 3, 4, 5, 6";
+                }
+            }
+        }
     }
 
     private double _waferScanProgress;
@@ -201,6 +225,13 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         get => _waferScanLog;
         set => SetProperty(ref _waferScanLog, value);
+    }
+
+    private string _waferScanCountText = string.Empty;
+    public string WaferScanCountText
+    {
+        get => _waferScanCountText;
+        set => SetProperty(ref _waferScanCountText, value);
     }
 
     private string _targetScanContacts = "1, 2, 3";
@@ -243,7 +274,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         GoToContactCommand = new AsyncRelayCommand(GoToContactAsync);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAndConfigurationAsync);
-        RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync);
+        RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync, () => !IsScanningWafer && !IsMeasuring);
         MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync);
         MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync);
 
@@ -304,6 +335,7 @@ public partial class MainWindowViewModel : ViewModelBase
             int totalExpectedContacts = totalExpectedCells * 23 * contacts.Count; // 23 sub-cells (5x5 - 2 exclusions)
             int currentContact = 0;
 
+            WaferScanCountText = $"0 / {totalExpectedContacts}";
             WaferScanLog = "Starting wafer scan...";
             
             await ProberService.Instance.ScanWaferAsync(contacts, async (cell, row, col, contact) =>
@@ -321,10 +353,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 
                 currentContact++;
                 WaferScanProgress = (double)currentContact / totalExpectedContacts * 100.0;
+                WaferScanCountText = $"{currentContact} / {totalExpectedContacts}";
             }, _scanCts.Token);
 
             WaferScanLog = "Wafer scan completed.";
             WaferScanProgress = 100;
+            WaferScanCountText = $"{totalExpectedContacts} / {totalExpectedContacts}";
         }
         catch (OperationCanceledException)
         {
@@ -581,6 +615,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (SetProperty(ref _isMeasuring, value))
             {
                 OnPropertyChanged(nameof(IsMeasuringSweep));
+                (RunMeasurementCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
             }
         }
     }
