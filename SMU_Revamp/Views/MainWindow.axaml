@@ -284,7 +284,7 @@
 
                         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,20,0,0">
                             <TextBlock Text="Movement Delay (ms):" VerticalAlignment="Center" />
-                            <TextBox Text="{Binding WaferScanDelayMs}" Width="100" />
+                            <TextBox Text="{Binding WaferScanDelayMs}" Width="100" IsEnabled="{Binding !IsScanningWafer}" />
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,20,0,0">
