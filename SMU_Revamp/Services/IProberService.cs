@@ -81,12 +81,6 @@ namespace SMU_Revamp.Services
         Task ProberGoHomeAsync();
 
         /// <summary>
-        /// Executes the legacy next-contact sequencing logic.
-        /// Returns the updated contact number.
-        /// </summary>
-        int NextContact(string cellPosition, int contactNumber, bool combSputtering, bool hugeDeltaA, bool hugeDeltaB);
-
-        /// <summary>
         /// Converts an absolute contact index to the legacy relative row/subrow format.
         /// </summary>
         string[] AbsToRel(int absZeile);
