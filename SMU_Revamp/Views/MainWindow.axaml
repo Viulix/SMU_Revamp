@@ -278,6 +278,12 @@
                         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,20,0,0">
                             <Button Content="Start Wafer Scan" Command="{Binding ScanWaferCommand}" Classes="Primary" Width="150" />
                             <Button Content="Stop Scan" Command="{Binding StopScanWaferCommand}" Classes="Secondary" Width="100" />
+                            <Button Content="Move to Start Point" Command="{Binding GoToScanStartCommand}" Classes="Secondary" Width="160" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,20,0,0">
+                            <TextBlock Text="Movement Delay (ms):" VerticalAlignment="Center" />
+                            <TextBox Text="{Binding WaferScanDelayMs}" Width="100" />
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,20,0,0">

@@ -234,6 +234,13 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _waferScanCountText, value);
     }
 
+    private int _waferScanDelayMs = 500;
+    public int WaferScanDelayMs
+    {
+        get => _waferScanDelayMs;
+        set => SetProperty(ref _waferScanDelayMs, value);
+    }
+
     private string _targetScanContacts = "1, 2, 3";
     public string TargetScanContacts
     {
@@ -277,6 +284,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync, () => !IsScanningWafer && !IsMeasuring);
         MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync);
         MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync);
+        GoToScanStartCommand = new AsyncRelayCommand(GoToScanStartAsync);
 
         // Auto-save settings when Profile or SampleName changes
         Settings.PropertyChanged += async (s, e) =>
@@ -292,6 +300,23 @@ public partial class MainWindowViewModel : ViewModelBase
 
         ScanWaferCommand = new AsyncRelayCommand(StartWaferScanAsync, () => !IsScanningWafer);
         StopScanWaferCommand = new RelayCommand(StopWaferScan, () => IsScanningWafer);
+    }
+    
+    public ICommand GoToScanStartCommand { get; }
+
+    private async Task GoToScanStartAsync()
+    {
+        try
+        {
+            await ProberService.Instance.ConnectAsync();
+            await ProberService.Instance.DisconnectChuckAsync();
+            await ProberService.Instance.GoToWaferContactAsync("0104", 1, 1, 1);
+            WaferScanLog = "Moved to scan start point (Cell 0104, Row 1, Col 1, Contact 1).";
+        }
+        catch (Exception ex)
+        {
+            WaferScanLog = $"Error moving to start: {ex.Message}";
+        }
     }
 
     private void StopWaferScan()
@@ -338,7 +363,7 @@ public partial class MainWindowViewModel : ViewModelBase
             WaferScanCountText = $"0 / {totalExpectedContacts}";
             WaferScanLog = "Starting wafer scan...";
             
-            await ProberService.Instance.ScanWaferAsync(contacts, async (cell, row, col, contact) =>
+            await ProberService.Instance.ScanWaferAsync(contacts, WaferScanDelayMs, async (cell, row, col, contact) =>
             {
                 WaferScanLog = $"Measuring Cell: {cell}, Row: {row}, Col: {col}, Contact: {contact}";
                 
@@ -780,7 +805,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 MeasurementStatus = "Finished. No data points parsed.";
             }
 
-            if (AutoSwitchToViewer)
+            if (AutoSwitchToViewer && !IsScanningWafer)
             {
                 SelectedTabIndex = 1; // Auto switch to Viewer tab
             }

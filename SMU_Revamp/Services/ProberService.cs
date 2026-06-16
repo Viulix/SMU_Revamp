@@ -348,7 +348,7 @@ namespace SMU_Revamp.Services
         }
 
         /// <inheritdoc />
-        public async Task ScanWaferAsync(System.Collections.Generic.IEnumerable<int> targetContacts, Func<string, int, int, int, Task> onContactReached, CancellationToken ct = default)
+        public async Task ScanWaferAsync(System.Collections.Generic.IEnumerable<int> targetContacts, int delayMs, Func<string, int, int, int, Task> onContactReached, CancellationToken ct = default)
         {
             var invalidCells = new System.Collections.Generic.HashSet<string>
             {
@@ -380,7 +380,15 @@ namespace SMU_Revamp.Services
                             foreach (var contact in targetContacts)
                             {
                                 ct.ThrowIfCancellationRequested();
+                                await DisconnectChuckAsync();
+                                if (delayMs > 0) await Task.Delay(delayMs, ct);
+                                
                                 await GoToWaferContactAsync(cell, row, col, contact);
+                                if (delayMs > 0) await Task.Delay(delayMs, ct);
+                                
+                                await ConnectChuckAsync();
+                                if (delayMs > 0) await Task.Delay(delayMs, ct);
+                                
                                 await onContactReached(cell, row, col, contact);
                             }
                         }
