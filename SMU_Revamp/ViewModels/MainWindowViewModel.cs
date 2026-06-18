@@ -328,6 +328,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private List<int> _parsedScanContacts = new();
     private int _totalExpectedCells = 0;
     private int _totalExpectedSubCells = 0;
+    private string _currentWaferScanFolderName = string.Empty;
 
     public MainWindowViewModel()
     {
@@ -546,6 +547,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         IsScanningWafer = true;
         _scanCts = new System.Threading.CancellationTokenSource();
+        _currentWaferScanFolderName = $"Scan_{DateTime.Now:yyyyMMdd_HHmmss}";
 
         try
         {
@@ -626,6 +628,15 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            try 
+            {
+                WaferScanLog = "Separating and returning to home...";
+                await ProberService.Instance.DisconnectChuckAsync();
+                await ProberService.Instance.ProberGoHomeAsync();
+                WaferScanLog = "Wafer scan finished.";
+            }
+            catch { }
+
             IsScanningWafer = false;
             _scanCts?.Dispose();
             _scanCts = null;
@@ -967,6 +978,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
+            if (!IsScanningWafer)
+            {
+                MeasurementStatus = "Ensuring Chuck is Connected...";
+                await ProberService.Instance.ConnectAsync();
+                await ProberService.Instance.ConnectChuckAsync();
+            }
+
+            // Connect to SMU
             // Connect to SMU
             MeasurementStatus = "Connecting to E5263 SMU...";
             var smu = E5263_SMU.Instance;
@@ -1014,7 +1033,7 @@ public partial class MainWindowViewModel : ViewModelBase
                             var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                             if (IsScanningWafer)
                             {
-                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, "Wafermaps");
+                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, "Wafermaps", _currentWaferScanFolderName);
                             }
                             else
                             {
@@ -1025,7 +1044,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         {
                             if (IsScanningWafer)
                             {
-                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, "Wafermaps");
+                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, "Wafermaps", _currentWaferScanFolderName);
                             }
                             else
                             {
@@ -1092,6 +1111,16 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            if (!IsScanningWafer)
+            {
+                try
+                {
+                    MeasurementStatus = "Separating Chuck...";
+                    await ProberService.Instance.DisconnectChuckAsync();
+                }
+                catch { }
+            }
+
             // Close sessions
             try { await E5263_SMU.Instance.DisconnectAsync(); } catch { }
             IsMeasuring = false;
