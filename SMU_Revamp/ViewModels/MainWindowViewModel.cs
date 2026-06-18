@@ -1037,7 +1037,8 @@ public partial class MainWindowViewModel : ViewModelBase
                             }
                             else
                             {
-                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile);
+                                string normalFolder = $"{sampleName}_{DateTime.Now:yyyyMMdd}";
+                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, normalFolder);
                             }
                         }
                         catch
@@ -1048,7 +1049,8 @@ public partial class MainWindowViewModel : ViewModelBase
                             }
                             else
                             {
-                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile);
+                                string normalFolder = $"{sampleName}_{DateTime.Now:yyyyMMdd}";
+                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, normalFolder);
                             }
                         }
                         
