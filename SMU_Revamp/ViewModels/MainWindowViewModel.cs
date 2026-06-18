@@ -1012,11 +1012,25 @@ public partial class MainWindowViewModel : ViewModelBase
                         try
                         {
                             var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-                            folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile);
+                            if (IsScanningWafer)
+                            {
+                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", "Wafermap", profile);
+                            }
+                            else
+                            {
+                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile);
+                            }
                         }
                         catch
                         {
-                            folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile);
+                            if (IsScanningWafer)
+                            {
+                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", "Wafermap", profile);
+                            }
+                            else
+                            {
+                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile);
+                            }
                         }
                         
                         if (!System.IO.Directory.Exists(folderPath))
@@ -1026,7 +1040,17 @@ public partial class MainWindowViewModel : ViewModelBase
                         
                         var planName = SelectedPlan.Name.Replace(" ", "_").Replace("-", "_");
                         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                        var fileName = $"{sampleName}_{planName}_{timestamp}.csv";
+                        
+                        string fileName;
+                        if (IsScanningWafer)
+                        {
+                            fileName = $"{sampleName}_{planName}_Cell{TargetCell}_R{TargetRow}C{TargetColumn}_Contact{TargetContact}_{timestamp}.csv";
+                        }
+                        else
+                        {
+                            fileName = $"{sampleName}_{planName}_{timestamp}.csv";
+                        }
+                        
                         var fullPath = System.IO.Path.Combine(folderPath, fileName);
                         
                         var lines = new List<string> { "Voltage (V),Current (A)" };
