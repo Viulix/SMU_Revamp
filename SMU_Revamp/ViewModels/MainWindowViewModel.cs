@@ -1014,7 +1014,7 @@ public partial class MainWindowViewModel : ViewModelBase
                             var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                             if (IsScanningWafer)
                             {
-                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", "Wafermap", profile);
+                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, "Wafermaps");
                             }
                             else
                             {
@@ -1025,7 +1025,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         {
                             if (IsScanningWafer)
                             {
-                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", "Wafermap", profile);
+                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, "Wafermaps");
                             }
                             else
                             {
