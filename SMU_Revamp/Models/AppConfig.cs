@@ -11,6 +11,11 @@ public class AppConfig
     public bool ProberQuietMode { get; set; } = false;
 
     /// <summary>
+    /// Whether to show the alignment warning before starting a scan.
+    /// </summary>
+    public bool ShowAlignmentWarning { get; set; } = true;
+
+    /// <summary>
     /// Prober GPIB resource string.
     /// </summary>
     public string ProberResource { get; set; } = "GPIB0::22::INSTR";

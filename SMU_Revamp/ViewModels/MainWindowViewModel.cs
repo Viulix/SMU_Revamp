@@ -180,7 +180,6 @@ public partial class MainWindowViewModel : ViewModelBase
     public ICommand ClearAllMatrixCommand { get; }
 
     public ICommand ScanWaferCommand { get; }
-    public ICommand StopScanWaferCommand { get; }
 
     private bool _isScanningWafer;
     public bool IsScanningWafer
@@ -191,7 +190,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (SetProperty(ref _isScanningWafer, value))
             {
                 (ScanWaferCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
-                (StopScanWaferCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                (RequestStopScanCommand as RelayCommand)?.NotifyCanExecuteChanged();
                 (RunMeasurementCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
             }
         }
@@ -227,12 +226,35 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _waferScanLog, value);
     }
 
+    private Avalonia.Media.FontWeight _waferScanLogFontWeight = Avalonia.Media.FontWeight.Normal;
+    public Avalonia.Media.FontWeight WaferScanLogFontWeight
+    {
+        get => _waferScanLogFontWeight;
+        set => SetProperty(ref _waferScanLogFontWeight, value);
+    }
+
+    private string _waferScanEstimatedFinish = string.Empty;
+    public string WaferScanEstimatedFinish
+    {
+        get => _waferScanEstimatedFinish;
+        set => SetProperty(ref _waferScanEstimatedFinish, value);
+    }
+
     private string _waferScanCountText = string.Empty;
     public string WaferScanCountText
     {
         get => _waferScanCountText;
         set => SetProperty(ref _waferScanCountText, value);
     }
+
+    public System.Collections.ObjectModel.ObservableCollection<WaferCellViewModel> WaferCells { get; } = new();
+    public System.Collections.ObjectModel.ObservableCollection<SubCellViewModel> SubCells { get; } = new();
+
+    public ICommand SelectAllCellsCommand { get; }
+    public ICommand DeselectAllCellsCommand { get; }
+    
+    public ICommand SelectAllSubCellsCommand { get; }
+    public ICommand DeselectAllSubCellsCommand { get; }
 
     private int _waferScanDelayMs = 500;
     public int WaferScanDelayMs
@@ -264,6 +286,49 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _moveY, value);
     }
 
+    private bool _isCancelPromptVisible;
+    public bool IsCancelPromptVisible
+    {
+        get => _isCancelPromptVisible;
+        set => SetProperty(ref _isCancelPromptVisible, value);
+    }
+
+    private bool _isErrorPopupVisible;
+    public bool IsErrorPopupVisible
+    {
+        get => _isErrorPopupVisible;
+        set => SetProperty(ref _isErrorPopupVisible, value);
+    }
+
+    private string _popupErrorMessage = string.Empty;
+    public string PopupErrorMessage
+    {
+        get => _popupErrorMessage;
+        set => SetProperty(ref _popupErrorMessage, value);
+    }
+
+    private bool _isAlignmentWarningVisible;
+    public bool IsAlignmentWarningVisible
+    {
+        get => _isAlignmentWarningVisible;
+        set => SetProperty(ref _isAlignmentWarningVisible, value);
+    }
+
+    private bool _dontShowAlignmentWarning;
+    public bool DontShowAlignmentWarning
+    {
+        get => _dontShowAlignmentWarning;
+        set => SetProperty(ref _dontShowAlignmentWarning, value);
+    }
+
+    public ICommand CloseErrorPopupCommand { get; }
+    public ICommand ProceedWithScanCommand { get; }
+    public ICommand CancelAlignmentWarningCommand { get; }
+
+    private List<int> _parsedScanContacts = new();
+    private int _totalExpectedCells = 0;
+    private int _totalExpectedSubCells = 0;
+
     public MainWindowViewModel()
     {
         CurvePoints = CreateCurvePoints();
@@ -285,21 +350,108 @@ public partial class MainWindowViewModel : ViewModelBase
         MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync);
         MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync);
         GoToScanStartCommand = new AsyncRelayCommand(GoToScanStartAsync);
+        
+        SelectAllCellsCommand = new RelayCommand(() => 
+        {
+            foreach (var cell in WaferCells)
+            {
+                if (cell.IsValid) cell.IsSelected = true;
+            }
+        });
+        
+        DeselectAllCellsCommand = new RelayCommand(() => 
+        {
+            foreach (var cell in WaferCells)
+            {
+                cell.IsSelected = false;
+            }
+        });
+
+        SelectAllSubCellsCommand = new RelayCommand(() => 
+        {
+            foreach (var cell in SubCells)
+            {
+                if (cell.IsValid) cell.IsSelected = true;
+            }
+        });
+        
+        DeselectAllSubCellsCommand = new RelayCommand(() => 
+        {
+            foreach (var cell in SubCells)
+            {
+                cell.IsSelected = false;
+            }
+        });
+
+        RequestStopScanCommand = new RelayCommand(() => IsCancelPromptVisible = true, () => IsScanningWafer);
+        ConfirmStopScanCommand = new RelayCommand(ConfirmStopWaferScan);
+        CancelStopRequestCommand = new RelayCommand(() => IsCancelPromptVisible = false);
+
+        CloseErrorPopupCommand = new RelayCommand(() => IsErrorPopupVisible = false);
+        ProceedWithScanCommand = new AsyncRelayCommand(async () =>
+        {
+            if (DontShowAlignmentWarning)
+            {
+                Settings.ShowAlignmentWarning = false;
+                var config = ConfigurationService.Instance.GetConfig();
+                config.ShowAlignmentWarning = false;
+                await ConfigurationService.Instance.SaveAsync(config);
+            }
+            IsAlignmentWarningVisible = false;
+            await ExecuteWaferScanAsync();
+        });
+        CancelAlignmentWarningCommand = new RelayCommand(() => IsAlignmentWarningVisible = false);
 
         // Auto-save settings when Profile or SampleName changes
         Settings.PropertyChanged += async (s, e) =>
         {
             if (e.PropertyName == nameof(SettingsViewModel.Profile) || e.PropertyName == nameof(SettingsViewModel.SampleName))
             {
-                await SaveSettingsAndConfigurationAsync();
+                await ConfigurationService.Instance.SaveAsync(ConfigurationService.Instance.GetConfig());
             }
         };
 
         DisconnectRouteCommand = new AsyncRelayCommand(DisconnectRouteAsync);
         ClearAllMatrixCommand = new AsyncRelayCommand(ClearAllMatrixAsync);
 
+        InitializeWaferCells();
+        InitializeSubCells();
+
         ScanWaferCommand = new AsyncRelayCommand(StartWaferScanAsync, () => !IsScanningWafer);
-        StopScanWaferCommand = new RelayCommand(StopWaferScan, () => IsScanningWafer);
+    }
+
+    private void InitializeWaferCells()
+    {
+        var invalidCells = new System.Collections.Generic.HashSet<string>
+        {
+            "0101", "0102", "0103", "0114", "0115", "0116",
+            "0201", "0202", "0215", "0216",
+            "0301", "0316",
+            "1401", "1416",
+            "1501", "1502", "1515", "1516",
+            "1601", "1602", "1603", "1614", "1615", "1616"
+        };
+
+        for (int y = 1; y <= 16; y++)
+        {
+            for (int x = 1; x <= 16; x++)
+            {
+                string cellId = $"{y:D2}{x:D2}";
+                WaferCells.Add(new WaferCellViewModel(cellId, !invalidCells.Contains(cellId)));
+            }
+        }
+    }
+
+    private void InitializeSubCells()
+    {
+        for (int row = 1; row <= 5; row++)
+        {
+            for (int col = 1; col <= 5; col++)
+            {
+                bool isInvalid = (row == 2 && col == 2) || (row == 5 && col == 5);
+                SubCells.Add(new SubCellViewModel(row, col, !isInvalid));
+            }
+        }
     }
     
     public ICommand GoToScanStartCommand { get; }
@@ -311,7 +463,8 @@ public partial class MainWindowViewModel : ViewModelBase
             await ProberService.Instance.ConnectAsync();
             await ProberService.Instance.DisconnectChuckAsync();
             await ProberService.Instance.ProberGoHomeAsync();
-            WaferScanLog = "Moved to Home point (Cell 0104).";
+            WaferScanLogFontWeight = Avalonia.Media.FontWeight.Bold;
+            IsScanningWafer = false;
         }
         catch (Exception ex)
         {
@@ -319,9 +472,19 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private void StopWaferScan()
+    public ICommand RequestStopScanCommand { get; }
+    public ICommand ConfirmStopScanCommand { get; }
+    public ICommand CancelStopRequestCommand { get; }
+
+    private void ConfirmStopWaferScan()
     {
-        _scanCts?.Cancel();
+        IsCancelPromptVisible = false;
+        if (_scanCts != null)
+        {
+            _scanCts.Cancel();
+            WaferScanLog = "Wafer scan canceled by user!";
+            WaferScanLogFontWeight = Avalonia.Media.FontWeight.Bold;
+        }
     }
 
     private async Task StartWaferScanAsync()
@@ -331,22 +494,56 @@ public partial class MainWindowViewModel : ViewModelBase
         WaferScanLog = "Parsing target contacts...";
         WaferScanProgress = 0;
         
-        var contacts = new List<int>();
+        _parsedScanContacts.Clear();
         var parts = TargetScanContacts.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
         foreach (var part in parts)
         {
             if (int.TryParse(part, out int c) && c >= 1 && c <= 6)
             {
-                contacts.Add(c);
+                _parsedScanContacts.Add(c);
             }
         }
 
-        if (contacts.Count == 0)
+        if (_parsedScanContacts.Count == 0)
         {
             WaferScanLog = "Error: Invalid target contacts.";
+            PopupErrorMessage = "Invalid target contacts. Please specify valid contact numbers (1-6).";
+            IsErrorPopupVisible = true;
             return;
         }
 
+        _totalExpectedCells = 0;
+        foreach (var cell in WaferCells)
+        {
+            if (cell.IsValid && cell.IsSelected) _totalExpectedCells++;
+        }
+
+        _totalExpectedSubCells = 0;
+        foreach (var subCell in SubCells)
+        {
+            if (subCell.IsValid && subCell.IsSelected) _totalExpectedSubCells++;
+        }
+
+        if (_totalExpectedCells == 0 || _totalExpectedSubCells == 0)
+        {
+            WaferScanLog = "Error: No cells selected.";
+            PopupErrorMessage = "Please select at least one Target Cell and one Global Sub-cell.";
+            IsErrorPopupVisible = true;
+            return;
+        }
+
+        if (Settings.ShowAlignmentWarning)
+        {
+            IsAlignmentWarningVisible = true;
+        }
+        else
+        {
+            await ExecuteWaferScanAsync();
+        }
+    }
+
+    private async Task ExecuteWaferScanAsync()
+    {
         IsScanningWafer = true;
         _scanCts = new System.Threading.CancellationTokenSource();
 
@@ -355,16 +552,50 @@ public partial class MainWindowViewModel : ViewModelBase
             WaferScanLog = "Connecting to Prober...";
             await ProberService.Instance.ConnectAsync();
             
-            // For rough progress estimating
-            int totalExpectedCells = 16 * 16 - 24; // 24 excluded
-            int totalExpectedContacts = totalExpectedCells * 23 * contacts.Count; // 23 sub-cells (5x5 - 2 exclusions)
+            var targetCells = new System.Collections.Generic.HashSet<string>();
+            foreach (var cell in WaferCells)
+            {
+                if (cell.IsValid && cell.IsSelected)
+                {
+                    targetCells.Add(cell.Id);
+                }
+            }
+
+            var targetSubCells = new System.Collections.Generic.HashSet<(int row, int col)>();
+            foreach (var subCell in SubCells)
+            {
+                if (subCell.IsValid && subCell.IsSelected)
+                {
+                    targetSubCells.Add((subCell.Row, subCell.Column));
+                }
+            }
+
+            int totalExpectedContacts = _totalExpectedCells * _totalExpectedSubCells * _parsedScanContacts.Count;
             int currentContact = 0;
+            var scanStepDurations = new System.Collections.Generic.Queue<TimeSpan>();
+            var stepStopwatch = new System.Diagnostics.Stopwatch();
 
             WaferScanCountText = $"0 / {totalExpectedContacts}";
+            WaferScanEstimatedFinish = string.Empty;
             WaferScanLog = "Starting wafer scan...";
+            WaferScanLogFontWeight = Avalonia.Media.FontWeight.Normal;
             
-            await ProberService.Instance.ScanWaferAsync(contacts, WaferScanDelayMs, async (cell, row, col, contact) =>
+            await ProberService.Instance.ScanWaferAsync(targetCells, targetSubCells, _parsedScanContacts, WaferScanDelayMs, async (cell, row, col, contact) =>
             {
+                if (stepStopwatch.IsRunning)
+                {
+                    stepStopwatch.Stop();
+                    scanStepDurations.Enqueue(stepStopwatch.Elapsed);
+                    if (scanStepDurations.Count > 5) scanStepDurations.Dequeue();
+                    
+                    double avgMs = System.Linq.Enumerable.Average(scanStepDurations, ts => ts.TotalMilliseconds);
+                    int remaining = totalExpectedContacts - currentContact;
+                    TimeSpan estimatedRemaining = TimeSpan.FromMilliseconds(avgMs * remaining);
+                    DateTime finishTime = DateTime.Now + estimatedRemaining;
+                    WaferScanEstimatedFinish = $"Est. Finish: {finishTime:HH:mm:ss}";
+                }
+                stepStopwatch.Restart();
+
                 WaferScanLog = $"Measuring Cell: {cell}, Row: {row}, Col: {col}, Contact: {contact}";
                 
                 // Update UI state for auto-save filenames
@@ -399,7 +630,7 @@ public partial class MainWindowViewModel : ViewModelBase
             _scanCts?.Dispose();
             _scanCts = null;
             (ScanWaferCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
-            (StopScanWaferCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (RequestStopScanCommand as RelayCommand)?.NotifyCanExecuteChanged();
         }
     }
 
@@ -710,6 +941,25 @@ public partial class MainWindowViewModel : ViewModelBase
                     await SaveSettingsAndConfigurationAsync();
                 }
             }
+        }
+
+        // Check for PotDep times < 20ms
+        if (SelectedPlan is PotDepMeasurementPlan potDep)
+        {
+            if (potDep.GetParamValueDouble("tpot") < 20 ||
+                potDep.GetParamValueDouble("tdep") < 20 ||
+                potDep.GetParamValueDouble("treadPD") < 20)
+            {
+                WarningMessage = "Warning: times below 20ms may be inaccurate!";
+            }
+            else
+            {
+                WarningMessage = string.Empty;
+            }
+        }
+        else
+        {
+            WarningMessage = string.Empty;
         }
 
         // Persist measurement settings automatically when running

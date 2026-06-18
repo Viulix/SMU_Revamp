@@ -18,7 +18,14 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <DockPanel>
+    <Window.Styles>
+        <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+            <Setter Property="Background" Value="Black" />
+        </Style>
+    </Window.Styles>
+
+    <Grid>
+        <DockPanel>
         <!-- Header with Settings and Debug Buttons -->
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="20,10,20,0" Spacing="10" HorizontalAlignment="Right">
             <Button Content="Debug" Click="DebugButton_Click" Classes="Secondary" Padding="10,5" />
@@ -266,36 +273,180 @@
 
             <TabItem Header="Wafermap">
                 <ScrollViewer Margin="20" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel Spacing="20">
-                        <TextBlock Text="Automatic Wafer Scan" FontSize="20" FontWeight="Bold" Margin="0,0,0,0" />
-                        <TextBlock Text="Note: The automatic wafer scan will execute the measurement plan currently selected in the 'Measurements' tab at each target contact." FontStyle="Italic" TextWrapping="Wrap" Foreground="#666666" Margin="0,0,0,10" />
-                        
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Text="Target Contacts (1-6, comma separated):" VerticalAlignment="Center" />
-                            <TextBox Text="{Binding TargetScanContacts}" PlaceholderText="e.g. 1, 2, 3" Width="200" IsEnabled="{Binding !IsAllContactsChecked}" />
-                            <CheckBox Content="All Contacts" IsChecked="{Binding IsAllContactsChecked}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    <Grid ColumnDefinitions="45*,10*,45*">
+                        <StackPanel Grid.Column="0" Spacing="20">
+                            <TextBlock Text="Automatic Wafer Scan" FontSize="20" FontWeight="Bold" Margin="0,0,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="Note: The automatic wafer scan will execute the measurement plan currently selected in the 'Measurements' tab at each target contact." FontStyle="Italic" TextWrapping="Wrap" Foreground="#666666" Margin="0,0,0,10" />
+                            
+                            <WrapPanel Orientation="Horizontal" IsEnabled="{Binding !IsScanningWafer}">
+                                <TextBlock Text="Target Contacts (1-6, comma separated):" VerticalAlignment="Center" Margin="0,0,10,10" />
+                                <TextBox Text="{Binding TargetScanContacts}" PlaceholderText="e.g. 1, 2, 3" Width="200" IsEnabled="{Binding !IsAllContactsChecked}" Margin="0,0,10,10" />
+                                <CheckBox Content="All Contacts" IsChecked="{Binding IsAllContactsChecked}" VerticalAlignment="Center" Margin="0,0,10,10" />
+                            </WrapPanel>
+
+                            <!-- Global Sub-cells Layout -->
+                            <TextBlock Text="Global Sub-cells (Rows/Cols):" FontSize="16" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap" />
+                            <WrapPanel Orientation="Horizontal" IsEnabled="{Binding !IsScanningWafer}">
+                                <Button Content="Select All" Command="{Binding SelectAllSubCellsCommand}" Classes="Secondary" Padding="10,5" Margin="0,0,10,10" />
+                                <Button Content="Deselect All" Command="{Binding DeselectAllSubCellsCommand}" Classes="Secondary" Padding="10,5" Margin="0,0,10,10" />
+                            </WrapPanel>
+                            <Viewbox Stretch="Uniform" HorizontalAlignment="Left" StretchDirection="DownOnly" IsEnabled="{Binding !IsScanningWafer}">
+                                <Border Background="#F3F4F6" Padding="10" CornerRadius="8" Margin="0,0,0,10">
+                                <ItemsControl ItemsSource="{Binding SubCells}">
+                                    <ItemsControl.Styles>
+                                        <Style Selector="ToggleButton">
+                                            <Setter Property="Background" Value="#FFCDD2" /> <!-- light red -->
+                                        </Style>
+                                        <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+                                            <Setter Property="Background" Value="#C8E6C9" /> <!-- light green -->
+                                        </Style>
+                                        <Style Selector="ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                            <Setter Property="Background" Value="#EF9A9A" />
+                                        </Style>
+                                        <Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                            <Setter Property="Background" Value="#A5D6A7" />
+                                        </Style>
+                                    </ItemsControl.Styles>
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="5" Rows="5" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SubCellViewModel">
+                                            <Border Width="44" Height="44" Margin="3">
+                                                <ToggleButton IsChecked="{Binding IsSelected}" 
+                                                              IsVisible="{Binding IsValid}" 
+                                                              HorizontalAlignment="Stretch" 
+                                                              VerticalAlignment="Stretch"
+                                                              CornerRadius="4"
+                                                              ToolTip.Tip="{Binding Id}"
+                                                              Padding="0">
+                                                    <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </ToggleButton>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                            </Viewbox>
+
+                            <WrapPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <TextBlock Text="Movement Delay (ms):" VerticalAlignment="Center" Margin="0,0,10,10" />
+                                <TextBox Text="{Binding WaferScanDelayMs}" Width="100" IsEnabled="{Binding !IsScanningWafer}" Margin="0,0,10,10" />
+                            </WrapPanel>
+
+                            <WrapPanel Orientation="Horizontal" Margin="0,20,0,0">
+                                <Button Content="Start Wafer Scan" Command="{Binding ScanWaferCommand}" Classes="Primary" Width="150" Margin="0,0,10,10" />
+                                <Button Content="Stop Scan" Command="{Binding RequestStopScanCommand}" Classes="Danger" Width="100" Margin="0,0,10,10" />
+                                <Button Content="Move to Start Point" Command="{Binding GoToScanStartCommand}" Classes="Secondary" Width="160" Margin="0,0,10,10" />
+                            </WrapPanel>
+
+                            <StackPanel Spacing="10" Margin="0,10,0,0">
+                                <ProgressBar Value="{Binding WaferScanProgress}" Minimum="0" Maximum="100" Height="20" Foreground="Black" HorizontalAlignment="Stretch" MinWidth="200" />
+                                <WrapPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding WaferScanCountText}" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0" />
+                                    <TextBlock Text="{Binding WaferScanEstimatedFinish}" Foreground="#666666" VerticalAlignment="Center" />
+                                </WrapPanel>
+                            </StackPanel>
+                            
+                            <TextBlock Text="{Binding WaferScanLog}" FontWeight="{Binding WaferScanLogFontWeight}" Foreground="#4B5563" TextWrapping="Wrap" Margin="0,10,0,0" />
+
                         </StackPanel>
 
-                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,20,0,0">
-                            <Button Content="Start Wafer Scan" Command="{Binding ScanWaferCommand}" Classes="Primary" Width="150" />
-                            <Button Content="Stop Scan" Command="{Binding StopScanWaferCommand}" Classes="Secondary" Width="100" />
-                            <Button Content="Move to Start Point" Command="{Binding GoToScanStartCommand}" Classes="Secondary" Width="160" />
-                        </StackPanel>
+                        <StackPanel Grid.Column="2" Spacing="15">
 
-                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,20,0,0">
-                            <TextBlock Text="Movement Delay (ms):" VerticalAlignment="Center" />
-                            <TextBox Text="{Binding WaferScanDelayMs}" Width="100" IsEnabled="{Binding !IsScanningWafer}" />
+                            <TextBlock Text="Target Cells:" FontSize="16" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap" />
+                            <WrapPanel Orientation="Horizontal" IsEnabled="{Binding !IsScanningWafer}">
+                                <Button Content="Select All" Command="{Binding SelectAllCellsCommand}" Classes="Secondary" Padding="10,5" Margin="0,0,10,10" />
+                                <Button Content="Deselect All" Command="{Binding DeselectAllCellsCommand}" Classes="Secondary" Padding="10,5" Margin="0,0,10,10" />
+                            </WrapPanel>
+                            
+                            <Viewbox Stretch="Uniform" HorizontalAlignment="Left" StretchDirection="DownOnly" IsEnabled="{Binding !IsScanningWafer}">
+                                <Border Background="#F3F4F6" Padding="15" CornerRadius="8">
+                                <ItemsControl ItemsSource="{Binding WaferCells}">
+                                    <ItemsControl.Styles>
+                                        <Style Selector="ToggleButton">
+                                            <Setter Property="Background" Value="#FFCDD2" />
+                                        </Style>
+                                        <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+                                            <Setter Property="Background" Value="#C8E6C9" />
+                                        </Style>
+                                        <Style Selector="ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                            <Setter Property="Background" Value="#EF9A9A" />
+                                        </Style>
+                                        <Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                            <Setter Property="Background" Value="#A5D6A7" />
+                                        </Style>
+                                    </ItemsControl.Styles>
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="16" Rows="16" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:WaferCellViewModel">
+                                            <Border Width="38" Height="38" Margin="1">
+                                                <ToggleButton IsChecked="{Binding IsSelected}" 
+                                                              IsVisible="{Binding IsValid}" 
+                                                              HorizontalAlignment="Stretch" 
+                                                              VerticalAlignment="Stretch"
+                                                              ToolTip.Tip="{Binding Id}"
+                                                              CornerRadius="4"
+                                                              Padding="0">
+                                                    <TextBlock Text="{Binding Id}" FontSize="9" FontWeight="Bold" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </ToggleButton>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                            </Viewbox>
                         </StackPanel>
-
-                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,20,0,0">
-                            <ProgressBar Value="{Binding WaferScanProgress}" Minimum="0" Maximum="100" Height="20" Foreground="Black" Width="400" />
-                            <TextBlock Text="{Binding WaferScanCountText}" VerticalAlignment="Center" FontWeight="Bold" />
-                        </StackPanel>
-                        
-                        <TextBlock Text="{Binding WaferScanLog}" Foreground="#4B5563" TextWrapping="Wrap" Margin="0,10,0,0" />
-                    </StackPanel>
+                    </Grid>
                 </ScrollViewer>
             </TabItem>
         </TabControl>
-    </DockPanel>
+        </DockPanel>
+
+        <!-- Cancel Prompt Overlay -->
+        <Grid Background="#80000000" IsVisible="{Binding IsCancelPromptVisible}" ZIndex="100">
+            <Border Background="White" CornerRadius="8" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400" BorderBrush="LightGray" BorderThickness="1">
+                <StackPanel Spacing="20">
+                    <TextBlock Text="Cancel Wafer Scan?" FontSize="20" FontWeight="Bold" Foreground="#D32F2F" />
+                    <TextBlock Text="Are you sure you want to stop the scan? All further measurements will be aborted." TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="15" HorizontalAlignment="Right">
+                        <Button Content="No, Continue" Command="{Binding CancelStopRequestCommand}" Classes="Secondary" />
+                        <Button Content="Yes, Stop Scan" Command="{Binding ConfirmStopScanCommand}" Classes="Danger" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Error Popup Overlay -->
+        <Grid Background="#80000000" IsVisible="{Binding IsErrorPopupVisible}" ZIndex="100">
+            <Border Background="White" CornerRadius="8" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400" BorderBrush="LightGray" BorderThickness="1">
+                <StackPanel Spacing="20">
+                    <TextBlock Text="Scan Error" FontSize="20" FontWeight="Bold" Foreground="#D32F2F" />
+                    <TextBlock Text="{Binding PopupErrorMessage}" TextWrapping="Wrap" />
+                    <Button Content="OK" Command="{Binding CloseErrorPopupCommand}" Classes="Secondary" HorizontalAlignment="Right" Width="100" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Alignment Warning Overlay -->
+        <Grid Background="#80000000" IsVisible="{Binding IsAlignmentWarningVisible}" ZIndex="100">
+            <Border Background="White" CornerRadius="8" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400" BorderBrush="LightGray" BorderThickness="1">
+                <StackPanel Spacing="20">
+                    <TextBlock Text="Alignment Confirmation" FontSize="20" FontWeight="Bold" Foreground="#1F2937" />
+                    <TextBlock Text="Have you correctly aligned the wafer to cell 0104 and set the home position?" TextWrapping="Wrap" />
+                    <CheckBox Content="Don't show this warning again" IsChecked="{Binding DontShowAlignmentWarning}" />
+                    <StackPanel Orientation="Horizontal" Spacing="15" HorizontalAlignment="Right">
+                        <Button Content="Cancel" Command="{Binding CancelAlignmentWarningCommand}" Classes="Secondary" />
+                        <Button Content="Yes, Start Scan" Command="{Binding ProceedWithScanCommand}" Classes="Primary" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
 </Window>

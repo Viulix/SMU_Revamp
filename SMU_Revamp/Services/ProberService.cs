@@ -254,17 +254,8 @@ namespace SMU_Revamp.Services
         }
 
         /// <inheritdoc />
-        public async Task ScanWaferAsync(System.Collections.Generic.IEnumerable<int> targetContacts, int delayMs, Func<string, int, int, int, Task> onContactReached, CancellationToken ct = default)
+        public async Task ScanWaferAsync(System.Collections.Generic.HashSet<string> targetCells, System.Collections.Generic.HashSet<(int row, int col)> targetSubCells, System.Collections.Generic.IEnumerable<int> targetContacts, int delayMs, Func<string, int, int, int, Task> onContactReached, CancellationToken ct = default)
         {
-            var invalidCells = new System.Collections.Generic.HashSet<string>
-            {
-                "0101", "0102", "0103", "0114", "0115", "0116",
-                "0201", "0202", "0215", "0216",
-                "0301", "0316",
-                "1401", "1416",
-                "1501", "1502", "1515", "1516",
-                "1601", "1602", "1603", "1614", "1615", "1616"
-            };
 
             for (int y = 1; y <= 16; y++)
             {
@@ -273,15 +264,15 @@ namespace SMU_Revamp.Services
                     ct.ThrowIfCancellationRequested();
                     
                     string cell = $"{y:D2}{x:D2}";
-                    if (invalidCells.Contains(cell))
+                    if (targetCells == null || !targetCells.Contains(cell))
                         continue;
 
                     for (int row = 1; row <= 5; row++)
                     {
                         for (int col = 1; col <= 5; col++)
                         {
-                            if ((row == 2 && col == 2) || (row == 5 && col == 5))
-                                continue; // Standard sub-cell exclusions
+                            if (targetSubCells == null || !targetSubCells.Contains((row, col)))
+                                continue;
 
                             foreach (var contact in targetContacts)
                             {

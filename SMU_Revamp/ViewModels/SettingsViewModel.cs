@@ -25,6 +25,7 @@ namespace SMU_Revamp.ViewModels
 
         private string _profile = string.Empty;
         private string _sampleName = string.Empty;
+        private bool _showAlignmentWarning = true;
 
         public bool ProberQuietMode
         {
@@ -86,6 +87,12 @@ namespace SMU_Revamp.ViewModels
             set => SetProperty(ref _applyStatusMessage, value);
         }
 
+        public bool ShowAlignmentWarning
+        {
+            get => _showAlignmentWarning;
+            set => SetProperty(ref _showAlignmentWarning, value);
+        }
+
         public SettingsViewModel()
         {
             // Get singleton instances
@@ -106,6 +113,7 @@ namespace SMU_Revamp.ViewModels
             SMUResource = config.SMUResource;
             Profile = config.Profile;
             SampleName = config.SampleName;
+            ShowAlignmentWarning = config.ShowAlignmentWarning;
         }
 
         /// <summary>
@@ -131,6 +139,7 @@ namespace SMU_Revamp.ViewModels
             config.SMUTimeoutMs = SMUTimeoutMs;
             config.Profile = Profile;
             config.SampleName = SampleName;
+            config.ShowAlignmentWarning = ShowAlignmentWarning;
 
             await _configService.SaveAsync(config);
             ApplyStatusMessage = "Settings saved.";
@@ -151,6 +160,7 @@ namespace SMU_Revamp.ViewModels
             SMUResource = config.SMUResource;
             Profile = config.Profile;
             SampleName = config.SampleName;
+            ShowAlignmentWarning = config.ShowAlignmentWarning;
         }
     }
 }

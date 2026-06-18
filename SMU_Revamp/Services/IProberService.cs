@@ -99,6 +99,6 @@ namespace SMU_Revamp.Services
         /// Iterates over the entire wafer, skipping specific boundary and sub-cell exclusions, and calls the callback for each target contact.
         /// Separates and connects the chuck safely between movements.
         /// </summary>
-        Task ScanWaferAsync(System.Collections.Generic.IEnumerable<int> targetContacts, int delayMs, System.Func<string, int, int, int, Task> onContactReached, System.Threading.CancellationToken ct = default);
+        System.Threading.Tasks.Task ScanWaferAsync(System.Collections.Generic.HashSet<string> targetCells, System.Collections.Generic.HashSet<(int row, int col)> targetSubCells, System.Collections.Generic.IEnumerable<int> targetContacts, int delayMs, System.Func<string, int, int, int, System.Threading.Tasks.Task> onContactReached, System.Threading.CancellationToken ct = default);
     }
 }

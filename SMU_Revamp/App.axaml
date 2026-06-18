@@ -81,5 +81,42 @@
             <Setter Property="Foreground" Value="Black"/>
         </Style>
 
+        <!-- ========================================== -->
+        <!-- DANGER BUTTON (Red with white text)        -->
+        <!-- ========================================== -->
+        <Style Selector="Button.Danger">
+            <Setter Property="Background" Value="#D32F2F"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#D32F2F"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.Danger:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#B71C1C"/>
+            <Setter Property="BorderBrush" Value="#B71C1C"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button.Danger:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#8E0000"/>
+            <Setter Property="BorderBrush" Value="#8E0000"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+
+        <!-- ========================================== -->
+        <!-- CHECKBOX STYLING (Black & White)           -->
+        <!-- ========================================== -->
+        <!-- In FluentTheme, the background of checked CheckBox is Border#NormalRectangle -->
+        <Style Selector="CheckBox:checked /template/ Border#NormalRectangle">
+            <Setter Property="Background" Value="Black" />
+            <Setter Property="BorderBrush" Value="Black" />
+        </Style>
+        <!-- The checkmark glyph is Path#CheckGlyph -->
+        <Style Selector="CheckBox:checked /template/ Path#CheckGlyph">
+            <Setter Property="Fill" Value="White" />
+        </Style>
+
     </Application.Styles>
 </Application>
