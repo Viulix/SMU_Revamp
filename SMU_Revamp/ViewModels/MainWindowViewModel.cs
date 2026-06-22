@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
@@ -28,7 +29,22 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public bool HasCurvePoints => _curvePoints != null && _curvePoints.Count > 0;
+    private IReadOnlyList<PlotSeries> _plotSeries = Array.Empty<PlotSeries>();
+    public IReadOnlyList<PlotSeries> PlotSeries
+    {
+        get => _plotSeries;
+        set
+        {
+            if (SetProperty(ref _plotSeries, value))
+            {
+                OnPropertyChanged(nameof(HasCurvePoints));
+            }
+        }
+    }
+
+    public bool HasCurvePoints =>
+        (_curvePoints != null && _curvePoints.Count > 0) ||
+        (_plotSeries != null && _plotSeries.Any(s => s.Points.Count > 0));
 
     private List<IMeasurementPlan> _measurementPlans = new();
     public List<IMeasurementPlan> MeasurementPlans
@@ -60,15 +76,25 @@ public partial class MainWindowViewModel : ViewModelBase
                     SubscribeToParameterChanges();
                 }
                 UpdateSelectedPlanSections();
-                CurvePoints = _selectedPlan?.ResultPoints ?? new List<CurvePoint>();
+                RefreshPlotDataFromSelectedPlan();
                 UpdateWarningMessage();
                 OnPropertyChanged(nameof(IsMeasuringSweep));
+                OnPropertyChanged(nameof(PlotTitle));
+                OnPropertyChanged(nameof(LinearPlotTitle));
+                OnPropertyChanged(nameof(LogPlotTitle));
                 OnPropertyChanged(nameof(XAxisTitle));
+                OnPropertyChanged(nameof(YAxisTitle));
+                OnPropertyChanged(nameof(ShowLogPlot));
             }
         }
     }
 
-    public string XAxisTitle => SelectedPlan is PotDepMeasurementPlan ? "Cycle" : "Voltage (V)";
+    public string PlotTitle => SelectedPlan?.PlotTitle ?? "Measurement Data";
+    public string LinearPlotTitle => $"{PlotTitle} - Linear";
+    public string LogPlotTitle => $"{PlotTitle} - Logarithmic Y";
+    public string XAxisTitle => SelectedPlan?.XAxisLabel ?? "X";
+    public string YAxisTitle => SelectedPlan?.YAxisLabel ?? "Y";
+    public bool ShowLogPlot => SelectedPlan?.ShowLogPlot ?? true;
 
     private List<ParameterSection> _selectedPlanSections = new();
     public List<ParameterSection> SelectedPlanSections
@@ -341,7 +367,8 @@ public partial class MainWindowViewModel : ViewModelBase
             new USweepMeasurementPlan(),
             new PulseSpotMeasurementPlan(),
             new PulseSweepMeasurementPlan(),
-            new PotDepMeasurementPlan()
+            new PotDepMeasurementPlan(),
+            new SpikeTimingMeasurementPlan()
         };
         SelectedPlan = MeasurementPlans[0]; // Default to Measure Point
 
@@ -915,7 +942,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public string MeasurementProgressText => IsProgressIndeterminate ? "Running..." : $"{MeasurementProgress:F0}%";
 
-    public bool IsMeasuringSweep => IsMeasuring && (SelectedPlan is USweepMeasurementPlan || SelectedPlan is PulseSweepMeasurementPlan);
+    public bool IsMeasuringSweep => IsMeasuring && (SelectedPlan is USweepMeasurementPlan || SelectedPlan is PulseSweepMeasurementPlan || SelectedPlan is SpikeTimingMeasurementPlan);
 
     public ICommand RunMeasurementCommand { get; }
 
@@ -1004,15 +1031,20 @@ public partial class MainWindowViewModel : ViewModelBase
             });
             await SelectedPlan.RunMeasurementAsync(smu, progressReporter);
 
-            // Update CurvePoints to selected plan's result points
-            CurvePoints = new List<CurvePoint>(SelectedPlan.ResultPoints);
+            // Update viewer data from the selected plan. This supports both classic single-curve
+            // measurements and advanced multi-series plans such as Spike Timing.
+            RefreshPlotDataFromSelectedPlan();
 
-            if (CurvePoints.Count > 0)
+            if (HasCurvePoints)
             {
                 if (CurvePoints.Count == 1)
                 {
                     var pt = CurvePoints[0];
-                    MeasurementStatus = System.FormattableString.Invariant($"Finished. Measured Point - V: {pt.Voltage:F4} V, I: {pt.Current:E6} A");
+                    MeasurementStatus = System.FormattableString.Invariant($"Finished. Measured Point - {XAxisTitle}: {pt.X:F4}, {YAxisTitle}: {pt.Y:E6}");
+                }
+                else if (PlotSeries.Count > 1)
+                {
+                    MeasurementStatus = $"Finished. Measured {CurvePoints.Count} points in {PlotSeries.Count} plot series.";
                 }
                 else
                 {
@@ -1074,11 +1106,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         
                         var fullPath = System.IO.Path.Combine(folderPath, fileName);
                         
-                        var lines = new List<string> { "Voltage (V),Current (A)" };
-                        foreach (var point in SelectedPlan.ResultPoints)
-                        {
-                            lines.Add(System.FormattableString.Invariant($"{point.Voltage},{point.Current}"));
-                        }
+                        var lines = SelectedPlan.GetCsvLines();
                         await System.IO.File.WriteAllLinesAsync(fullPath, lines);
                         
                         MeasurementStatus = $"Finished. Data autosaved to {System.IO.Path.Combine(profile, fileName)}.";
@@ -1138,11 +1166,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
-            var lines = new List<string> { "Voltage (V),Current (A)" };
-            foreach (var point in CurvePoints)
-            {
-                lines.Add(System.FormattableString.Invariant($"{point.Voltage},{point.Current}"));
-            }
+            var lines = SelectedPlan?.GetCsvLines() ?? new List<string>();
             await System.IO.File.WriteAllLinesAsync(filePath, lines);
             MeasurementStatus = $"Data successfully exported to {System.IO.Path.GetFileName(filePath)}.";
 
@@ -1242,7 +1266,8 @@ public partial class MainWindowViewModel : ViewModelBase
             new USweepMeasurementPlan(),
             new PulseSpotMeasurementPlan(),
             new PulseSweepMeasurementPlan(),
-            new PotDepMeasurementPlan()
+            new PotDepMeasurementPlan(),
+            new SpikeTimingMeasurementPlan()
         };
         var prevPlanName = SelectedPlan?.Name;
         SelectedPlan = MeasurementPlans.Find(p => p.Name == prevPlanName) ?? MeasurementPlans[0];
@@ -1291,6 +1316,21 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         WarningMessage = string.Empty;
+    }
+
+    private void RefreshPlotDataFromSelectedPlan()
+    {
+        if (SelectedPlan == null)
+        {
+            CurvePoints = Array.Empty<CurvePoint>();
+            PlotSeries = Array.Empty<PlotSeries>();
+            return;
+        }
+
+        CurvePoints = new List<CurvePoint>(SelectedPlan.ResultPoints);
+        PlotSeries = SelectedPlan.PlotSeries
+            .Where(s => s.Points.Count > 0)
+            .ToList();
     }
 
     private void UpdateSelectedPlanSections()

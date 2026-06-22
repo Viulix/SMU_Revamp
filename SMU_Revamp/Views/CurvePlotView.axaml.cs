@@ -21,8 +21,18 @@ public partial class CurvePlotView : UserControl
     public static readonly StyledProperty<string?> YAxisLabelProperty =
         AvaloniaProperty.Register<CurvePlotView, string?>(nameof(YAxisLabel));
 
+    /// <summary>
+    /// Legacy single-series input. Kept so old XAML/views continue to work.
+    /// Prefer Series for new multi-curve measurements.
+    /// </summary>
     public static readonly StyledProperty<IEnumerable<CurvePoint>?> PointsProperty =
         AvaloniaProperty.Register<CurvePlotView, IEnumerable<CurvePoint>?>(nameof(Points));
+
+    /// <summary>
+    /// Multi-series input. If this contains valid series, it takes precedence over Points.
+    /// </summary>
+    public static readonly StyledProperty<IEnumerable<PlotSeries>?> SeriesProperty =
+        AvaloniaProperty.Register<CurvePlotView, IEnumerable<PlotSeries>?>(nameof(Series));
 
     public static readonly StyledProperty<bool> LogarithmicYProperty =
         AvaloniaProperty.Register<CurvePlotView, bool>(nameof(LogarithmicY));
@@ -33,6 +43,7 @@ public partial class CurvePlotView : UserControl
         XAxisLabelProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.UpdateLabels());
         YAxisLabelProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.UpdateLabels());
         PointsProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
+        SeriesProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
         LogarithmicYProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
     }
 
@@ -58,6 +69,12 @@ public partial class CurvePlotView : UserControl
     {
         get => GetValue(PointsProperty);
         set => SetValue(PointsProperty, value);
+    }
+
+    public IEnumerable<PlotSeries>? Series
+    {
+        get => GetValue(SeriesProperty);
+        set => SetValue(SeriesProperty, value);
     }
 
     public bool LogarithmicY
@@ -106,30 +123,32 @@ public partial class CurvePlotView : UserControl
 
         PlotCanvas.Children.Clear();
 
-        var points = Points?.ToList() ?? [];
-        if (points.Count < 2 || PlotCanvas.Bounds.Width <= 0 || PlotCanvas.Bounds.Height <= 0)
+        var series = GetEffectiveSeries();
+        var allPoints = series.SelectMany(s => s.Points).ToList();
+
+        if (allPoints.Count < 2 || PlotCanvas.Bounds.Width <= 0 || PlotCanvas.Bounds.Height <= 0)
         {
             DrawEmptyState();
             return;
         }
 
         var marginLeft = 58.0;
-        var marginRight = 18.0;
+        var marginRight = series.Count > 1 ? 120.0 : 18.0;
         var marginTop = 16.0;
         var marginBottom = 28.0;
 
         var width = Math.Max(1, PlotCanvas.Bounds.Width - marginLeft - marginRight);
         var height = Math.Max(1, PlotCanvas.Bounds.Height - marginTop - marginBottom);
 
-        var xMin = points.Min(p => p.Voltage);
-        var xMax = points.Max(p => p.Voltage);
+        var xMin = allPoints.Min(p => p.X);
+        var xMax = allPoints.Max(p => p.X);
         if (Math.Abs(xMax - xMin) < 1e-12)
         {
             xMax = xMin + 1;
         }
 
-        var yValues = points
-            .Select(p => LogarithmicY ? Math.Max(Math.Abs(p.Current), 1e-12) : p.Current)
+        var yValues = allPoints
+            .Select(p => LogarithmicY ? Math.Max(Math.Abs(p.Y), 1e-12) : p.Y)
             .Select(y => LogarithmicY ? Math.Log10(y) : y)
             .ToList();
 
@@ -141,7 +160,33 @@ public partial class CurvePlotView : UserControl
         }
 
         DrawBackground(width, height, marginLeft, marginTop, marginBottom, marginRight, xMin, xMax, yMin, yMax);
-        DrawCurve(points, width, height, marginLeft, marginTop, marginBottom, xMin, xMax, yMin, yMax);
+
+        for (int i = 0; i < series.Count; i++)
+        {
+            DrawCurve(series[i].Points, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax, GetSeriesBrush(i));
+        }
+
+        if (series.Count > 1)
+        {
+            DrawLegend(series, marginLeft + width + 16, marginTop);
+        }
+    }
+
+    private List<PlotSeries> GetEffectiveSeries()
+    {
+        var suppliedSeries = Series?
+            .Where(s => s.Points.Count >= 2)
+            .ToList() ?? new List<PlotSeries>();
+
+        if (suppliedSeries.Count > 0)
+        {
+            return suppliedSeries;
+        }
+
+        var points = Points?.ToList() ?? new List<CurvePoint>();
+        return points.Count >= 2
+            ? new List<PlotSeries> { new PlotSeries(Title ?? "Data", points) }
+            : new List<PlotSeries>();
     }
 
     private void DrawEmptyState()
@@ -230,25 +275,59 @@ public partial class CurvePlotView : UserControl
         }
     }
 
-    private void DrawCurve(IReadOnlyList<CurvePoint> points, double width, double height, double marginLeft, double marginTop, double marginBottom, double xMin, double xMax, double yMin, double yMax)
+    private void DrawCurve(IReadOnlyList<CurvePoint> points, double width, double height, double marginLeft, double marginTop, double xMin, double xMax, double yMin, double yMax, IBrush brush)
     {
-        var plotHeight = height;
-        var plotWidth = width;
-
         var polyline = new Polyline
         {
-            Stroke = new SolidColorBrush(Color.Parse("#0A66C2")),
+            Stroke = brush,
             StrokeThickness = 2
         };
 
-        foreach (var point in points)
+        foreach (var point in points.OrderBy(p => p.X))
         {
-            var x = marginLeft + ((point.Voltage - xMin) / (xMax - xMin)) * plotWidth;
-            var rawY = LogarithmicY ? Math.Log10(Math.Max(Math.Abs(point.Current), 1e-12)) : point.Current;
-            var y = marginTop + plotHeight - ((rawY - yMin) / (yMax - yMin)) * plotHeight;
+            var x = marginLeft + ((point.X - xMin) / (xMax - xMin)) * width;
+            var rawY = LogarithmicY ? Math.Log10(Math.Max(Math.Abs(point.Y), 1e-12)) : point.Y;
+            var y = marginTop + height - ((rawY - yMin) / (yMax - yMin)) * height;
             polyline.Points.Add(new Point(x, y));
         }
 
         PlotCanvas.Children.Add(polyline);
+    }
+
+    private void DrawLegend(IReadOnlyList<PlotSeries> series, double left, double top)
+    {
+        for (int i = 0; i < series.Count; i++)
+        {
+            var y = top + i * 20;
+            var brush = GetSeriesBrush(i);
+
+            PlotCanvas.Children.Add(new Line
+            {
+                StartPoint = new Point(left, y + 8),
+                EndPoint = new Point(left + 18, y + 8),
+                Stroke = brush,
+                StrokeThickness = 2
+            });
+
+            var label = new TextBlock
+            {
+                Text = series[i].Name,
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.Parse("#303030"))
+            };
+            Canvas.SetLeft(label, left + 24);
+            Canvas.SetTop(label, y);
+            PlotCanvas.Children.Add(label);
+        }
+    }
+
+    private static IBrush GetSeriesBrush(int index)
+    {
+        string[] colors =
+        {
+            "#0A66C2", "#C2185B", "#388E3C", "#F57C00", "#7B1FA2", "#0097A7", "#5D4037", "#455A64"
+        };
+
+        return new SolidColorBrush(Color.Parse(colors[index % colors.Length]));
     }
 }

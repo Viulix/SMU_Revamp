@@ -107,18 +107,19 @@
                                 IsEnabled="{Binding HasCurvePoints}"
                                 Classes="Secondary" 
                                 HorizontalAlignment="Right" />
-
-                        <views:CurvePlotView Title="I/U Curve - Linear"
+                        <views:CurvePlotView Title="{Binding LinearPlotTitle}"
                                              XAxisLabel="{Binding XAxisTitle}"
-                                             YAxisLabel="Current (A)"
+                                             YAxisLabel="{Binding YAxisTitle}"
+                                             Series="{Binding PlotSeries}"
                                              Points="{Binding CurvePoints}"
                                              Height="340" />
-
-                        <views:CurvePlotView Title="I/U Curve - Logarithmic"
+                        <views:CurvePlotView Title="{Binding LogPlotTitle}"
                                              XAxisLabel="{Binding XAxisTitle}"
-                                             YAxisLabel="Current (A)"
+                                             YAxisLabel="{Binding YAxisTitle}"
+                                             Series="{Binding PlotSeries}"
                                              Points="{Binding CurvePoints}"
                                              LogarithmicY="True"
+                                             IsVisible="{Binding ShowLogPlot}"
                                              Height="340" />
                     </StackPanel>
                 </ScrollViewer>
@@ -241,7 +242,7 @@
 
                             <StackPanel Spacing="5" IsVisible="{Binding IsMeasuringSweep}">
                                 <Grid ColumnDefinitions="*, Auto">
-                                    <TextBlock Text="Sweep Progress" FontSize="11" FontWeight="SemiBold" Foreground="#666666" />
+                                    <TextBlock Text="Measurement Progress" FontSize="11" FontWeight="SemiBold" Foreground="#666666" />
                                     <TextBlock Grid.Column="1" Text="{Binding MeasurementProgressText}" FontSize="11" FontWeight="SemiBold" Foreground="#333333" />
                                 </Grid>
                                 <ProgressBar Minimum="0" 
