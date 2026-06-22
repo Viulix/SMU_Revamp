@@ -17,8 +17,20 @@ public partial class ResultContactViewModel : ObservableObject
     [ObservableProperty]
     private double _aggregatedValue = double.NaN;
 
+    public string FormattedValue => FormatValue(AggregatedValue);
+
     [ObservableProperty]
-    private IBrush _color = new SolidColorBrush(Colors.LightGray);
+    private IBrush _color = new SolidColorBrush(Avalonia.Media.Color.Parse("#CBD5E1")); // Neutral color
+
+    public static string FormatValue(double value)
+    {
+        if (double.IsNaN(value)) return "-";
+        if (Math.Abs(value) >= 1000 || (Math.Abs(value) > 0 && Math.Abs(value) < 0.01))
+        {
+            return value.ToString("0.0E0");
+        }
+        return value.ToString("0.##");
+    }
 }
 
 public partial class ResultSubCellViewModel : ObservableObject
@@ -35,8 +47,10 @@ public partial class ResultSubCellViewModel : ObservableObject
     [ObservableProperty]
     private double _aggregatedValue = double.NaN;
 
+    public string FormattedValue => ResultContactViewModel.FormatValue(AggregatedValue);
+
     [ObservableProperty]
-    private IBrush _color = new SolidColorBrush(Colors.LightGray);
+    private IBrush _color = new SolidColorBrush(Avalonia.Media.Color.Parse("#F8FAFC"));
 
     public void RecalculateValue()
     {
@@ -49,6 +63,7 @@ public partial class ResultSubCellViewModel : ObservableObject
         {
             AggregatedValue = double.NaN;
         }
+        OnPropertyChanged(nameof(FormattedValue));
     }
 }
 
@@ -67,8 +82,10 @@ public partial class ResultCellViewModel : ObservableObject
     [ObservableProperty]
     private double _aggregatedValue = double.NaN;
 
+    public string FormattedValue => ResultContactViewModel.FormatValue(AggregatedValue);
+
     [ObservableProperty]
-    private IBrush _color = new SolidColorBrush(Colors.LightGray);
+    private IBrush _color = new SolidColorBrush(Avalonia.Media.Color.Parse("#F8FAFC"));
 
     public void RecalculateValue()
     {
@@ -81,52 +98,7 @@ public partial class ResultCellViewModel : ObservableObject
         {
             AggregatedValue = double.NaN;
         }
+        OnPropertyChanged(nameof(FormattedValue));
     }
 }
 
-public static class HeatmapHelper
-{
-    public static IBrush GetColorForValue(double value, double min, double max)
-    {
-        if (double.IsNaN(value) || double.IsInfinity(value))
-        {
-            return new SolidColorBrush(Color.Parse("#E0E0E0")); // Light Gray for invalid
-        }
-
-        if (max == min)
-        {
-            return new SolidColorBrush(Colors.Green); // Fallback if all values are identical
-        }
-
-        // Normalize value between 0 and 1
-        double ratio = (value - min) / (max - min);
-        ratio = Math.Clamp(ratio, 0.0, 1.0);
-
-        // HSL Interpolation from Blue (240 deg) to Red (0 deg)
-        // Hue goes from 240 down to 0
-        double hue = 240 * (1.0 - ratio);
-        return new SolidColorBrush(HslToRgb(hue, 1.0, 0.5));
-    }
-
-    private static Color HslToRgb(double h, double s, double l)
-    {
-        double c = (1.0 - Math.Abs(2.0 * l - 1.0)) * s;
-        double x = c * (1.0 - Math.Abs((h / 60.0) % 2.0 - 1.0));
-        double m = l - c / 2.0;
-
-        double r = 0, g = 0, b = 0;
-
-        if (0 <= h && h < 60) { r = c; g = x; b = 0; }
-        else if (60 <= h && h < 120) { r = x; g = c; b = 0; }
-        else if (120 <= h && h < 180) { r = 0; g = c; b = x; }
-        else if (180 <= h && h < 240) { r = 0; g = x; b = c; }
-        else if (240 <= h && h < 300) { r = x; g = 0; b = c; }
-        else if (300 <= h && h < 360) { r = c; g = 0; b = x; }
-
-        return Color.FromRgb(
-            (byte)((r + m) * 255),
-            (byte)((g + m) * 255),
-            (byte)((b + m) * 255)
-        );
-    }
-}

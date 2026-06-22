@@ -1552,38 +1552,31 @@ public partial class MainWindowViewModel : ViewModelBase
             cell.RecalculateValue();
         }
 
-        // 4. Find global min / max on Cell level (or SubCell level?)
-        // Usually you color Cells based on the cell values.
-        var validCells = ResultCells.Where(c => c.SubCells.Any() && !double.IsNaN(c.AggregatedValue)).ToList();
-        if (!validCells.Any()) return;
-
-        double minVal = validCells.Min(c => c.AggregatedValue);
-        double maxVal = validCells.Max(c => c.AggregatedValue);
-
         // Apply colors to Cells
         foreach (var cell in ResultCells)
         {
-            if (!cell.SubCells.Any())
+            if (!cell.SubCells.Any() || double.IsNaN(cell.AggregatedValue))
             {
-                cell.Color = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#E0E0E0"));
+                cell.Color = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F8FAFC"));
             }
             else
             {
-                cell.Color = HeatmapHelper.GetColorForValue(cell.AggregatedValue, minVal, maxVal);
+                cell.Color = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CBD5E1"));
             }
         }
 
-        // Apply colors to SubCells based on subcell min/max
-        var allSubCells = ResultCells.SelectMany(c => c.SubCells).Where(s => !double.IsNaN(s.AggregatedValue)).ToList();
-        if (allSubCells.Any())
+        // Apply colors to SubCells
+        foreach (var cell in ResultCells)
         {
-            double minSub = allSubCells.Min(s => s.AggregatedValue);
-            double maxSub = allSubCells.Max(s => s.AggregatedValue);
-            foreach (var cell in ResultCells)
+            foreach (var sub in cell.SubCells)
             {
-                foreach (var sub in cell.SubCells)
+                if (double.IsNaN(sub.AggregatedValue))
                 {
-                    sub.Color = HeatmapHelper.GetColorForValue(sub.AggregatedValue, minSub, maxSub);
+                    sub.Color = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F8FAFC"));
+                }
+                else
+                {
+                    sub.Color = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CBD5E1"));
                 }
             }
         }

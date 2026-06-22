@@ -27,11 +27,27 @@
     <Grid>
         <DockPanel>
         <!-- Header with Settings and Debug Buttons -->
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="20,10,20,0" Spacing="10" HorizontalAlignment="Right">
-            <Button Content="Configuration" Click="DebugButton_Click" Classes="Secondary" Padding="10,5" />
-            <Button Content="Defaults" Click="DefaultsButton_Click" Classes="Secondary" Padding="10,5" />
-            <Button Content="Settings" Click="SettingsButton_Click" Classes="Primary" Padding="10,5" />
-        </StackPanel>
+        <Grid DockPanel.Dock="Top" Margin="20,10,20,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <TextBlock Text="Profile:" VerticalAlignment="Center" FontWeight="SemiBold" />
+                <TextBox Text="{Binding Settings.Profile}" Width="150" />
+                
+                <TextBlock Text="Sample:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="10,0,0,0" />
+                <TextBox Text="{Binding Settings.SampleName}" Width="150" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <Button Content="Configuration" Click="DebugButton_Click" Classes="Secondary" Padding="10,5" />
+                <Button Content="Defaults" Click="DefaultsButton_Click" Classes="Secondary" Padding="10,5" />
+                <Button Content="Settings" Click="SettingsButton_Click" Classes="Primary" Padding="10,5" />
+            </StackPanel>
+        </Grid>
 
         <!-- Main Content with Tabs -->
         <TabControl SelectedIndex="{Binding SelectedTabIndex}" Margin="20" Padding="20">
@@ -380,7 +396,10 @@
                                                                          CommandParameter="{Binding}"
                                                                          Opacity="0"
                                                                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                                                            <TextBlock Text="{Binding Id}" FontSize="9" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+                                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+                                                                <TextBlock Text="{Binding Id}" FontSize="9" FontWeight="Bold" Foreground="#333333" HorizontalAlignment="Center" />
+                                                                <TextBlock Text="{Binding FormattedValue}" FontSize="8" Foreground="#555555" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                                            </StackPanel>
                                                         </Grid>
                                                     </Border>
                                                 </DataTemplate>
@@ -413,7 +432,10 @@
                                                                              CommandParameter="{Binding}"
                                                                              Opacity="0"
                                                                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                                                                <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+                                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+                                                                    <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="#333333" HorizontalAlignment="Center" />
+                                                                    <TextBlock Text="{Binding FormattedValue}" FontSize="9" Foreground="#555555" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                                                </StackPanel>
                                                             </Grid>
                                                         </Border>
                                                     </DataTemplate>
