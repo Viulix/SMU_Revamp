@@ -1010,14 +1010,19 @@ public partial class MainWindowViewModel : ViewModelBase
             await smu.ConnectAsync();
 
             MeasurementStatus = $"Executing plan {SelectedPlan.Name}...";
+            int lastPointCount = 0;
             var progressReporter = new Progress<double>(p =>
             {
                 MeasurementProgress = p;
+                if (SelectedPlan != null && SelectedPlan.ResultPoints.Count != lastPointCount)
+                {
+                    lastPointCount = SelectedPlan.ResultPoints.Count;
+                    RefreshPlotDataFromSelectedPlan();
+                }
             });
             await SelectedPlan.RunMeasurementAsync(smu, progressReporter);
 
-            // Update viewer data from the selected plan. This supports both classic single-curve
-            // measurements and advanced multi-series plans such as Spike Timing.
+            // Final update of viewer data to ensure we didn't miss anything.
             RefreshPlotDataFromSelectedPlan();
 
             if (HasCurvePoints)

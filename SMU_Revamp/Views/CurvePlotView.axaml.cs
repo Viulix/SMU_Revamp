@@ -283,7 +283,7 @@ public partial class CurvePlotView : UserControl
             StrokeThickness = 2
         };
 
-        foreach (var point in points.OrderBy(p => p.X))
+        foreach (var point in points)
         {
             var x = marginLeft + ((point.X - xMin) / (xMax - xMin)) * width;
             var rawY = LogarithmicY ? Math.Log10(Math.Max(Math.Abs(point.Y), 1e-12)) : point.Y;
