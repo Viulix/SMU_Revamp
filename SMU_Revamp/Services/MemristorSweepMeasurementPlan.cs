@@ -68,9 +68,25 @@ namespace SMU_Revamp.Services
             }
         }
 
+        public List<List<CurvePoint>> CycleData { get; } = new();
+
+        public IReadOnlyList<PlotSeries> PlotSeries
+        {
+            get
+            {
+                var series = new List<PlotSeries>();
+                for (int i = 0; i < CycleData.Count; i++)
+                {
+                    series.Add(new PlotSeries($"Cycle {i + 1}", CycleData[i]));
+                }
+                return series;
+            }
+        }
+
         public async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
         {
             ResultPoints.Clear();
+            CycleData.Clear();
             progress?.Report(0);
 
             string channel = GetParamValueString("WriteChannel");
@@ -136,11 +152,19 @@ namespace SMU_Revamp.Services
             {
                 for (int c = 0; c < cycles; c++)
                 {
+                    var currentCycleData = new List<CurvePoint>();
+
                     // PART 1: 0 -> Positive -> 0
-                    await RunDoubleSweepAsync(smu, channel, readingChannel, 0, posVol, pointsCount, compliance);
+                    var parsedPos = await RunDoubleSweepAsync(smu, channel, readingChannel, 0, posVol, pointsCount, compliance);
+                    currentCycleData.AddRange(parsedPos);
+                    ResultPoints.AddRange(parsedPos);
                     
                     // PART 2: 0 -> Negative -> 0
-                    await RunDoubleSweepAsync(smu, channel, readingChannel, 0, negVol, pointsCount, compliance);
+                    var parsedNeg = await RunDoubleSweepAsync(smu, channel, readingChannel, 0, negVol, pointsCount, compliance);
+                    currentCycleData.AddRange(parsedNeg);
+                    ResultPoints.AddRange(parsedNeg);
+
+                    CycleData.Add(currentCycleData);
                 }
 
                 cts.Cancel();
@@ -160,7 +184,7 @@ namespace SMU_Revamp.Services
             }
         }
 
-        private async Task RunDoubleSweepAsync(E5263_SMU smu, string channel, string readingChannel, double start, double stop, int pointsCount, double compliance)
+        private async Task<List<CurvePoint>> RunDoubleSweepAsync(E5263_SMU smu, string channel, string readingChannel, double start, double stop, int pointsCount, double compliance)
         {
             var wvCommand = System.FormattableString.Invariant($"WV {channel},3,0,{start},{stop},{pointsCount},{compliance}");
             await smu.SendCommandAsync(wvCommand);
@@ -181,8 +205,7 @@ namespace SMU_Revamp.Services
             string rawData = await smu.ReadResponseAsync(expectedBufferLength);
             string tsqResponse = await smu.ReadResponseAsync(50); // Clear TSQ
 
-            var parsed = ParseDoubleSweepData(rawData, start, stop, pointsCount, channel, readingChannel);
-            ResultPoints.AddRange(parsed);
+            return ParseDoubleSweepData(rawData, start, stop, pointsCount, channel, readingChannel);
         }
 
         private List<CurvePoint> ParseDoubleSweepData(string rawData, double sweepStart, double sweepStop, int pointsCount, string channel, string readingChannel)
@@ -240,14 +263,49 @@ namespace SMU_Revamp.Services
             return points;
         }
 
-        public string[] GetCsvLines()
+        public IReadOnlyList<string> GetCsvLines()
         {
-            var lines = new List<string> { "Voltage (V),Current (A)" };
-            foreach (var pt in ResultPoints)
+            var lines = new List<string>();
+            if (CycleData.Count == 0) return lines;
+
+            // Generate header
+            var headers = new List<string>();
+            for (int i = 0; i < CycleData.Count; i++)
             {
-                lines.Add(System.FormattableString.Invariant($"{pt.X:E6},{pt.Y:E6}"));
+                headers.Add($"Cycle {i + 1} Voltage (V)");
+                headers.Add($"Cycle {i + 1} Current (A)");
             }
-            return lines.ToArray();
+            lines.Add(string.Join(",", headers));
+
+            // Find max length
+            int maxPoints = 0;
+            foreach (var cycle in CycleData)
+            {
+                if (cycle.Count > maxPoints) maxPoints = cycle.Count;
+            }
+
+            for (int row = 0; row < maxPoints; row++)
+            {
+                var rowValues = new List<string>();
+                for (int c = 0; c < CycleData.Count; c++)
+                {
+                    var cycle = CycleData[c];
+                    if (row < cycle.Count)
+                    {
+                        var pt = cycle[row];
+                        rowValues.Add(System.FormattableString.Invariant($"{pt.X:E6}"));
+                        rowValues.Add(System.FormattableString.Invariant($"{pt.Y:E6}"));
+                    }
+                    else
+                    {
+                        rowValues.Add("");
+                        rowValues.Add("");
+                    }
+                }
+                lines.Add(string.Join(",", rowValues));
+            }
+
+            return lines;
         }
     }
 }
