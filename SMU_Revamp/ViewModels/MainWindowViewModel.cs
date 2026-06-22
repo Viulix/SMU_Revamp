@@ -836,6 +836,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!stayHere)
         {
             await ProberService.Instance.ConnectAsync();
+            await ProberService.Instance.DisconnectChuckAsync();
             await ProberService.Instance.MoveProberAbsoluteAsync(-deltaX, deltaY);
         }
 
@@ -1151,8 +1152,10 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 try
                 {
+                    string prevStatus = MeasurementStatus;
                     MeasurementStatus = "Separating Chuck...";
                     await ProberService.Instance.DisconnectChuckAsync();
+                    MeasurementStatus = prevStatus + " (Separated)";
                 }
                 catch { }
             }
