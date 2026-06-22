@@ -372,7 +372,8 @@ public partial class MainWindowViewModel : ViewModelBase
             new PulseSpotMeasurementPlan(),
             new PulseSweepMeasurementPlan(),
             new PotDepMeasurementPlan(),
-            new SpikeTimingMeasurementPlan()
+            new SpikeTimingMeasurementPlan(),
+            new MemristorSweepMeasurementPlan()
         };
         SelectedPlan = MeasurementPlans[0]; // Default to Measure Point
 
