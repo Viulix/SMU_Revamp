@@ -990,13 +990,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
-            if (!IsScanningWafer)
-            {
-                MeasurementStatus = "Ensuring Chuck is Connected...";
-                await ProberService.Instance.ConnectAsync();
-                await ProberService.Instance.ConnectChuckAsync();
-            }
-
             // Connect to SMU
             // Connect to SMU
             MeasurementStatus = "Connecting to E5263 SMU...";
@@ -1131,18 +1124,6 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
-            if (!IsScanningWafer)
-            {
-                try
-                {
-                    string prevStatus = MeasurementStatus;
-                    MeasurementStatus = "Separating Chuck...";
-                    await ProberService.Instance.DisconnectChuckAsync();
-                    MeasurementStatus = prevStatus + " (Separated)";
-                }
-                catch { }
-            }
-
             // Close sessions
             try { await E5263_SMU.Instance.DisconnectAsync(); } catch { }
             IsMeasuring = false;
