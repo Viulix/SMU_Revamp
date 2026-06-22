@@ -49,7 +49,8 @@ namespace SMU_Revamp.ViewModels
                 new PulseSpotMeasurementPlan(),
                 new PulseSweepMeasurementPlan(),
                 new PotDepMeasurementPlan(),
-                new SpikeTimingMeasurementPlan()
+                new SpikeTimingMeasurementPlan(),
+                new MemristorSweepMeasurementPlan()
             };
             _selectedPlan = MeasurementPlans[0];
 

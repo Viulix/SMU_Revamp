@@ -111,8 +111,8 @@ namespace SMU_Revamp.ViewModels
             ProberTimeoutMs = config.ProberTimeoutMs;
             SwitchMatrixResource = config.SwitchMatrixResource;
             SMUResource = config.SMUResource;
-            Profile = config.Profile;
-            SampleName = config.SampleName;
+            Profile = string.Empty;
+            SampleName = string.Empty;
             ShowAlignmentWarning = config.ShowAlignmentWarning;
         }
 
@@ -137,8 +137,6 @@ namespace SMU_Revamp.ViewModels
             config.SwitchMatrixTimeoutMs = SwitchMatrixTimeoutMs;
             config.SMUResource = SMUResource;
             config.SMUTimeoutMs = SMUTimeoutMs;
-            config.Profile = Profile;
-            config.SampleName = SampleName;
             config.ShowAlignmentWarning = ShowAlignmentWarning;
 
             await _configService.SaveAsync(config);
@@ -158,8 +156,8 @@ namespace SMU_Revamp.ViewModels
             ProberTimeoutMs = config.ProberTimeoutMs;
             SwitchMatrixResource = config.SwitchMatrixResource;
             SMUResource = config.SMUResource;
-            Profile = config.Profile;
-            SampleName = config.SampleName;
+            Profile = string.Empty;
+            SampleName = string.Empty;
             ShowAlignmentWarning = config.ShowAlignmentWarning;
         }
     }
