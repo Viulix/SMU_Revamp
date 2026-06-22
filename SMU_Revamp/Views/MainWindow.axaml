@@ -389,6 +389,12 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:ResultCellViewModel">
                                                     <Border Width="38" Height="38" Margin="1" Background="{Binding Color}" CornerRadius="4" IsVisible="{Binding IsValid}">
+                                                        <ToolTip.Tip>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Id}" FontWeight="Bold" />
+                                                                <TextBlock Text="{Binding FormattedValue}" />
+                                                            </StackPanel>
+                                                        </ToolTip.Tip>
                                                         <Grid>
                                                             <RadioButton GroupName="ResultCells" 
                                                                          IsChecked="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectedResultCell, Mode=OneWayToSource, Converter={x:Static ObjectConverters.IsNotNull}}"
@@ -396,10 +402,7 @@
                                                                          CommandParameter="{Binding}"
                                                                          Opacity="0"
                                                                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
-                                                                <TextBlock Text="{Binding Id}" FontSize="9" FontWeight="Bold" Foreground="#333333" HorizontalAlignment="Center" />
-                                                                <TextBlock Text="{Binding FormattedValue}" FontSize="8" Foreground="#555555" HorizontalAlignment="Center" Margin="0,2,0,0" />
-                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding Id}" FontSize="9" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
                                                         </Grid>
                                                     </Border>
                                                 </DataTemplate>
@@ -426,16 +429,19 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:ResultSubCellViewModel">
                                                         <Border Width="44" Height="44" Margin="3" Background="{Binding Color}" CornerRadius="4" IsVisible="{Binding IsValid}">
+                                                            <ToolTip.Tip>
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding Id}" FontWeight="Bold" />
+                                                                    <TextBlock Text="{Binding FormattedValue}" />
+                                                                </StackPanel>
+                                                            </ToolTip.Tip>
                                                             <Grid>
                                                                 <RadioButton GroupName="ResultSubCells"
                                                                              Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SetSelectedResultSubCellCommand}"
                                                                              CommandParameter="{Binding}"
                                                                              Opacity="0"
                                                                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
-                                                                    <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="#333333" HorizontalAlignment="Center" />
-                                                                    <TextBlock Text="{Binding FormattedValue}" FontSize="9" Foreground="#555555" HorizontalAlignment="Center" Margin="0,2,0,0" />
-                                                                </StackPanel>
+                                                                <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
                                                             </Grid>
                                                         </Border>
                                                     </DataTemplate>

@@ -1552,31 +1552,37 @@ public partial class MainWindowViewModel : ViewModelBase
             cell.RecalculateValue();
         }
 
+        // 4. Find global min / max on Cell level
+        var validCells = ResultCells.Where(c => c.SubCells.Any() && !double.IsNaN(c.AggregatedValue)).ToList();
+        if (!validCells.Any()) return;
+
+        double minVal = validCells.Min(c => c.AggregatedValue);
+        double maxVal = validCells.Max(c => c.AggregatedValue);
+
         // Apply colors to Cells
         foreach (var cell in ResultCells)
         {
-            if (!cell.SubCells.Any() || double.IsNaN(cell.AggregatedValue))
+            if (!cell.SubCells.Any())
             {
                 cell.Color = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F8FAFC"));
             }
             else
             {
-                cell.Color = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CBD5E1"));
+                cell.Color = HeatmapHelper.GetColorForValue(cell.AggregatedValue, minVal, maxVal);
             }
         }
 
-        // Apply colors to SubCells
-        foreach (var cell in ResultCells)
+        // Apply colors to SubCells based on subcell min/max
+        var allSubCells = ResultCells.SelectMany(c => c.SubCells).Where(s => !double.IsNaN(s.AggregatedValue)).ToList();
+        if (allSubCells.Any())
         {
-            foreach (var sub in cell.SubCells)
+            double minSub = allSubCells.Min(s => s.AggregatedValue);
+            double maxSub = allSubCells.Max(s => s.AggregatedValue);
+            foreach (var cell in ResultCells)
             {
-                if (double.IsNaN(sub.AggregatedValue))
+                foreach (var sub in cell.SubCells)
                 {
-                    sub.Color = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F8FAFC"));
-                }
-                else
-                {
-                    sub.Color = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CBD5E1"));
+                    sub.Color = HeatmapHelper.GetColorForValue(sub.AggregatedValue, minSub, maxSub);
                 }
             }
         }
