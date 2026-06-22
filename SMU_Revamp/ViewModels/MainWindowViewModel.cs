@@ -831,13 +831,15 @@ public partial class MainWindowViewModel : ViewModelBase
         string advPathA,
         string advPathB)
     {
-        var (deltaX, deltaY) = ComputeHugeDeltaB(cellPosition, row, col, contact);
-
         if (!stayHere)
         {
             await ProberService.Instance.ConnectAsync();
             await ProberService.Instance.DisconnectChuckAsync();
-            await ProberService.Instance.MoveProberAbsoluteAsync(-deltaX, deltaY);
+            // Wait slightly after separating (similar to Autoscan logic)
+            await Task.Delay(100); 
+            await ProberService.Instance.GoToWaferContactAsync(cellPosition, row, col, contact);
+            await Task.Delay(100);
+            await ProberService.Instance.ConnectChuckAsync();
         }
 
         if (!string.IsNullOrWhiteSpace(advPathA) && !string.IsNullOrWhiteSpace(advPathB))
@@ -845,31 +847,6 @@ public partial class MainWindowViewModel : ViewModelBase
             await SwitchMatrixService.Instance.ConnectAsync();
             await SwitchMatrixService.Instance.CreateConnectionAsync(advPathA, advPathB, overrideCheck: true);
         }
-    }
-
-    private static (int deltaX, int deltaY) ComputeHugeDeltaB(string cellPosition, int row, int col, int contact)
-    {
-        var (deltaxContact, deltayContact) = contact switch
-        {
-            1 => (0, 0),
-            2 => (290, 0),
-            3 => (580, 0),
-            4 => (0, 350),
-            5 => (290, 350),
-            6 => (580, 350),
-            _ => (0, 0)
-        };
-
-        var cellRow = int.Parse(cellPosition.Substring(0, 2));
-        var cellCol = int.Parse(cellPosition.Substring(2, 2));
-
-        var grossX = (cellCol - 4) * 5000;
-        var grossY = (cellRow - 1) * 5000;
-
-        var deltaX = grossX + (col - 1) * 1000 + deltaxContact;
-        var deltaY = grossY + (row - 1) * 1000 + deltayContact;
-
-        return (deltaX, deltaY);
     }
 
     private static IReadOnlyList<CurvePoint> CreateCurvePoints()
