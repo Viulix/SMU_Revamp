@@ -28,77 +28,13 @@
         <DockPanel>
         <!-- Header with Settings and Debug Buttons -->
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="20,10,20,0" Spacing="10" HorizontalAlignment="Right">
-            <Button Content="Debug" Click="DebugButton_Click" Classes="Secondary" Padding="10,5" />
+            <Button Content="Configuration" Click="DebugButton_Click" Classes="Secondary" Padding="10,5" />
             <Button Content="Defaults" Click="DefaultsButton_Click" Classes="Secondary" Padding="10,5" />
             <Button Content="Settings" Click="SettingsButton_Click" Classes="Primary" Padding="10,5" />
         </StackPanel>
 
         <!-- Main Content with Tabs -->
         <TabControl SelectedIndex="{Binding SelectedTabIndex}" Margin="20" Padding="20">
-            <TabItem Header="Configuration">
-                <ScrollViewer Margin="20" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel Spacing="20">
-                        <WrapPanel Orientation="Horizontal">
-                            <!-- Target Contact -->
-                            <StackPanel Spacing="10" Margin="10,0,40,20" Width="300">
-                                <TextBlock Text="Target Contact" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,5" />
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="Cell:" Width="120" VerticalAlignment="Center" />
-                                    <TextBox Text="{Binding TargetCell}" PlaceholderText="e.g. 0101" Width="150" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="Row:" Width="120" VerticalAlignment="Center" />
-                                    <TextBox Text="{Binding TargetRow}" PlaceholderText="e.g. 1" Width="150" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="Column:" Width="120" VerticalAlignment="Center" />
-                                    <TextBox Text="{Binding TargetColumn}" PlaceholderText="e.g. 1" Width="150" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="Contact:" Width="120" VerticalAlignment="Center" />
-                                    <TextBox Text="{Binding TargetContact}" PlaceholderText="e.g. 1" Width="150" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="Stay Here:" Width="120" VerticalAlignment="Center" />
-                                    <CheckBox IsChecked="{Binding StayHere}" />
-                                </StackPanel>
-                                <Button Content="Go To Contact" Command="{Binding GoToContactCommand}" Classes="Primary" Width="150" Margin="0,10,0,0" />
-                                <TextBlock Text="{Binding ErrorMessage}" Foreground="#D32F2F" TextWrapping="Wrap" MaxWidth="300" HorizontalAlignment="Left" />
-                            </StackPanel>
-
-                            <!-- Manual Move -->
-                            <StackPanel Spacing="10" Margin="10,0,40,20" Width="330">
-                                <TextBlock Text="Manual Move" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,5" />
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="X Position:" Width="120" VerticalAlignment="Center" />
-                                    <TextBox Text="{Binding MoveX}" PlaceholderText="e.g. 100" Width="100" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="Y Position:" Width="120" VerticalAlignment="Center" />
-                                    <TextBox Text="{Binding MoveY}" PlaceholderText="e.g. 100" Width="100" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
-                                    <Button Content="Move Relative" Command="{Binding MoveRelativeCommand}" Classes="Secondary" Width="150" />
-                                    <Button Content="Move Absolute" Command="{Binding MoveAbsoluteCommand}" Classes="Secondary" Width="150" />
-                                </StackPanel>
-                            </StackPanel>
-
-                            <!-- File Storing Info -->
-                            <StackPanel Spacing="10" Margin="10,0,0,20" Width="320">
-                                <TextBlock Text="File Storing Info" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,5" />
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="Profile:" Width="100" VerticalAlignment="Center" />
-                                    <TextBox Text="{Binding Settings.Profile}" Width="200" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="Sample Name:" Width="100" VerticalAlignment="Center" />
-                                    <TextBox Text="{Binding Settings.SampleName}" Width="200" />
-                                </StackPanel>
-                            </StackPanel>
-                        </WrapPanel>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
             <TabItem Header="Viewer">
                 <ScrollViewer Margin="20">
                     <StackPanel Spacing="16">
@@ -404,6 +340,130 @@
                             </Border>
                             </Viewbox>
                         </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Result">
+                <ScrollViewer Margin="20" HorizontalScrollBarVisibility="Disabled">
+                    <Grid RowDefinitions="Auto,*" Margin="10">
+                        <!-- Top Bar -->
+                        <WrapPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
+                            <Button Content="Load Scan Folder" Click="LoadResultFolderButton_Click" Classes="Primary" Padding="10,5" Margin="0,0,20,0" />
+                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                <TextBlock Text="Visualization Metric:" VerticalAlignment="Center" FontWeight="SemiBold" />
+                                <ComboBox ItemsSource="{Binding AvailableResultMetrics}"
+                                          SelectedItem="{Binding SelectedResultMetric}"
+                                          Width="200" />
+                            </StackPanel>
+                        </WrapPanel>
+
+                        <!-- Main 3-Column Layout -->
+                        <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto, *">
+                            <!-- Left: 16x16 Wafermap -->
+                            <StackPanel Grid.Column="0" Spacing="10" Margin="0,0,20,0">
+                                <TextBlock Text="Wafer Cells (16x16)" FontSize="16" FontWeight="SemiBold" />
+                                <Viewbox Stretch="Uniform" HorizontalAlignment="Left" StretchDirection="DownOnly" MaxWidth="500">
+                                    <Border Background="#F3F4F6" Padding="15" CornerRadius="8">
+                                        <ItemsControl ItemsSource="{Binding ResultCells}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Columns="16" Rows="16" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ResultCellViewModel">
+                                                    <Border Width="38" Height="38" Margin="1" Background="{Binding Color}" CornerRadius="4" IsVisible="{Binding IsValid}">
+                                                        <Grid>
+                                                            <RadioButton GroupName="ResultCells" 
+                                                                         IsChecked="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectedResultCell, Mode=OneWayToSource, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                                         Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SetSelectedResultCellCommand}"
+                                                                         CommandParameter="{Binding}"
+                                                                         Opacity="0"
+                                                                         HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                                                            <TextBlock Text="{Binding Id}" FontSize="9" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </Viewbox>
+                            </StackPanel>
+
+                            <!-- Middle: 5x5 SubCells & Contacts -->
+                            <StackPanel Grid.Column="1" Spacing="20" Margin="0,0,20,0">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Sub-Cells (5x5)" FontSize="16" FontWeight="SemiBold" />
+                                    <TextBlock Text="Select a cell on the left first." IsVisible="{Binding SelectedResultCell, Converter={x:Static ObjectConverters.IsNull}}" FontStyle="Italic" Foreground="Gray" />
+                                    
+                                    <Viewbox Stretch="Uniform" HorizontalAlignment="Left" StretchDirection="DownOnly" MaxWidth="250" IsVisible="{Binding SelectedResultCell, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <Border Background="#F3F4F6" Padding="10" CornerRadius="8">
+                                            <ItemsControl ItemsSource="{Binding SelectedResultCell.SubCells}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <UniformGrid Columns="5" Rows="5" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:ResultSubCellViewModel">
+                                                        <Border Width="44" Height="44" Margin="3" Background="{Binding Color}" CornerRadius="4" IsVisible="{Binding IsValid}">
+                                                            <Grid>
+                                                                <RadioButton GroupName="ResultSubCells"
+                                                                             Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SetSelectedResultSubCellCommand}"
+                                                                             CommandParameter="{Binding}"
+                                                                             Opacity="0"
+                                                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                                                                <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Border>
+                                    </Viewbox>
+                                </StackPanel>
+
+                                <StackPanel Spacing="10" IsVisible="{Binding SelectedResultSubCell, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                    <TextBlock Text="Contacts" FontSize="16" FontWeight="SemiBold" />
+                                    <ListBox ItemsSource="{Binding SelectedResultSubCell.Contacts}"
+                                             SelectedItem="{Binding SelectedResultContact}"
+                                             Background="Transparent"
+                                             BorderThickness="0">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ResultContactViewModel">
+                                                <Border Background="#E5E7EB" CornerRadius="4" Padding="10,5" Margin="0,2">
+                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Right: CurvePlotView -->
+                            <StackPanel Grid.Column="2" Spacing="10">
+                                <TextBlock Text="I-V Curve" FontSize="16" FontWeight="SemiBold" />
+                                <TextBlock Text="Select a contact to view its curve." IsVisible="{Binding SelectedResultContact, Converter={x:Static ObjectConverters.IsNull}}" FontStyle="Italic" Foreground="Gray" />
+                                
+                                <ScrollViewer IsVisible="{Binding SelectedResultContact, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                    <StackPanel Spacing="16">
+                                        <views:CurvePlotView Title="{Binding SelectedResultContact.DisplayName}"
+                                                             XAxisLabel="Voltage (V)"
+                                                             YAxisLabel="Current (A)"
+                                                             Points="{Binding SelectedResultContact.CurveData}"
+                                                             Height="340" />
+
+                                        <views:CurvePlotView Title="I/U Curve - Logarithmic"
+                                                             XAxisLabel="Voltage (V)"
+                                                             YAxisLabel="Current (A)"
+                                                             Points="{Binding SelectedResultContact.CurveData}"
+                                                             LogarithmicY="True"
+                                                             Height="340" />
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </StackPanel>
+
+                        </Grid>
                     </Grid>
                 </ScrollViewer>
             </TabItem>

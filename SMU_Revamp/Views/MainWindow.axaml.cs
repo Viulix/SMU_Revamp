@@ -109,7 +109,10 @@ public partial class MainWindow : Window
 
     private async void DebugButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var debugWindow = new DebugWindow();
+        var debugWindow = new DebugWindow
+        {
+            DataContext = this.DataContext
+        };
         await debugWindow.ShowDialog(this);
     }
 
@@ -147,6 +150,26 @@ public partial class MainWindow : Window
             {
                 var path = file.Path.LocalPath;
                 await vm.SaveCurvePointsToCsvAsync(path);
+            }
+        }
+    }
+
+    private async void LoadResultFolderButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+
+            var result = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "Select Wafer Scan Folder"
+            });
+
+            if (result != null && result.Count > 0)
+            {
+                var path = result[0].Path.LocalPath;
+                await vm.LoadScanFolderAsync(path);
             }
         }
     }

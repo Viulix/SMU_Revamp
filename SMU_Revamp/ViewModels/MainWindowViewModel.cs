@@ -4,6 +4,10 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
 using SMU_Revamp.Models;
 using SMU_Revamp.Services;
@@ -430,6 +434,18 @@ public partial class MainWindowViewModel : ViewModelBase
         });
         CancelAlignmentWarningCommand = new RelayCommand(() => IsAlignmentWarningVisible = false);
 
+        SetSelectedResultCellCommand = new RelayCommand<ResultCellViewModel>(c => SelectedResultCell = c);
+        SetSelectedResultSubCellCommand = new RelayCommand<ResultSubCellViewModel>(c => SelectedResultSubCell = c);
+
+        LoadScanFolderCommand = new AsyncRelayCommand(async () =>
+        {
+            var topLevel = Avalonia.Controls.TopLevel.GetTopLevel(new Avalonia.Controls.Window()); // Will inject topLevel dynamically from UI or pass the path.
+            // Wait, we can't do this easily from ViewModel. We should do it from UI code-behind.
+            // Or better, let's keep it in MainWindow.axaml.cs.
+        });
+
+        LoadConfigState();
+
         // Auto-save settings when Profile or SampleName changes
         Settings.PropertyChanged += async (s, e) =>
         {
@@ -450,22 +466,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void InitializeWaferCells()
     {
-        var invalidCells = new System.Collections.Generic.HashSet<string>
-        {
-            "0101", "0102", "0103", "0114", "0115", "0116",
-            "0201", "0202", "0215", "0216",
-            "0301", "0316",
-            "1401", "1416",
-            "1501", "1502", "1515", "1516",
-            "1601", "1602", "1603", "1614", "1615", "1616"
-        };
-
         for (int y = 1; y <= 16; y++)
         {
             for (int x = 1; x <= 16; x++)
             {
                 string cellId = $"{y:D2}{x:D2}";
-                WaferCells.Add(new WaferCellViewModel(cellId, !invalidCells.Contains(cellId)));
+                WaferCells.Add(new WaferCellViewModel(cellId, WaferCellViewModel.IsValidCell(cellId)));
             }
         }
     }
@@ -1379,5 +1385,229 @@ public partial class MainWindowViewModel : ViewModelBase
         var config = ConfigurationService.Instance.GetConfig();
         config.AutoSaveMeasurements = value;
         await ConfigurationService.Instance.SaveAsync(config);
+    }
+
+    // ==========================================
+    // RESULT TAB LOGIC
+    // ==========================================
+
+    private ObservableCollection<ResultCellViewModel> _resultCells = new();
+    public ObservableCollection<ResultCellViewModel> ResultCells
+    {
+        get => _resultCells;
+        set => SetProperty(ref _resultCells, value);
+    }
+
+    private ResultCellViewModel? _selectedResultCell;
+    public ResultCellViewModel? SelectedResultCell
+    {
+        get => _selectedResultCell;
+        set => SetProperty(ref _selectedResultCell, value);
+    }
+
+    private ResultSubCellViewModel? _selectedResultSubCell;
+    public ResultSubCellViewModel? SelectedResultSubCell
+    {
+        get => _selectedResultSubCell;
+        set => SetProperty(ref _selectedResultSubCell, value);
+    }
+
+    private ResultContactViewModel? _selectedResultContact;
+    public ResultContactViewModel? SelectedResultContact
+    {
+        get => _selectedResultContact;
+        set => SetProperty(ref _selectedResultContact, value);
+    }
+
+    private List<string> _availableResultMetrics = new() { "Average Resistance", "Max Current", "Max Voltage" };
+    public List<string> AvailableResultMetrics
+    {
+        get => _availableResultMetrics;
+        set => SetProperty(ref _availableResultMetrics, value);
+    }
+
+    private string _selectedResultMetric = "Average Resistance";
+    public string SelectedResultMetric
+    {
+        get => _selectedResultMetric;
+        set
+        {
+            if (SetProperty(ref _selectedResultMetric, value))
+            {
+                RecalculateResultMetrics();
+            }
+        }
+    }
+
+    public ICommand LoadScanFolderCommand { get; }
+    public ICommand SetSelectedResultCellCommand { get; }
+    public ICommand SetSelectedResultSubCellCommand { get; }
+
+    private void InitializeResultTab()
+    {
+        // Initialize an empty 16x16 grid
+        ResultCells.Clear();
+        for (int r = 1; r <= 16; r++)
+        {
+            for (int c = 1; c <= 16; c++)
+            {
+                ResultCells.Add(new ResultCellViewModel { Row = r, Col = c });
+            }
+        }
+    }
+
+    public async Task LoadScanFolderAsync(string folderPath)
+    {
+        try
+        {
+            InitializeResultTab();
+
+            var csvFiles = Directory.GetFiles(folderPath, "*.csv");
+
+            // Regex pattern: "Cell0104_R1C5_Contact3"
+            var regex = new Regex(@"Cell(?<cR>\d{2})(?<cC>\d{2})_R(?<sR>\d)C(?<sC>\d)_Contact(?<cont>\d)");
+
+            foreach (var file in csvFiles)
+            {
+                var filename = Path.GetFileName(file);
+                var match = regex.Match(filename);
+                if (!match.Success) continue;
+
+                int cellRow = int.Parse(match.Groups["cR"].Value);
+                int cellCol = int.Parse(match.Groups["cC"].Value);
+                int subRow = int.Parse(match.Groups["sR"].Value);
+                int subCol = int.Parse(match.Groups["sC"].Value);
+                int contact = int.Parse(match.Groups["cont"].Value);
+
+                var cell = ResultCells.FirstOrDefault(c => c.Row == cellRow && c.Col == cellCol);
+                if (cell == null) continue;
+
+                var subCell = cell.SubCells.FirstOrDefault(s => s.Row == subRow && s.Col == subCol);
+                if (subCell == null)
+                {
+                    subCell = new ResultSubCellViewModel { Row = subRow, Col = subCol };
+                    cell.SubCells.Add(subCell);
+                }
+
+                var contactVm = subCell.Contacts.FirstOrDefault(c => c.ContactNumber == contact);
+                if (contactVm == null)
+                {
+                    contactVm = new ResultContactViewModel { ContactNumber = contact };
+                    subCell.Contacts.Add(contactVm);
+                }
+
+                // Read points
+                contactVm.CurveData = ParseCsvPoints(file);
+            }
+
+            RecalculateResultMetrics();
+            NotificationRequested?.Invoke("Success", $"Loaded {csvFiles.Length} measurements.", null);
+        }
+        catch (Exception ex)
+        {
+            NotificationRequested?.Invoke("Error Loading Folder", ex.Message, null);
+        }
+    }
+
+    private List<CurvePoint> ParseCsvPoints(string filepath)
+    {
+        var points = new List<CurvePoint>();
+        var lines = File.ReadAllLines(filepath);
+        bool isFirstLine = true;
+        foreach (var line in lines)
+        {
+            if (isFirstLine)
+            {
+                isFirstLine = false;
+                continue; // skip header
+            }
+            var parts = line.Split(',');
+            if (parts.Length >= 2)
+            {
+                if (double.TryParse(parts[0], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double v) &&
+                    double.TryParse(parts[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double c))
+                {
+                    points.Add(new CurvePoint(v, c));
+                }
+            }
+        }
+        return points;
+    }
+
+    private void RecalculateResultMetrics()
+    {
+        // 1. Calculate values for every single Contact
+        foreach (var cell in ResultCells)
+        {
+            foreach (var subCell in cell.SubCells)
+            {
+                foreach (var contact in subCell.Contacts)
+                {
+                    contact.AggregatedValue = CalculateMetric(contact.CurveData, SelectedResultMetric);
+                }
+                // 2. Aggregate to SubCell
+                subCell.RecalculateValue();
+            }
+            // 3. Aggregate to Cell
+            cell.RecalculateValue();
+        }
+
+        // 4. Find global min / max on Cell level (or SubCell level?)
+        // Usually you color Cells based on the cell values.
+        var validCells = ResultCells.Where(c => c.SubCells.Any() && !double.IsNaN(c.AggregatedValue)).ToList();
+        if (!validCells.Any()) return;
+
+        double minVal = validCells.Min(c => c.AggregatedValue);
+        double maxVal = validCells.Max(c => c.AggregatedValue);
+
+        // Apply colors to Cells
+        foreach (var cell in ResultCells)
+        {
+            if (!cell.SubCells.Any())
+            {
+                cell.Color = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#E0E0E0"));
+            }
+            else
+            {
+                cell.Color = HeatmapHelper.GetColorForValue(cell.AggregatedValue, minVal, maxVal);
+            }
+        }
+
+        // Apply colors to SubCells based on subcell min/max
+        var allSubCells = ResultCells.SelectMany(c => c.SubCells).Where(s => !double.IsNaN(s.AggregatedValue)).ToList();
+        if (allSubCells.Any())
+        {
+            double minSub = allSubCells.Min(s => s.AggregatedValue);
+            double maxSub = allSubCells.Max(s => s.AggregatedValue);
+            foreach (var cell in ResultCells)
+            {
+                foreach (var sub in cell.SubCells)
+                {
+                    sub.Color = HeatmapHelper.GetColorForValue(sub.AggregatedValue, minSub, maxSub);
+                }
+            }
+        }
+    }
+
+    private double CalculateMetric(List<CurvePoint> points, string metric)
+    {
+        if (points == null || points.Count == 0) return double.NaN;
+
+        if (metric == "Average Resistance")
+        {
+            var validPoints = points.Where(p => Math.Abs(p.Current) > 1e-12).ToList(); // Ignore ~0 current
+            if (!validPoints.Any()) return double.NaN;
+            return validPoints.Average(p => Math.Abs(p.Voltage / p.Current));
+        }
+        else if (metric == "Max Current")
+        {
+            return points.Max(p => Math.Abs(p.Current));
+        }
+        else if (metric == "Max Voltage")
+        {
+            return points.Max(p => Math.Abs(p.Voltage));
+        }
+
+        return double.NaN;
     }
 }
