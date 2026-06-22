@@ -927,7 +927,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public string MeasurementProgressText => IsProgressIndeterminate ? "Running..." : $"{MeasurementProgress:F0}%";
 
-    public bool IsMeasuringSweep => IsMeasuring && (SelectedPlan is USweepMeasurementPlan || SelectedPlan is PulseSweepMeasurementPlan || SelectedPlan is SpikeTimingMeasurementPlan);
+    public bool IsMeasuringSweep => IsMeasuring && (SelectedPlan is USweepMeasurementPlan || SelectedPlan is PulseSweepMeasurementPlan || SelectedPlan is SpikeTimingMeasurementPlan || SelectedPlan is MemristorSweepMeasurementPlan);
 
     public ICommand RunMeasurementCommand { get; }
 
@@ -1115,7 +1115,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
             if (AutoSwitchToViewer && !IsScanningWafer)
             {
-                SelectedTabIndex = 1; // Auto switch to Viewer tab
+                SelectedTabIndex = 0; // Auto switch to Viewer tab
             }
         }
         catch (Exception ex)
