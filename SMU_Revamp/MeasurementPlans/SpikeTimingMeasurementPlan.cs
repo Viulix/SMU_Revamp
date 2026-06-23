@@ -7,7 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using SMU_Revamp.Models;
 
-namespace SMU_Revamp.Services
+using SMU_Revamp.Services;
+
+namespace SMU_Revamp.MeasurementPlans
 {
     /// <summary>
     /// Spike timing experiment based on three device time constants.
@@ -92,7 +94,7 @@ namespace SMU_Revamp.Services
                 new() { Name = "ResetVoltage", DisplayName = "Reset Voltage (V):", Type = ParameterType.Number, Tooltip = "Reset pulse voltage.", Section = "Reset Settings" },
                 new() { Name = "ResetPulseLengthMs", DisplayName = "Reset Pulse Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of one reset pulse.", Section = "Reset Settings" },
                 new() { Name = "ResetRepetitions", DisplayName = "Reset Repetitions:", Type = ParameterType.Number, Tooltip = "Number of reset pulses before each trial.", Section = "Reset Settings" },
-                new() { Name = "ResetRecoveryMs", DisplayName = "Reset Recovery Time (ms):", Type = ParameterType.Number, Tooltip = "Wait time after the reset sequence before baseline/spike train.", Section = "Reset Settings" }
+                new() { Name = "ResetRecoveryMs", DisplayName = "Reset Recovery Time (ms):", Type = ParameterType.Number, Tooltip = "Wait time after the reset sequence before baseline/spike train.", Section = "Reset Settings", ScrollStep = 10.0 }
             };
 
             LoadDefaults();

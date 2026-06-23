@@ -4,7 +4,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using SMU_Revamp.Models;
 
-namespace SMU_Revamp.Services
+using SMU_Revamp.Services;
+
+namespace SMU_Revamp.MeasurementPlans
 {
     public sealed class USweepMeasurementPlan : IMeasurementPlan
     {

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -76,6 +77,102 @@ namespace SMU_Revamp.Models
         {
             get => _options;
             set => SetProperty(ref _options, value);
+        }
+
+        private double? _scrollStep;
+        public double ScrollStep
+        {
+            get
+            {
+                if (_scrollStep.HasValue)
+                {
+                    return _scrollStep.Value;
+                }
+                
+                if (string.IsNullOrEmpty(Name))
+                {
+                    return 1.0;
+                }
+
+                if (Name.Contains("Voltage", StringComparison.OrdinalIgnoreCase) || Name.StartsWith("V", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 0.1;
+                }
+                if (Name.Contains("Compliance", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 0.01;
+                }
+                if (Name.Contains("Width", StringComparison.OrdinalIgnoreCase) || Name.Contains("Period", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (Name.EndsWith("Ms", StringComparison.OrdinalIgnoreCase))
+                        return 1.0;
+                    return 0.001;
+                }
+                if (Name.Contains("Constant", StringComparison.OrdinalIgnoreCase) || Name.EndsWith("Time", StringComparison.OrdinalIgnoreCase) || Name.EndsWith("Ms", StringComparison.OrdinalIgnoreCase) || Name.StartsWith("t", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 1.0;
+                }
+                if (Name.Contains("Points", StringComparison.OrdinalIgnoreCase) || Name.Contains("Cycles", StringComparison.OrdinalIgnoreCase) || Name.Contains("Repetitions", StringComparison.OrdinalIgnoreCase) || Name.Contains("Samples", StringComparison.OrdinalIgnoreCase) || Name.Contains("Seed", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 1.0;
+                }
+
+                return 1.0;
+            }
+            set => SetProperty(ref _scrollStep, value);
+        }
+
+        private double? _minValue;
+        public double? MinValue
+        {
+            get
+            {
+                if (_minValue.HasValue) return _minValue.Value;
+                
+                if (string.IsNullOrEmpty(Name)) return null;
+
+                if (Name.Contains("Channel", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 1.0;
+                }
+                if (Name.Contains("Compliance", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 0.0;
+                }
+                if (Name.Contains("Points", StringComparison.OrdinalIgnoreCase) || 
+                    Name.Contains("Cycles", StringComparison.OrdinalIgnoreCase) || 
+                    Name.Contains("Repetitions", StringComparison.OrdinalIgnoreCase) ||
+                    Name.Contains("Samples", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 1.0;
+                }
+                if (Name.Contains("Width", StringComparison.OrdinalIgnoreCase) || 
+                    Name.Contains("Period", StringComparison.OrdinalIgnoreCase) ||
+                    Name.Contains("Time", StringComparison.OrdinalIgnoreCase) || 
+                    Name.EndsWith("Ms", StringComparison.OrdinalIgnoreCase) ||
+                    Name.StartsWith("t", StringComparison.OrdinalIgnoreCase) ||
+                    Name.Contains("Delay", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 0.0;
+                }
+                return null;
+            }
+            set => SetProperty(ref _minValue, value);
+        }
+
+        private double? _maxValue;
+        public double? MaxValue
+        {
+            get
+            {
+                if (_maxValue.HasValue) return _maxValue.Value;
+                if (!string.IsNullOrEmpty(Name) && Name.Contains("Channel", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 2.0;
+                }
+                return null;
+            }
+            set => SetProperty(ref _maxValue, value);
         }
 
         public bool IsTextOrNumber => Type == ParameterType.Text || Type == ParameterType.Number;

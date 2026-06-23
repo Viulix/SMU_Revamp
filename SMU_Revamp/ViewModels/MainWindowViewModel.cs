@@ -11,6 +11,7 @@ using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
 using SMU_Revamp.Models;
 using SMU_Revamp.Services;
+using SMU_Revamp.MeasurementPlans;
 
 namespace SMU_Revamp.ViewModels;
 
@@ -365,17 +366,8 @@ public partial class MainWindowViewModel : ViewModelBase
         CurvePoints = CreateCurvePoints();
         Settings = new SettingsViewModel();
 
-        MeasurementPlans = new List<IMeasurementPlan>
-        {
-            new MeasurePointMeasurementPlan(),
-            new USweepMeasurementPlan(),
-            new PulseSpotMeasurementPlan(),
-            new PulseSweepMeasurementPlan(),
-            new PotDepMeasurementPlan(),
-            new SpikeTimingMeasurementPlan(),
-            new MemristorSweepMeasurementPlan()
-        };
-        SelectedPlan = MeasurementPlans[0]; // Default to Measure Point
+        MeasurementPlans = MeasurementPlanLoader.LoadPlans();
+        SelectedPlan = MeasurementPlans.Count > 0 ? MeasurementPlans.Find(p => p.Name == "Measure Point") ?? MeasurementPlans[0] : null!;
 
         GoToContactCommand = new AsyncRelayCommand(GoToContactAsync);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAndConfigurationAsync);
@@ -1089,7 +1081,25 @@ public partial class MainWindowViewModel : ViewModelBase
                         
                         var fullPath = System.IO.Path.Combine(folderPath, fileName);
                         
-                        var lines = SelectedPlan.GetCsvLines();
+                        var rawLines = SelectedPlan.GetCsvLines();
+                        var lines = new List<string>();
+                        int insertIndex = 0;
+                        if (rawLines.Count > 0 && rawLines[0].StartsWith("sep="))
+                        {
+                            lines.Add(rawLines[0]);
+                            insertIndex = 1;
+                        }
+                        
+                        lines.Add($"# Plan: {SelectedPlan.Name}");
+                        foreach (var p in SelectedPlan.Parameters)
+                        {
+                            lines.Add(System.FormattableString.Invariant($"# {p.Name}: {p.GetValueAsString()}"));
+                        }
+                        
+                        for (int i = insertIndex; i < rawLines.Count; i++)
+                        {
+                            lines.Add(rawLines[i]);
+                        }
                         await System.IO.File.WriteAllLinesAsync(fullPath, lines);
                         
                         MeasurementStatus = $"Finished. Data autosaved to {System.IO.Path.Combine(profile, fileName)}.";
@@ -1139,7 +1149,28 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
-            var lines = SelectedPlan?.GetCsvLines() ?? new List<string>();
+            var lines = new List<string>();
+            if (SelectedPlan != null)
+            {
+                var rawLines = SelectedPlan.GetCsvLines();
+                int insertIndex = 0;
+                if (rawLines.Count > 0 && rawLines[0].StartsWith("sep="))
+                {
+                    lines.Add(rawLines[0]);
+                    insertIndex = 1;
+                }
+                
+                lines.Add($"# Plan: {SelectedPlan.Name}");
+                foreach (var p in SelectedPlan.Parameters)
+                {
+                    lines.Add(System.FormattableString.Invariant($"# {p.Name}: {p.GetValueAsString()}"));
+                }
+                
+                for (int i = insertIndex; i < rawLines.Count; i++)
+                {
+                    lines.Add(rawLines[i]);
+                }
+            }
             await System.IO.File.WriteAllLinesAsync(filePath, lines);
             MeasurementStatus = $"Data successfully exported to {System.IO.Path.GetFileName(filePath)}.";
 
@@ -1233,17 +1264,9 @@ public partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     public void ReloadPlanParameters()
     {
-        MeasurementPlans = new List<IMeasurementPlan>
-        {
-            new MeasurePointMeasurementPlan(),
-            new USweepMeasurementPlan(),
-            new PulseSpotMeasurementPlan(),
-            new PulseSweepMeasurementPlan(),
-            new PotDepMeasurementPlan(),
-            new SpikeTimingMeasurementPlan()
-        };
+        MeasurementPlans = MeasurementPlanLoader.LoadPlans();
         var prevPlanName = SelectedPlan?.Name;
-        SelectedPlan = MeasurementPlans.Find(p => p.Name == prevPlanName) ?? MeasurementPlans[0];
+        SelectedPlan = MeasurementPlans.Find(p => p.Name == prevPlanName) ?? (MeasurementPlans.Count > 0 ? MeasurementPlans[0] : null!);
     }
 
     private void SubscribeToParameterChanges()
@@ -1483,6 +1506,11 @@ public partial class MainWindowViewModel : ViewModelBase
         bool isFirstLine = true;
         foreach (var line in lines)
         {
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#") || trimmed.StartsWith("sep="))
+            {
+                continue;
+            }
             if (isFirstLine)
             {
                 isFirstLine = false;

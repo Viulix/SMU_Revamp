@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SMU_Revamp.Models;
 using SMU_Revamp.Services;
+using SMU_Revamp.MeasurementPlans;
 
 namespace SMU_Revamp.ViewModels
 {
@@ -42,17 +43,8 @@ namespace SMU_Revamp.ViewModels
         public DefaultsViewModel()
         {
             // Fresh instances of plans so the user modifies new defaults rather than active values
-            MeasurementPlans = new List<IMeasurementPlan>
-            {
-                new MeasurePointMeasurementPlan(),
-                new USweepMeasurementPlan(),
-                new PulseSpotMeasurementPlan(),
-                new PulseSweepMeasurementPlan(),
-                new PotDepMeasurementPlan(),
-                new SpikeTimingMeasurementPlan(),
-                new MemristorSweepMeasurementPlan()
-            };
-            _selectedPlan = MeasurementPlans[0];
+            MeasurementPlans = MeasurementPlanLoader.LoadPlans();
+            _selectedPlan = MeasurementPlans.Count > 0 ? MeasurementPlans[0] : null!;
 
             SaveDefaultsCommand = new AsyncRelayCommand(SaveDefaultsAsync);
         }

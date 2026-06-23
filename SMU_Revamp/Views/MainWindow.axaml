@@ -124,14 +124,14 @@
                                             <ItemsControl ItemsSource="{Binding Parameters}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="models:MeasurementParameter">
-                                                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,10" ToolTip.Tip="{Binding Tooltip}">
-                                                            <TextBlock Text="{Binding DisplayName}" Width="150" VerticalAlignment="Center" />
-                                                            <ContentControl Content="{Binding}">
+                                                        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,10" ToolTip.Tip="{Binding Tooltip}">
+                                                            <TextBlock Grid.Column="0" Text="{Binding DisplayName}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                                            <ContentControl Grid.Column="1" Content="{Binding}" VerticalAlignment="Center">
                                                                 <ContentControl.ContentTemplate>
                                                                     <views:ParameterTemplateSelector>
                                                                         <views:ParameterTemplateSelector.TextTemplate>
                                                                             <DataTemplate x:DataType="models:MeasurementParameter">
-                                                                                <TextBox Text="{Binding Value, Mode=TwoWay}" Width="150" />
+                                                                                <views:ParameterTextBox Text="{Binding Value, Mode=TwoWay}" Width="150" />
                                                                             </DataTemplate>
                                                                         </views:ParameterTemplateSelector.TextTemplate>
                                                                         <views:ParameterTemplateSelector.CheckboxTemplate>
@@ -149,7 +149,7 @@
                                                                     </views:ParameterTemplateSelector>
                                                                 </ContentControl.ContentTemplate>
                                                             </ContentControl>
-                                                        </StackPanel>
+                                                        </Grid>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
