@@ -16,7 +16,7 @@ namespace SMU_Revamp.MeasurementPlans
             {
                 var planType = typeof(IMeasurementPlan);
                 var types = Assembly.GetExecutingAssembly().GetTypes()
-                    .Where(t => planType.IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+                    .Where(t => planType.IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract && t.Name != "ImportedMeasurementPlan");
 
                 foreach (var type in types)
                 {

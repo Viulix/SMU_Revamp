@@ -1255,6 +1255,128 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Imports curve points and metadata from a file to display in the viewer.
+    /// </summary>
+    public async Task ImportCurvePointsFromFileAsync(string filePath)
+    {
+        try
+        {
+            var lines = await Task.Run(() => File.ReadAllLines(filePath));
+            var parsedPoints = new List<CurvePoint>();
+            string planName = string.Empty;
+            var paramDict = new Dictionary<string, string>();
+
+            bool isFirstLine = true;
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed)) continue;
+
+                if (trimmed.StartsWith("#"))
+                {
+                    var content = trimmed.Substring(1).Trim();
+                    var splitChar = content.Contains('\t') ? '\t' : ' ';
+                    var idx = content.IndexOf(splitChar);
+                    if (idx > 0)
+                    {
+                        var key = content.Substring(0, idx).Trim();
+                        var val = content.Substring(idx + 1).Trim();
+                        if (key.Equals("Plan", StringComparison.OrdinalIgnoreCase))
+                        {
+                            planName = val;
+                        }
+                        else
+                        {
+                            paramDict[key] = val;
+                        }
+                    }
+                    continue;
+                }
+
+                if (trimmed.StartsWith("sep="))
+                {
+                    continue;
+                }
+
+                if (isFirstLine)
+                {
+                    isFirstLine = false;
+                    continue;
+                }
+
+                var parts = trimmed.Contains('\t') ? trimmed.Split('\t') : trimmed.Split(',');
+                if (parts.Length >= 2)
+                {
+                    if (double.TryParse(parts[0], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double x) &&
+                        double.TryParse(parts[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double y))
+                    {
+                        parsedPoints.Add(new CurvePoint(x, y));
+                    }
+                }
+            }
+
+            if (parsedPoints.Count == 0)
+            {
+                NotificationRequested?.Invoke("Import Error", "No data points could be parsed from the file.", null);
+                return;
+            }
+
+            IMeasurementPlan? plan = null;
+            if (!string.IsNullOrWhiteSpace(planName))
+            {
+                var matchingPlan = MeasurementPlans.FirstOrDefault(p => string.Equals(p.Name, planName, StringComparison.OrdinalIgnoreCase));
+                if (matchingPlan != null)
+                {
+                    try
+                    {
+                        plan = Activator.CreateInstance(matchingPlan.GetType()) as IMeasurementPlan;
+                    }
+                    catch { }
+                }
+            }
+
+            if (plan == null)
+            {
+                plan = new ImportedMeasurementPlan
+                {
+                    Name = string.IsNullOrWhiteSpace(planName) ? Path.GetFileName(filePath) : planName,
+                    Description = $"Data loaded from {Path.GetFileName(filePath)}."
+                };
+            }
+
+            foreach (var param in plan.Parameters)
+            {
+                if (paramDict.TryGetValue(param.Name, out var valStr))
+                {
+                    if (param.Type == ParameterType.Number)
+                    {
+                        if (double.TryParse(valStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double dVal))
+                        {
+                            param.Value = dVal;
+                        }
+                    }
+                    else
+                    {
+                        param.Value = valStr;
+                    }
+                }
+            }
+
+            plan.ResultPoints.Clear();
+            plan.ResultPoints.AddRange(parsedPoints);
+
+            PlottedPlan = plan;
+            RefreshPlotDataFromPlottedPlan();
+
+            NotificationRequested?.Invoke("Success", $"Successfully loaded {parsedPoints.Count} points from {Path.GetFileName(filePath)}.", null);
+        }
+        catch (Exception ex)
+        {
+            NotificationRequested?.Invoke("Import Error", $"Failed to load file: {ex.Message}", null);
+        }
+    }
+
     private async Task SaveMeasurementConfigAsync()
     {
         try
@@ -1603,7 +1725,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 isFirstLine = false;
                 continue; // skip header
             }
-            var parts = line.Split(',');
+            var parts = trimmed.Contains('\t') ? trimmed.Split('\t') : trimmed.Split(',');
             if (parts.Length >= 2)
             {
                 if (double.TryParse(parts[0], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double v) &&
@@ -1733,4 +1855,19 @@ public partial class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(GlobalProgressTitle));
         OnPropertyChanged(nameof(GlobalProgressStatusText));
     }
+}
+
+public class ImportedMeasurementPlan : IMeasurementPlan
+{
+    public string Name { get; set; } = "Imported Data";
+    public string Description { get; set; } = "Imported measurement data from file.";
+    public List<MeasurementParameter> Parameters { get; } = new();
+    public List<CurvePoint> ResultPoints { get; } = new();
+
+    public Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+    {
+        return Task.CompletedTask;
+    }
+
+    public void LoadDefaults() { }
 }

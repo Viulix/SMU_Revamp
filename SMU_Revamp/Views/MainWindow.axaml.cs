@@ -154,6 +154,32 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void ImportFileButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+
+            var result = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Import Measurement File",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("CSV/TSV/TXT Files (*.csv;*.tsv;*.txt)") { Patterns = new[] { "*.csv", "*.tsv", "*.txt" } },
+                    new FilePickerFileType("All Files (*.*)") { Patterns = new[] { "*" } }
+                }
+            });
+
+            if (result != null && result.Count > 0)
+            {
+                var path = result[0].Path.LocalPath;
+                await vm.ImportCurvePointsFromFileAsync(path);
+            }
+        }
+    }
+
     private async void LoadResultFolderButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is ViewModels.MainWindowViewModel vm)

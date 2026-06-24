@@ -116,6 +116,13 @@
                                               Width="150" Height="32" VerticalContentAlignment="Center"/>
                                 </StackPanel>
                                 
+                                <Button Content="Import File" 
+                                        Click="ImportFileButton_Click"
+                                        Classes="Secondary" 
+                                        Height="32"
+                                        Padding="15,0"
+                                        VerticalContentAlignment="Center" />
+
                                 <Button Content="Export Data to CSV" 
                                         Click="ExportCsvButton_Click"
                                         IsEnabled="{Binding HasCurvePoints}"
@@ -132,7 +139,7 @@
                                              Series="{Binding PlotSeries}"
                                              Points="{Binding CurvePoints}"
                                              IsVisible="{Binding IsLinearPlotVisible}"
-                                             Height="340" />
+                                             Height="300" />
                         <views:CurvePlotView Title="{Binding LogPlotTitle}"
                                              XAxisLabel="{Binding XAxisTitle}"
                                              YAxisLabel="{Binding YAxisTitle}"
@@ -140,7 +147,7 @@
                                              Points="{Binding CurvePoints}"
                                              LogarithmicY="True"
                                              IsVisible="{Binding IsLogPlotVisible}"
-                                             Height="340" />
+                                             Height="300" />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -584,6 +591,16 @@
                                         <ListBox.ItemTemplate>
                                             <DataTemplate x:DataType="vm:ResultContactViewModel">
                                                 <Border Background="#E5E7EB" CornerRadius="4" Padding="10,5" Margin="0,2">
+                                                    <ToolTip.Tip>
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" />
+                                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                <TextBlock Text="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectedResultMetric}" FontWeight="SemiBold"/>
+                                                                <TextBlock Text=":"/>
+                                                                <TextBlock Text="{Binding FormattedValue}" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </ToolTip.Tip>
                                                     <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
                                                 </Border>
                                             </DataTemplate>
@@ -603,14 +620,14 @@
                                                              XAxisLabel="Voltage (V)"
                                                              YAxisLabel="Current (A)"
                                                              Points="{Binding SelectedResultContact.CurveData}"
-                                                             Height="340" />
+                                                             Height="300" />
 
                                         <views:CurvePlotView Title="I/U Curve - Logarithmic"
                                                              XAxisLabel="Voltage (V)"
                                                              YAxisLabel="Current (A)"
                                                              Points="{Binding SelectedResultContact.CurveData}"
                                                              LogarithmicY="True"
-                                                             Height="340" />
+                                                             Height="300" />
                                     </StackPanel>
                                 </ScrollViewer>
                             </StackPanel>
