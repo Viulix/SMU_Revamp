@@ -48,5 +48,36 @@ namespace SMU_Revamp.Services
             }
             return fallbackValue;
         }
+        /// <summary>
+        /// Robust parser for double values that handles locale-specific decimal separators
+        /// (dots or commas) and optionally thousands separators.
+        /// </summary>
+        public static bool TryParseDoubleRobust(string? str, out double result)
+        {
+            result = 0.0;
+            if (string.IsNullOrWhiteSpace(str)) return false;
+
+            var s = str.Trim();
+
+            // Handle strings with commas and no dots
+            if (s.Contains(',') && !s.Contains('.'))
+            {
+                s = s.Replace(',', '.');
+            }
+            // Handle strings containing both commas and dots
+            else if (s.Contains(',') && s.Contains('.'))
+            {
+                if (s.IndexOf(',') > s.IndexOf('.'))
+                {
+                    s = s.Replace(".", "").Replace(',', '.');
+                }
+                else
+                {
+                    s = s.Replace(",", "");
+                }
+            }
+
+            return double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out result);
+        }
     }
 }

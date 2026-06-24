@@ -1274,12 +1274,34 @@ public partial class MainWindowViewModel : ViewModelBase
                 if (trimmed.StartsWith("#"))
                 {
                     var content = trimmed.Substring(1).Trim();
-                    var splitChar = content.Contains('\t') ? '\t' : ' ';
-                    var idx = content.IndexOf(splitChar);
-                    if (idx > 0)
+                    
+                    // Robust delimiter detection in metadata comment
+                    char[] delimiters = { '\t', ';', ':', ',' };
+                    int bestIdx = -1;
+                    foreach (var delim in delimiters)
                     {
-                        var key = content.Substring(0, idx).Trim();
-                        var val = content.Substring(idx + 1).Trim();
+                        int idx = content.IndexOf(delim);
+                        if (idx > 0 && (bestIdx == -1 || idx < bestIdx))
+                        {
+                            bestIdx = idx;
+                        }
+                    }
+                    if (bestIdx == -1)
+                    {
+                        bestIdx = content.IndexOf(' ');
+                    }
+
+                    if (bestIdx > 0)
+                    {
+                        var key = content.Substring(0, bestIdx).Trim();
+                        var val = content.Substring(bestIdx + 1).Trim();
+                        
+                        // Clean up leading delimiter/equality characters
+                        if (val.StartsWith(":") || val.StartsWith(";") || val.StartsWith(",") || val.StartsWith("="))
+                        {
+                            val = val.Substring(1).Trim();
+                        }
+
                         if (key.Equals("Plan", StringComparison.OrdinalIgnoreCase))
                         {
                             planName = val;
@@ -1289,6 +1311,75 @@ public partial class MainWindowViewModel : ViewModelBase
                             paramDict[key] = val;
                         }
                     }
+                }
+            }
+
+            // Find separator and header line for heuristics/auto-detection
+            char? detectedSeparator = null;
+            string? headerLine = null;
+
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("sep=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var sepStr = trimmed.Substring(4).Trim();
+                    if (sepStr.Length > 0)
+                    {
+                        detectedSeparator = sepStr[0];
+                    }
+                }
+                else if (!trimmed.StartsWith("#") && !string.IsNullOrEmpty(trimmed))
+                {
+                    if (headerLine == null)
+                    {
+                        headerLine = trimmed;
+                    }
+                }
+            }
+
+            if (headerLine != null && detectedSeparator == null)
+            {
+                if (headerLine.Contains('\t'))
+                {
+                    detectedSeparator = '\t';
+                }
+                else if (headerLine.Contains(';'))
+                {
+                    detectedSeparator = ';';
+                }
+                else if (headerLine.Contains(','))
+                {
+                    detectedSeparator = ',';
+                }
+                else
+                {
+                    detectedSeparator = '\t';
+                }
+            }
+
+            List<string> headers = new List<string>();
+            if (headerLine != null && detectedSeparator.HasValue)
+            {
+                headers = headerLine.Split(detectedSeparator.Value)
+                                    .Select(h => h.Trim().Trim('"'))
+                                    .ToList();
+            }
+
+            // Heuristics to auto-detect plan name if missing or unrecognized
+            if (string.IsNullOrWhiteSpace(planName) && headers.Count > 0)
+            {
+                if (headers.Any(h => h.Contains("Cycle 1 Voltage") || h.Contains("Cycle 2 Voltage") || h.Contains("Cycle 1 Current")))
+                {
+                    planName = "Memristor Sweep";
+                }
+                else if (headers.Any(h => h.Contains("TrialIndex") || h.Contains("Readout1_") || h.Contains("Readout2_")))
+                {
+                    planName = "Spike Timing";
+                }
+                else if (headers.Any(h => h.Equals("Cycle", StringComparison.OrdinalIgnoreCase)) && headers.Any(h => h.Contains("Current")))
+                {
+                    planName = "PotDep";
                 }
             }
 
@@ -1321,7 +1412,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 {
                     if (param.Type == ParameterType.Number)
                     {
-                        if (double.TryParse(valStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double dVal))
+                        if (SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(valStr, out double dVal))
                         {
                             param.Value = dVal;
                         }

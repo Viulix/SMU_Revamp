@@ -301,6 +301,24 @@ namespace SMU_Revamp.MeasurementPlans
 
             string? headerLine = null;
             var dataLines = new List<string>();
+            char separator = '\t';
+            bool hasSeparator = false;
+
+            // Detect separator from sep= line if present
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("sep=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var sepStr = trimmed.Substring(4).Trim();
+                    if (sepStr.Length > 0)
+                    {
+                        separator = sepStr[0];
+                        hasSeparator = true;
+                        break;
+                    }
+                }
+            }
 
             foreach (var line in lines)
             {
@@ -322,8 +340,14 @@ namespace SMU_Revamp.MeasurementPlans
 
             if (headerLine == null) return;
 
-            var separator = headerLine.Contains('\t') ? '\t' : ',';
-            var headers = headerLine.Split(separator).Select(h => h.Trim()).ToList();
+            if (!hasSeparator)
+            {
+                if (headerLine.Contains('\t')) separator = '\t';
+                else if (headerLine.Contains(';')) separator = ';';
+                else if (headerLine.Contains(',')) separator = ',';
+            }
+
+            var headers = headerLine.Split(separator).Select(h => h.Trim().Trim('"')).ToList();
 
             int GetIndex(string name) => headers.FindIndex(h => string.Equals(h, name, StringComparison.OrdinalIgnoreCase));
 
@@ -372,8 +396,8 @@ namespace SMU_Revamp.MeasurementPlans
                     var parts = line.Split(separator);
                     if (parts.Length >= 2)
                     {
-                        if (double.TryParse(parts[0], NumberStyles.Any, CultureInfo.InvariantCulture, out double x) &&
-                            double.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out double y))
+                        if (SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[0], out double x) &&
+                            SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[1], out double y))
                         {
                             ResultPoints.Add(new CurvePoint(x, y));
                         }
@@ -391,43 +415,43 @@ namespace SMU_Revamp.MeasurementPlans
                 int repIndex = int.TryParse(parts[idxRep], out var rep) ? rep : 0;
                 int patIndex = int.TryParse(parts[idxPat], out var pat) ? pat : 0;
                 string gapOrder = idxGapOrder != -1 ? parts[idxGapOrder] : string.Empty;
-                double gap1 = idxGap1 != -1 && double.TryParse(parts[idxGap1], NumberStyles.Any, CultureInfo.InvariantCulture, out var g1) ? g1 : 0.0;
-                double gap2 = idxGap2 != -1 && double.TryParse(parts[idxGap2], NumberStyles.Any, CultureInfo.InvariantCulture, out var g2) ? g2 : 0.0;
-                double gap3 = idxGap3 != -1 && double.TryParse(parts[idxGap3], NumberStyles.Any, CultureInfo.InvariantCulture, out var g3) ? g3 : 0.0;
+                double gap1 = idxGap1 != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxGap1], out var g1) ? g1 : 0.0;
+                double gap2 = idxGap2 != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxGap2], out var g2) ? g2 : 0.0;
+                double gap3 = idxGap3 != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxGap3], out var g3) ? g3 : 0.0;
                 string spikeTimes = idxSpikeTimes != -1 ? parts[idxSpikeTimes] : string.Empty;
                 string spikeEndTimes = idxSpikeEndTimes != -1 ? parts[idxSpikeEndTimes] : string.Empty;
-                double lastSpikeStart = idxLastSpikeStart != -1 && double.TryParse(parts[idxLastSpikeStart], NumberStyles.Any, CultureInfo.InvariantCulture, out var lss) ? lss : 0.0;
-                double lastSpikeEnd = idxLastSpikeEnd != -1 && double.TryParse(parts[idxLastSpikeEnd], NumberStyles.Any, CultureInfo.InvariantCulture, out var lse) ? lse : 0.0;
+                double lastSpikeStart = idxLastSpikeStart != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxLastSpikeStart], out var lss) ? lss : 0.0;
+                double lastSpikeEnd = idxLastSpikeEnd != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxLastSpikeEnd], out var lse) ? lse : 0.0;
                 string actualReadoutOrder = idxActualReadoutOrder != -1 ? parts[idxActualReadoutOrder] : string.Empty;
-                double baseline = idxBaselineCurrent != -1 && double.TryParse(parts[idxBaselineCurrent], NumberStyles.Any, CultureInfo.InvariantCulture, out var bl) ? bl : 0.0;
+                double baseline = idxBaselineCurrent != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxBaselineCurrent], out var bl) ? bl : 0.0;
 
                 // Readout 1
                 string r1Label = idxR1Label != -1 ? parts[idxR1Label] : "A";
-                double r1TargetDelay = idxR1TargetDelay != -1 && double.TryParse(parts[idxR1TargetDelay], NumberStyles.Any, CultureInfo.InvariantCulture, out var r1td) ? r1td : 0.0;
-                double r1ActualDelay = idxR1ActualDelay != -1 && double.TryParse(parts[idxR1ActualDelay], NumberStyles.Any, CultureInfo.InvariantCulture, out var r1ad) ? r1ad : 0.0;
-                double r1Current = double.TryParse(parts[idxR1Current], NumberStyles.Any, CultureInfo.InvariantCulture, out var r1c) ? r1c : 0.0;
-                double r1Delta = idxR1Delta != -1 && double.TryParse(parts[idxR1Delta], NumberStyles.Any, CultureInfo.InvariantCulture, out var r1d) ? r1d : 0.0;
-                double r1Cond = idxR1Cond != -1 && double.TryParse(parts[idxR1Cond], NumberStyles.Any, CultureInfo.InvariantCulture, out var r1co) ? r1co : 0.0;
+                double r1TargetDelay = idxR1TargetDelay != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR1TargetDelay], out var r1td) ? r1td : 0.0;
+                double r1ActualDelay = idxR1ActualDelay != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR1ActualDelay], out var r1ad) ? r1ad : 0.0;
+                double r1Current = SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR1Current], out var r1c) ? r1c : 0.0;
+                double r1Delta = idxR1Delta != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR1Delta], out var r1d) ? r1d : 0.0;
+                double r1Cond = idxR1Cond != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR1Cond], out var r1co) ? r1co : 0.0;
 
                 var readout1 = new ReadoutMeasurement(1, r1Label, r1TargetDelay, r1ActualDelay, r1Current, r1Delta, r1Cond);
 
                 // Readout 2
                 string r2Label = idxR2Label != -1 ? parts[idxR2Label] : "B";
-                double r2TargetDelay = idxR2TargetDelay != -1 && double.TryParse(parts[idxR2TargetDelay], NumberStyles.Any, CultureInfo.InvariantCulture, out var r2td) ? r2td : 0.0;
-                double r2ActualDelay = idxR2ActualDelay != -1 && double.TryParse(parts[idxR2ActualDelay], NumberStyles.Any, CultureInfo.InvariantCulture, out var r2ad) ? r2ad : 0.0;
-                double r2Current = double.TryParse(parts[idxR2Current], NumberStyles.Any, CultureInfo.InvariantCulture, out var r2c) ? r2c : 0.0;
-                double r2Delta = idxR2Delta != -1 && double.TryParse(parts[idxR2Delta], NumberStyles.Any, CultureInfo.InvariantCulture, out var r2d) ? r2d : 0.0;
-                double r2Cond = idxR2Cond != -1 && double.TryParse(parts[idxR2Cond], NumberStyles.Any, CultureInfo.InvariantCulture, out var r2co) ? r2co : 0.0;
+                double r2TargetDelay = idxR2TargetDelay != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR2TargetDelay], out var r2td) ? r2td : 0.0;
+                double r2ActualDelay = idxR2ActualDelay != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR2ActualDelay], out var r2ad) ? r2ad : 0.0;
+                double r2Current = SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR2Current], out var r2c) ? r2c : 0.0;
+                double r2Delta = idxR2Delta != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR2Delta], out var r2d) ? r2d : 0.0;
+                double r2Cond = idxR2Cond != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR2Cond], out var r2co) ? r2co : 0.0;
 
                 var readout2 = new ReadoutMeasurement(2, r2Label, r2TargetDelay, r2ActualDelay, r2Current, r2Delta, r2Cond);
 
                 // Readout 3
                 string r3Label = idxR3Label != -1 ? parts[idxR3Label] : "C";
-                double r3TargetDelay = idxR3TargetDelay != -1 && double.TryParse(parts[idxR3TargetDelay], NumberStyles.Any, CultureInfo.InvariantCulture, out var r3td) ? r3td : 0.0;
-                double r3ActualDelay = idxR3ActualDelay != -1 && double.TryParse(parts[idxR3ActualDelay], NumberStyles.Any, CultureInfo.InvariantCulture, out var r3ad) ? r3ad : 0.0;
-                double r3Current = double.TryParse(parts[idxR3Current], NumberStyles.Any, CultureInfo.InvariantCulture, out var r3c) ? r3c : 0.0;
-                double r3Delta = idxR3Delta != -1 && double.TryParse(parts[idxR3Delta], NumberStyles.Any, CultureInfo.InvariantCulture, out var r3d) ? r3d : 0.0;
-                double r3Cond = idxR3Cond != -1 && double.TryParse(parts[idxR3Cond], NumberStyles.Any, CultureInfo.InvariantCulture, out var r3co) ? r3co : 0.0;
+                double r3TargetDelay = idxR3TargetDelay != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR3TargetDelay], out var r3td) ? r3td : 0.0;
+                double r3ActualDelay = idxR3ActualDelay != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR3ActualDelay], out var r3ad) ? r3ad : 0.0;
+                double r3Current = SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR3Current], out var r3c) ? r3c : 0.0;
+                double r3Delta = idxR3Delta != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR3Delta], out var r3d) ? r3d : 0.0;
+                double r3Cond = idxR3Cond != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR3Cond], out var r3co) ? r3co : 0.0;
 
                 var readout3 = new ReadoutMeasurement(3, r3Label, r3TargetDelay, r3ActualDelay, r3Current, r3Delta, r3Cond);
 

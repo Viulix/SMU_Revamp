@@ -319,6 +319,24 @@ namespace SMU_Revamp.MeasurementPlans
 
             string? headerLine = null;
             var dataLines = new List<string>();
+            char separator = '\t';
+            bool hasSeparator = false;
+
+            // Detect separator from sep= line if present
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("sep=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var sepStr = trimmed.Substring(4).Trim();
+                    if (sepStr.Length > 0)
+                    {
+                        separator = sepStr[0];
+                        hasSeparator = true;
+                        break;
+                    }
+                }
+            }
 
             foreach (var line in lines)
             {
@@ -340,8 +358,14 @@ namespace SMU_Revamp.MeasurementPlans
 
             if (headerLine == null) return;
 
-            var separator = headerLine.Contains('\t') ? '\t' : ',';
-            var headers = headerLine.Split(separator).Select(h => h.Trim()).ToList();
+            if (!hasSeparator)
+            {
+                if (headerLine.Contains('\t')) separator = '\t';
+                else if (headerLine.Contains(';')) separator = ';';
+                else if (headerLine.Contains(',')) separator = ',';
+            }
+
+            var headers = headerLine.Split(separator).Select(h => h.Trim().Trim('"')).ToList();
 
             int cycleCount = headers.Count / 2;
             if (cycleCount == 0) return;
@@ -367,8 +391,8 @@ namespace SMU_Revamp.MeasurementPlans
 
                         if (!string.IsNullOrEmpty(vStr) && !string.IsNullOrEmpty(iStr))
                         {
-                            if (double.TryParse(vStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double vVal) &&
-                                double.TryParse(iStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double iVal))
+                            if (SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(vStr, out double vVal) &&
+                                SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(iStr, out double iVal))
                             {
                                 cycles[c].Add(new CurvePoint(vVal, iVal));
                             }

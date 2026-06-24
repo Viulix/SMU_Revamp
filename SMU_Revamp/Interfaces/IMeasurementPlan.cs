@@ -70,6 +70,48 @@ namespace SMU_Revamp.Interfaces
         void LoadFromCsvLines(IReadOnlyList<string> lines)
         {
             ResultPoints.Clear();
+
+            char separator = '\t';
+            bool hasSeparator = false;
+            string? headerLine = null;
+
+            // Detect separator from sep= line if present
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("sep=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var sepStr = trimmed.Substring(4).Trim();
+                    if (sepStr.Length > 0)
+                    {
+                        separator = sepStr[0];
+                        hasSeparator = true;
+                        break;
+                    }
+                }
+            }
+
+            // Find first non-comment, non-sep line as the header line
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#") || trimmed.StartsWith("sep="))
+                {
+                    continue;
+                }
+                headerLine = trimmed;
+                break;
+            }
+
+            if (headerLine == null) return;
+
+            if (!hasSeparator)
+            {
+                if (headerLine.Contains('\t')) separator = '\t';
+                else if (headerLine.Contains(';')) separator = ';';
+                else if (headerLine.Contains(',')) separator = ',';
+            }
+
             bool isFirstLine = true;
             foreach (var line in lines)
             {
@@ -80,16 +122,15 @@ namespace SMU_Revamp.Interfaces
                 }
                 if (isFirstLine)
                 {
-                    isFirstLine = false;
+                    isFirstLine = false; // skip header line
                     continue;
                 }
 
-                var separator = trimmed.Contains('\t') ? '\t' : ',';
                 var parts = trimmed.Split(separator);
                 if (parts.Length >= 2)
                 {
-                    if (double.TryParse(parts[0], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double x) &&
-                        double.TryParse(parts[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double y))
+                    if (SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[0], out double x) &&
+                        SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[1], out double y))
                     {
                         ResultPoints.Add(new CurvePoint(x, y));
                     }
