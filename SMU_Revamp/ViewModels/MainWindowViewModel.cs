@@ -1146,8 +1146,8 @@ public partial class MainWindowViewModel : ViewModelBase
                         var rawLines = PlottedPlan.GetCsvLines();
                         var lines = new List<string>();
                         
-                        // Always prepend sep=, for instant Excel compatibility
-                        lines.Add("sep=,");
+                        // Always prepend sep=\t for instant Excel compatibility
+                        lines.Add("sep=\t");
                         
                         int insertIndex = 0;
                         if (rawLines.Count > 0 && rawLines[0].StartsWith("sep="))
@@ -1155,10 +1155,10 @@ public partial class MainWindowViewModel : ViewModelBase
                             insertIndex = 1;
                         }
                         
-                        lines.Add($"# Plan,{PlottedPlan.Name}");
+                        lines.Add($"# Plan\t{PlottedPlan.Name}");
                         foreach (var p in PlottedPlan.Parameters)
                         {
-                            lines.Add(System.FormattableString.Invariant($"# {p.Name},{p.GetValueAsString()}"));
+                            lines.Add(System.FormattableString.Invariant($"# {p.Name}\t{p.GetValueAsString()}"));
                         }
                         
                         for (int i = insertIndex; i < rawLines.Count; i++)
@@ -1216,8 +1216,8 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var lines = new List<string>();
             
-            // Always prepend sep=, for instant Excel compatibility
-            lines.Add("sep=,");
+            // Always prepend sep=\t for instant Excel compatibility
+            lines.Add("sep=\t");
             
             if (PlottedPlan != null)
             {
@@ -1228,10 +1228,10 @@ public partial class MainWindowViewModel : ViewModelBase
                     insertIndex = 1;
                 }
                 
-                lines.Add($"# Plan,{PlottedPlan.Name}");
+                lines.Add($"# Plan\t{PlottedPlan.Name}");
                 foreach (var p in PlottedPlan.Parameters)
                 {
-                    lines.Add(System.FormattableString.Invariant($"# {p.Name},{p.GetValueAsString()}"));
+                    lines.Add(System.FormattableString.Invariant($"# {p.Name}\t{p.GetValueAsString()}"));
                 }
                 
                 for (int i = insertIndex; i < rawLines.Count; i++)

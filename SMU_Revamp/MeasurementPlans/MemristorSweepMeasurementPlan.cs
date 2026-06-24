@@ -277,7 +277,7 @@ namespace SMU_Revamp.MeasurementPlans
                 headers.Add($"Cycle {i + 1} Voltage (V)");
                 headers.Add($"Cycle {i + 1} Current (A)");
             }
-            lines.Add(string.Join(",", headers));
+            lines.Add(string.Join("\t", headers));
 
             // Find max length
             int maxPoints = 0;
@@ -304,7 +304,7 @@ namespace SMU_Revamp.MeasurementPlans
                         rowValues.Add("");
                     }
                 }
-                lines.Add(string.Join(",", rowValues));
+                lines.Add(string.Join("\t", rowValues));
             }
 
             return lines;

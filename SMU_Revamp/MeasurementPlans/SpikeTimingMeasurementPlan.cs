@@ -359,14 +359,14 @@ namespace SMU_Revamp.MeasurementPlans
         {
             var lines = new List<string>
             {
-                "sep=,",
-                "TrialIndex,RepetitionIndex,PatternIndex,GapOrder,Gap1_ms,Gap2_ms,Gap3_ms,SpikeTimes_ms,SpikeEndTimes_ms,LastSpikeStart_ms,LastSpikeEnd_ms,ActualReadoutOrder,BaselineCurrent_A,Readout1_Label,Readout1_TargetDelayAfterLastSpikeEnd_ms,Readout1_ActualDelayAfterLastSpikeEnd_ms,Readout1_Current_A,Readout1_DeltaCurrent_A,Readout1_Conductance_S,Readout2_Label,Readout2_TargetDelayAfterLastSpikeEnd_ms,Readout2_ActualDelayAfterLastSpikeEnd_ms,Readout2_Current_A,Readout2_DeltaCurrent_A,Readout2_Conductance_S,Readout3_Label,Readout3_TargetDelayAfterLastSpikeEnd_ms,Readout3_ActualDelayAfterLastSpikeEnd_ms,Readout3_Current_A,Readout3_DeltaCurrent_A,Readout3_Conductance_S,TimeConstantA_ms,TimeConstantB_ms,TimeConstantC_ms,SpikeVoltage_V,SpikeLength_ms,ReadVoltage_V,ReadPulseLength_ms,Compliance_A,ShuffleExecutionOrder,ShuffleSeed,ResetEnabled,ResetVoltage_V,ResetPulseLength_ms,ResetRepetitions,ResetRecovery_ms"
+                "sep=\t",
+                "TrialIndex\tRepetitionIndex\tPatternIndex\tGapOrder\tGap1_ms\tGap2_ms\tGap3_ms\tSpikeTimes_ms\tSpikeEndTimes_ms\tLastSpikeStart_ms\tLastSpikeEnd_ms\tActualReadoutOrder\tBaselineCurrent_A\tReadout1_Label\tReadout1_TargetDelayAfterLastSpikeEnd_ms\tReadout1_ActualDelayAfterLastSpikeEnd_ms\tReadout1_Current_A\tReadout1_DeltaCurrent_A\tReadout1_Conductance_S\tReadout2_Label\tReadout2_TargetDelayAfterLastSpikeEnd_ms\tReadout2_ActualDelayAfterLastSpikeEnd_ms\tReadout2_Current_A\tReadout2_DeltaCurrent_A\tReadout2_Conductance_S\tReadout3_Label\tReadout3_TargetDelayAfterLastSpikeEnd_ms\tReadout3_ActualDelayAfterLastSpikeEnd_ms\tReadout3_Current_A\tReadout3_DeltaCurrent_A\tReadout3_Conductance_S\tTimeConstantA_ms\tTimeConstantB_ms\tTimeConstantC_ms\tSpikeVoltage_V\tSpikeLength_ms\tReadVoltage_V\tReadPulseLength_ms\tCompliance_A\tShuffleExecutionOrder\tShuffleSeed\tResetEnabled\tResetVoltage_V\tResetPulseLength_ms\tResetRepetitions\tResetRecovery_ms"
             };
 
             var settings = ReadAndValidateSettings();
             foreach (var r in TrialResults)
             {
-                lines.Add(string.Join(",", new[]
+                lines.Add(string.Join("\t", new[]
                 {
                     r.TrialIndex.ToString(CultureInfo.InvariantCulture),
                     r.RepetitionIndex.ToString(CultureInfo.InvariantCulture),
@@ -678,7 +678,7 @@ namespace SMU_Revamp.MeasurementPlans
 
         private static string Csv(string value)
         {
-            if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
+            if (value.Contains('\t') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
             {
                 return $"\"{value.Replace("\"", "\"\"")}\"";
             }

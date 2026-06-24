@@ -50,12 +50,12 @@ namespace SMU_Revamp.Interfaces
         {
             var lines = new List<string>
             {
-                $"{CsvEscape(XAxisLabel)},{CsvEscape(YAxisLabel)}"
+                $"{CsvEscape(XAxisLabel)}\t{CsvEscape(YAxisLabel)}"
             };
 
             foreach (var point in ResultPoints)
             {
-                lines.Add(FormattableString.Invariant($"{point.X},{point.Y}"));
+                lines.Add(FormattableString.Invariant($"{point.X}\t{point.Y}"));
             }
 
             return lines;
@@ -66,7 +66,7 @@ namespace SMU_Revamp.Interfaces
 
         private static string CsvEscape(string value)
         {
-            if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
+            if (value.Contains('\t') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
             {
                 return $"\"{value.Replace("\"", "\"\"")}\"";
             }
