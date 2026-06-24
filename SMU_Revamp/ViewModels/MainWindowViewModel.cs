@@ -1263,11 +1263,9 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var lines = await Task.Run(() => File.ReadAllLines(filePath));
-            var parsedPoints = new List<CurvePoint>();
             string planName = string.Empty;
             var paramDict = new Dictionary<string, string>();
 
-            bool isFirstLine = true;
             foreach (var line in lines)
             {
                 var trimmed = line.Trim();
@@ -1291,35 +1289,7 @@ public partial class MainWindowViewModel : ViewModelBase
                             paramDict[key] = val;
                         }
                     }
-                    continue;
                 }
-
-                if (trimmed.StartsWith("sep="))
-                {
-                    continue;
-                }
-
-                if (isFirstLine)
-                {
-                    isFirstLine = false;
-                    continue;
-                }
-
-                var parts = trimmed.Contains('\t') ? trimmed.Split('\t') : trimmed.Split(',');
-                if (parts.Length >= 2)
-                {
-                    if (double.TryParse(parts[0], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double x) &&
-                        double.TryParse(parts[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double y))
-                    {
-                        parsedPoints.Add(new CurvePoint(x, y));
-                    }
-                }
-            }
-
-            if (parsedPoints.Count == 0)
-            {
-                NotificationRequested?.Invoke("Import Error", "No data points could be parsed from the file.", null);
-                return;
             }
 
             IMeasurementPlan? plan = null;
@@ -1363,13 +1333,25 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
             }
 
-            plan.ResultPoints.Clear();
-            plan.ResultPoints.AddRange(parsedPoints);
+            // Let the plan load the actual data points (standard or custom multi-column layout)
+            plan.LoadFromCsvLines(lines);
+
+            int totalPoints = plan.ResultPoints.Count;
+            if (plan.PlotSeries != null && plan.PlotSeries.Count > 0)
+            {
+                totalPoints = plan.PlotSeries.Sum(s => s.Points.Count);
+            }
+
+            if (totalPoints == 0)
+            {
+                NotificationRequested?.Invoke("Import Error", "No data points could be parsed from the file.", null);
+                return;
+            }
 
             PlottedPlan = plan;
             RefreshPlotDataFromPlottedPlan();
 
-            NotificationRequested?.Invoke("Success", $"Successfully loaded {parsedPoints.Count} points from {Path.GetFileName(filePath)}.", null);
+            NotificationRequested?.Invoke("Success", $"Successfully loaded {totalPoints} points from {Path.GetFileName(filePath)}.", null);
         }
         catch (Exception ex)
         {

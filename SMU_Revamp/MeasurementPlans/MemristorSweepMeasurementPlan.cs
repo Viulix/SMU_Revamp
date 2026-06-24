@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SMU_Revamp.Models;
@@ -308,6 +310,81 @@ namespace SMU_Revamp.MeasurementPlans
             }
 
             return lines;
+        }
+
+        public void LoadFromCsvLines(IReadOnlyList<string> lines)
+        {
+            CycleData.Clear();
+            ResultPoints.Clear();
+
+            string? headerLine = null;
+            var dataLines = new List<string>();
+
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#") || trimmed.StartsWith("sep="))
+                {
+                    continue;
+                }
+
+                if (headerLine == null)
+                {
+                    headerLine = trimmed;
+                }
+                else
+                {
+                    dataLines.Add(trimmed);
+                }
+            }
+
+            if (headerLine == null) return;
+
+            var separator = headerLine.Contains('\t') ? '\t' : ',';
+            var headers = headerLine.Split(separator).Select(h => h.Trim()).ToList();
+
+            int cycleCount = headers.Count / 2;
+            if (cycleCount == 0) return;
+
+            var cycles = new List<List<CurvePoint>>();
+            for (int c = 0; c < cycleCount; c++)
+            {
+                cycles.Add(new List<CurvePoint>());
+            }
+
+            foreach (var line in dataLines)
+            {
+                var parts = line.Split(separator);
+                for (int c = 0; c < cycleCount; c++)
+                {
+                    int vIdx = c * 2;
+                    int iIdx = c * 2 + 1;
+
+                    if (vIdx < parts.Length && iIdx < parts.Length)
+                    {
+                        var vStr = parts[vIdx].Trim();
+                        var iStr = parts[iIdx].Trim();
+
+                        if (!string.IsNullOrEmpty(vStr) && !string.IsNullOrEmpty(iStr))
+                        {
+                            if (double.TryParse(vStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double vVal) &&
+                                double.TryParse(iStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double iVal))
+                            {
+                                cycles[c].Add(new CurvePoint(vVal, iVal));
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (int c = 0; c < cycleCount; c++)
+            {
+                if (cycles[c].Count > 0)
+                {
+                    CycleData.Add(cycles[c]);
+                    ResultPoints.AddRange(cycles[c]);
+                }
+            }
         }
     }
 }

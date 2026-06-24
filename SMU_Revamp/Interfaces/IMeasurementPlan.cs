@@ -64,6 +64,39 @@ namespace SMU_Revamp.Interfaces
         Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null);
         void LoadDefaults();
 
+        /// <summary>
+        /// Import hook to parse custom files.
+        /// </summary>
+        void LoadFromCsvLines(IReadOnlyList<string> lines)
+        {
+            ResultPoints.Clear();
+            bool isFirstLine = true;
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#") || trimmed.StartsWith("sep="))
+                {
+                    continue;
+                }
+                if (isFirstLine)
+                {
+                    isFirstLine = false;
+                    continue;
+                }
+
+                var separator = trimmed.Contains('\t') ? '\t' : ',';
+                var parts = trimmed.Split(separator);
+                if (parts.Length >= 2)
+                {
+                    if (double.TryParse(parts[0], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double x) &&
+                        double.TryParse(parts[1], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double y))
+                    {
+                        ResultPoints.Add(new CurvePoint(x, y));
+                    }
+                }
+            }
+        }
+
         private static string CsvEscape(string value)
         {
             if (value.Contains('\t') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))

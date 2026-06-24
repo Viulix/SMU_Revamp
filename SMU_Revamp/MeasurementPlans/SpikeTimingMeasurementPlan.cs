@@ -294,6 +294,161 @@ namespace SMU_Revamp.MeasurementPlans
         /// </summary>
         public IReadOnlyList<string> GetCsvLines() => GetDetailedCsvLines();
 
+        public void LoadFromCsvLines(IReadOnlyList<string> lines)
+        {
+            TrialResults.Clear();
+            ResultPoints.Clear();
+
+            string? headerLine = null;
+            var dataLines = new List<string>();
+
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#") || trimmed.StartsWith("sep="))
+                {
+                    continue;
+                }
+
+                if (headerLine == null)
+                {
+                    headerLine = trimmed;
+                }
+                else
+                {
+                    dataLines.Add(trimmed);
+                }
+            }
+
+            if (headerLine == null) return;
+
+            var separator = headerLine.Contains('\t') ? '\t' : ',';
+            var headers = headerLine.Split(separator).Select(h => h.Trim()).ToList();
+
+            int GetIndex(string name) => headers.FindIndex(h => string.Equals(h, name, StringComparison.OrdinalIgnoreCase));
+
+            int idxTrial = GetIndex("TrialIndex");
+            int idxRep = GetIndex("RepetitionIndex");
+            int idxPat = GetIndex("PatternIndex");
+            int idxGapOrder = GetIndex("GapOrder");
+            int idxGap1 = GetIndex("Gap1_ms");
+            int idxGap2 = GetIndex("Gap2_ms");
+            int idxGap3 = GetIndex("Gap3_ms");
+            int idxSpikeTimes = GetIndex("SpikeTimes_ms");
+            int idxSpikeEndTimes = GetIndex("SpikeEndTimes_ms");
+            int idxLastSpikeStart = GetIndex("LastSpikeStart_ms");
+            int idxLastSpikeEnd = GetIndex("LastSpikeEnd_ms");
+            int idxActualReadoutOrder = GetIndex("ActualReadoutOrder");
+            int idxBaselineCurrent = GetIndex("BaselineCurrent_A");
+
+            // Readouts
+            int idxR1Label = GetIndex("Readout1_Label");
+            int idxR1TargetDelay = GetIndex("Readout1_TargetDelayAfterLastSpikeEnd_ms");
+            int idxR1ActualDelay = GetIndex("Readout1_ActualDelayAfterLastSpikeEnd_ms");
+            int idxR1Current = GetIndex("Readout1_Current_A");
+            int idxR1Delta = GetIndex("Readout1_DeltaCurrent_A");
+            int idxR1Cond = GetIndex("Readout1_Conductance_S");
+
+            int idxR2Label = GetIndex("Readout2_Label");
+            int idxR2TargetDelay = GetIndex("Readout2_TargetDelayAfterLastSpikeEnd_ms");
+            int idxR2ActualDelay = GetIndex("Readout2_ActualDelayAfterLastSpikeEnd_ms");
+            int idxR2Current = GetIndex("Readout2_Current_A");
+            int idxR2Delta = GetIndex("Readout2_DeltaCurrent_A");
+            int idxR2Cond = GetIndex("Readout2_Conductance_S");
+
+            int idxR3Label = GetIndex("Readout3_Label");
+            int idxR3TargetDelay = GetIndex("Readout3_TargetDelayAfterLastSpikeEnd_ms");
+            int idxR3ActualDelay = GetIndex("Readout3_ActualDelayAfterLastSpikeEnd_ms");
+            int idxR3Current = GetIndex("Readout3_Current_A");
+            int idxR3Delta = GetIndex("Readout3_DeltaCurrent_A");
+            int idxR3Cond = GetIndex("Readout3_Conductance_S");
+
+            // If we don't have essential columns, fallback to default parsing
+            if (idxTrial == -1 || idxR1Current == -1)
+            {
+                // Fallback: just parse first two columns into ResultPoints
+                foreach (var line in dataLines)
+                {
+                    var parts = line.Split(separator);
+                    if (parts.Length >= 2)
+                    {
+                        if (double.TryParse(parts[0], NumberStyles.Any, CultureInfo.InvariantCulture, out double x) &&
+                            double.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out double y))
+                        {
+                            ResultPoints.Add(new CurvePoint(x, y));
+                        }
+                    }
+                }
+                return;
+            }
+
+            foreach (var line in dataLines)
+            {
+                var parts = line.Split(separator).Select(p => p.Trim()).ToArray();
+                if (parts.Length < headers.Count) continue;
+
+                int trialIndex = int.TryParse(parts[idxTrial], out var tri) ? tri : 0;
+                int repIndex = int.TryParse(parts[idxRep], out var rep) ? rep : 0;
+                int patIndex = int.TryParse(parts[idxPat], out var pat) ? pat : 0;
+                string gapOrder = idxGapOrder != -1 ? parts[idxGapOrder] : string.Empty;
+                double gap1 = idxGap1 != -1 && double.TryParse(parts[idxGap1], NumberStyles.Any, CultureInfo.InvariantCulture, out var g1) ? g1 : 0.0;
+                double gap2 = idxGap2 != -1 && double.TryParse(parts[idxGap2], NumberStyles.Any, CultureInfo.InvariantCulture, out var g2) ? g2 : 0.0;
+                double gap3 = idxGap3 != -1 && double.TryParse(parts[idxGap3], NumberStyles.Any, CultureInfo.InvariantCulture, out var g3) ? g3 : 0.0;
+                string spikeTimes = idxSpikeTimes != -1 ? parts[idxSpikeTimes] : string.Empty;
+                string spikeEndTimes = idxSpikeEndTimes != -1 ? parts[idxSpikeEndTimes] : string.Empty;
+                double lastSpikeStart = idxLastSpikeStart != -1 && double.TryParse(parts[idxLastSpikeStart], NumberStyles.Any, CultureInfo.InvariantCulture, out var lss) ? lss : 0.0;
+                double lastSpikeEnd = idxLastSpikeEnd != -1 && double.TryParse(parts[idxLastSpikeEnd], NumberStyles.Any, CultureInfo.InvariantCulture, out var lse) ? lse : 0.0;
+                string actualReadoutOrder = idxActualReadoutOrder != -1 ? parts[idxActualReadoutOrder] : string.Empty;
+                double baseline = idxBaselineCurrent != -1 && double.TryParse(parts[idxBaselineCurrent], NumberStyles.Any, CultureInfo.InvariantCulture, out var bl) ? bl : 0.0;
+
+                // Readout 1
+                string r1Label = idxR1Label != -1 ? parts[idxR1Label] : "A";
+                double r1TargetDelay = idxR1TargetDelay != -1 && double.TryParse(parts[idxR1TargetDelay], NumberStyles.Any, CultureInfo.InvariantCulture, out var r1td) ? r1td : 0.0;
+                double r1ActualDelay = idxR1ActualDelay != -1 && double.TryParse(parts[idxR1ActualDelay], NumberStyles.Any, CultureInfo.InvariantCulture, out var r1ad) ? r1ad : 0.0;
+                double r1Current = double.TryParse(parts[idxR1Current], NumberStyles.Any, CultureInfo.InvariantCulture, out var r1c) ? r1c : 0.0;
+                double r1Delta = idxR1Delta != -1 && double.TryParse(parts[idxR1Delta], NumberStyles.Any, CultureInfo.InvariantCulture, out var r1d) ? r1d : 0.0;
+                double r1Cond = idxR1Cond != -1 && double.TryParse(parts[idxR1Cond], NumberStyles.Any, CultureInfo.InvariantCulture, out var r1co) ? r1co : 0.0;
+
+                var readout1 = new ReadoutMeasurement(1, r1Label, r1TargetDelay, r1ActualDelay, r1Current, r1Delta, r1Cond);
+
+                // Readout 2
+                string r2Label = idxR2Label != -1 ? parts[idxR2Label] : "B";
+                double r2TargetDelay = idxR2TargetDelay != -1 && double.TryParse(parts[idxR2TargetDelay], NumberStyles.Any, CultureInfo.InvariantCulture, out var r2td) ? r2td : 0.0;
+                double r2ActualDelay = idxR2ActualDelay != -1 && double.TryParse(parts[idxR2ActualDelay], NumberStyles.Any, CultureInfo.InvariantCulture, out var r2ad) ? r2ad : 0.0;
+                double r2Current = double.TryParse(parts[idxR2Current], NumberStyles.Any, CultureInfo.InvariantCulture, out var r2c) ? r2c : 0.0;
+                double r2Delta = idxR2Delta != -1 && double.TryParse(parts[idxR2Delta], NumberStyles.Any, CultureInfo.InvariantCulture, out var r2d) ? r2d : 0.0;
+                double r2Cond = idxR2Cond != -1 && double.TryParse(parts[idxR2Cond], NumberStyles.Any, CultureInfo.InvariantCulture, out var r2co) ? r2co : 0.0;
+
+                var readout2 = new ReadoutMeasurement(2, r2Label, r2TargetDelay, r2ActualDelay, r2Current, r2Delta, r2Cond);
+
+                // Readout 3
+                string r3Label = idxR3Label != -1 ? parts[idxR3Label] : "C";
+                double r3TargetDelay = idxR3TargetDelay != -1 && double.TryParse(parts[idxR3TargetDelay], NumberStyles.Any, CultureInfo.InvariantCulture, out var r3td) ? r3td : 0.0;
+                double r3ActualDelay = idxR3ActualDelay != -1 && double.TryParse(parts[idxR3ActualDelay], NumberStyles.Any, CultureInfo.InvariantCulture, out var r3ad) ? r3ad : 0.0;
+                double r3Current = double.TryParse(parts[idxR3Current], NumberStyles.Any, CultureInfo.InvariantCulture, out var r3c) ? r3c : 0.0;
+                double r3Delta = idxR3Delta != -1 && double.TryParse(parts[idxR3Delta], NumberStyles.Any, CultureInfo.InvariantCulture, out var r3d) ? r3d : 0.0;
+                double r3Cond = idxR3Cond != -1 && double.TryParse(parts[idxR3Cond], NumberStyles.Any, CultureInfo.InvariantCulture, out var r3co) ? r3co : 0.0;
+
+                var readout3 = new ReadoutMeasurement(3, r3Label, r3TargetDelay, r3ActualDelay, r3Current, r3Delta, r3Cond);
+
+                var trialResult = new SpikeTimingTrialResult(
+                    trialIndex, repIndex, patIndex, gapOrder,
+                    gap1, gap2, gap3, spikeTimes, spikeEndTimes,
+                    lastSpikeStart, lastSpikeEnd, actualReadoutOrder,
+                    baseline, readout1, readout2, readout3
+                );
+
+                TrialResults.Add(trialResult);
+            }
+
+            // Also populate ResultPoints from the last trial (as is done in a normal measurement run)
+            if (TrialResults.Any())
+            {
+                var lastTrial = TrialResults.Last();
+                UpdateLatestTrialCurve(new[] { lastTrial.Readout1, lastTrial.Readout2, lastTrial.Readout3 });
+            }
+        }
+
         private void UpdateLatestTrialCurve(IEnumerable<ReadoutMeasurement> readouts)
         {
             ResultPoints.Clear();

@@ -118,7 +118,7 @@
                                 
                                 <Button Content="Import File" 
                                         Click="ImportFileButton_Click"
-                                        Classes="Secondary" 
+                                        Classes="Primary" 
                                         Height="32"
                                         Padding="15,0"
                                         VerticalContentAlignment="Center" />
