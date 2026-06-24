@@ -6,7 +6,7 @@
         mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="600"
         x:Class="SMU_Revamp.Views.DebugWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/nano_logo.png"
         Title="Configuration"
         WindowStartupLocation="CenterOwner"
         Width="700"

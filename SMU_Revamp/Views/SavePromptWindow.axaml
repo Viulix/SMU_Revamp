@@ -4,6 +4,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="250"
         x:Class="SMU_Revamp.Views.SavePromptWindow"
+        Icon="/Assets/nano_logo.png"
         Title="Save Measurement Settings"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
