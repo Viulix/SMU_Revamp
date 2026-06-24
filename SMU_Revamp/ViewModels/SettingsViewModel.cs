@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using SMU_Revamp.Models;
 using SMU_Revamp.Services;
+using SMU_Revamp.Interfaces;
 using System.Threading.Tasks;
 
 namespace SMU_Revamp.ViewModels

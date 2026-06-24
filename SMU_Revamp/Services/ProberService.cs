@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using NationalInstruments.Visa;
+using SMU_Revamp.Interfaces;
 
 namespace SMU_Revamp.Services
 {

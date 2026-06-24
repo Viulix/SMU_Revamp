@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace SMU_Revamp.Services
+namespace SMU_Revamp.Interfaces
 {
     /// <summary>
     /// Interface for instrument service providing basic VISA connectivity.

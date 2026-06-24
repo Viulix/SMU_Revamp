@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using SMU_Revamp.Models;
+using SMU_Revamp.Services;
 
-namespace SMU_Revamp.Services
+namespace SMU_Revamp.Interfaces
 {
     public interface IMeasurementPlan
     {

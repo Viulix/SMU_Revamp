@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace SMU_Revamp.Services
+namespace SMU_Revamp.Interfaces
 {
     /// <summary>
     /// Abstraction for the prober/stager controller.

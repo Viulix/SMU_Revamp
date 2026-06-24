@@ -57,12 +57,31 @@ namespace SMU_Revamp.Views
                         string original = mp.Value?.ToString() ?? string.Empty;
                         int decimalPlaces = 0;
                         int dotIndex = original.IndexOf('.');
+                        if (dotIndex < 0)
+                        {
+                            dotIndex = original.IndexOf(',');
+                        }
                         if (dotIndex >= 0)
                         {
                             decimalPlaces = original.Length - dotIndex - 1;
                         }
                         
-                        mp.Value = newVal.ToString("F" + decimalPlaces, CultureInfo.InvariantCulture);
+                        string stepStr = step.ToString(CultureInfo.InvariantCulture);
+                        int stepDecimals = 0;
+                        int stepDot = stepStr.IndexOf('.');
+                        if (stepDot >= 0)
+                        {
+                            stepDecimals = stepStr.Length - stepDot - 1;
+                        }
+                        
+                        int decimals = Math.Max(decimalPlaces, stepDecimals);
+                        bool useComma = original.Contains(',');
+                        string newValStr = newVal.ToString("F" + decimals, CultureInfo.InvariantCulture);
+                        if (useComma)
+                        {
+                            newValStr = newValStr.Replace('.', ',');
+                        }
+                        mp.Value = newValStr;
                     }
 
                     e.Handled = true;

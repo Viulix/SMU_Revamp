@@ -5,13 +5,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
 using SMU_Revamp.Models;
 using SMU_Revamp.Services;
 using SMU_Revamp.MeasurementPlans;
+using SMU_Revamp.Interfaces;
 
 namespace SMU_Revamp.ViewModels;
 
@@ -81,25 +81,58 @@ public partial class MainWindowViewModel : ViewModelBase
                     SubscribeToParameterChanges();
                 }
                 UpdateSelectedPlanSections();
-                RefreshPlotDataFromSelectedPlan();
                 UpdateWarningMessage();
                 OnPropertyChanged(nameof(IsMeasuringSweep));
+                OnPropertyChanged(nameof(GlobalProgressTitle));
+            }
+        }
+    }
+
+    private IMeasurementPlan? _plottedPlan;
+    public IMeasurementPlan? PlottedPlan
+    {
+        get => _plottedPlan;
+        set
+        {
+            if (SetProperty(ref _plottedPlan, value))
+            {
                 OnPropertyChanged(nameof(PlotTitle));
                 OnPropertyChanged(nameof(LinearPlotTitle));
                 OnPropertyChanged(nameof(LogPlotTitle));
                 OnPropertyChanged(nameof(XAxisTitle));
                 OnPropertyChanged(nameof(YAxisTitle));
                 OnPropertyChanged(nameof(ShowLogPlot));
+                OnPropertyChanged(nameof(IsLogPlotVisible));
             }
         }
     }
 
-    public string PlotTitle => SelectedPlan?.PlotTitle ?? "Measurement Data";
+    public string PlotTitle => PlottedPlan?.PlotTitle ?? "Measurement Data";
     public string LinearPlotTitle => $"{PlotTitle} - Linear";
     public string LogPlotTitle => $"{PlotTitle} - Logarithmic Y";
-    public string XAxisTitle => SelectedPlan?.XAxisLabel ?? "X";
-    public string YAxisTitle => SelectedPlan?.YAxisLabel ?? "Y";
-    public bool ShowLogPlot => SelectedPlan?.ShowLogPlot ?? true;
+    public string XAxisTitle => PlottedPlan?.XAxisLabel ?? "X";
+    public string YAxisTitle => PlottedPlan?.YAxisLabel ?? "Y";
+    public bool ShowLogPlot => PlottedPlan?.ShowLogPlot ?? true;
+
+    public System.Collections.Generic.IReadOnlyList<string> AvailablePlotViews { get; } = new[] { "Both", "Linear Only", "Logarithmic Only" };
+
+    private string _selectedPlotView = "Both";
+    public string SelectedPlotView
+    {
+        get => _selectedPlotView;
+        set
+        {
+            if (SetProperty(ref _selectedPlotView, value))
+            {
+                OnPropertyChanged(nameof(IsLinearPlotVisible));
+                OnPropertyChanged(nameof(IsLogPlotVisible));
+            }
+        }
+    }
+
+    public bool IsLinearPlotVisible => SelectedPlotView == "Both" || SelectedPlotView == "Linear Only";
+
+    public bool IsLogPlotVisible => (SelectedPlotView == "Both" || SelectedPlotView == "Logarithmic Only") && ShowLogPlot;
 
     private List<ParameterSection> _selectedPlanSections = new();
     public List<ParameterSection> SelectedPlanSections
@@ -110,7 +143,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public SettingsViewModel Settings { get; }
 
-    private int _selectedTabIndex = 2; // Default to Measurements tab
+    private int _selectedTabIndex = 1; // Default to Measurements tab
     public int SelectedTabIndex
     {
         get => _selectedTabIndex;
@@ -223,6 +256,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 (ScanWaferCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (RequestStopScanCommand as RelayCommand)?.NotifyCanExecuteChanged();
                 (RunMeasurementCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                NotifyGlobalProgressPropertiesChanged();
             }
         }
     }
@@ -247,14 +281,26 @@ public partial class MainWindowViewModel : ViewModelBase
     public double WaferScanProgress
     {
         get => _waferScanProgress;
-        set => SetProperty(ref _waferScanProgress, value);
+        set
+        {
+            if (SetProperty(ref _waferScanProgress, value))
+            {
+                NotifyGlobalProgressPropertiesChanged();
+            }
+        }
     }
 
     private string _waferScanLog = string.Empty;
     public string WaferScanLog
     {
         get => _waferScanLog;
-        set => SetProperty(ref _waferScanLog, value);
+        set
+        {
+            if (SetProperty(ref _waferScanLog, value))
+            {
+                NotifyGlobalProgressPropertiesChanged();
+            }
+        }
     }
 
     private Avalonia.Media.FontWeight _waferScanLogFontWeight = Avalonia.Media.FontWeight.Normal;
@@ -268,14 +314,26 @@ public partial class MainWindowViewModel : ViewModelBase
     public string WaferScanEstimatedFinish
     {
         get => _waferScanEstimatedFinish;
-        set => SetProperty(ref _waferScanEstimatedFinish, value);
+        set
+        {
+            if (SetProperty(ref _waferScanEstimatedFinish, value))
+            {
+                NotifyGlobalProgressPropertiesChanged();
+            }
+        }
     }
 
     private string _waferScanCountText = string.Empty;
     public string WaferScanCountText
     {
         get => _waferScanCountText;
-        set => SetProperty(ref _waferScanCountText, value);
+        set
+        {
+            if (SetProperty(ref _waferScanCountText, value))
+            {
+                NotifyGlobalProgressPropertiesChanged();
+            }
+        }
     }
 
     public System.Collections.ObjectModel.ObservableCollection<WaferCellViewModel> WaferCells { get; } = new();
@@ -368,6 +426,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         MeasurementPlans = MeasurementPlanLoader.LoadPlans();
         SelectedPlan = MeasurementPlans.Count > 0 ? MeasurementPlans.Find(p => p.Name == "Measure Point") ?? MeasurementPlans[0] : null!;
+        PlottedPlan = SelectedPlan;
 
         GoToContactCommand = new AsyncRelayCommand(GoToContactAsync);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAndConfigurationAsync);
@@ -415,13 +474,6 @@ public partial class MainWindowViewModel : ViewModelBase
         CloseErrorPopupCommand = new RelayCommand(() => IsErrorPopupVisible = false);
         ProceedWithScanCommand = new AsyncRelayCommand(async () =>
         {
-            if (DontShowAlignmentWarning)
-            {
-                Settings.ShowAlignmentWarning = false;
-                var config = ConfigurationService.Instance.GetConfig();
-                config.ShowAlignmentWarning = false;
-                await ConfigurationService.Instance.SaveAsync(config);
-            }
             IsAlignmentWarningVisible = false;
             await ExecuteWaferScanAsync();
         });
@@ -559,14 +611,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        if (Settings.ShowAlignmentWarning)
-        {
-            IsAlignmentWarningVisible = true;
-        }
-        else
-        {
-            await ExecuteWaferScanAsync();
-        }
+        IsAlignmentWarningVisible = true;
     }
 
     private async Task ExecuteWaferScanAsync()
@@ -867,7 +912,13 @@ public partial class MainWindowViewModel : ViewModelBase
     public string MeasurementStatus
     {
         get => _measurementStatus;
-        set => SetProperty(ref _measurementStatus, value);
+        set
+        {
+            if (SetProperty(ref _measurementStatus, value))
+            {
+                NotifyGlobalProgressPropertiesChanged();
+            }
+        }
     }
 
     private bool _autoSwitchToViewer = true;
@@ -887,6 +938,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(IsMeasuringSweep));
                 (RunMeasurementCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                NotifyGlobalProgressPropertiesChanged();
             }
         }
     }
@@ -900,6 +952,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (SetProperty(ref _measurementProgress, value))
             {
                 OnPropertyChanged(nameof(MeasurementProgressText));
+                NotifyGlobalProgressPropertiesChanged();
             }
         }
     }
@@ -913,6 +966,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (SetProperty(ref _isProgressIndeterminate, value))
             {
                 OnPropertyChanged(nameof(MeasurementProgressText));
+                NotifyGlobalProgressPropertiesChanged();
             }
         }
     }
@@ -929,6 +983,14 @@ public partial class MainWindowViewModel : ViewModelBase
         if (SelectedPlan == null) return;
 
         IsMeasuring = true;
+
+        // Update the plotted plan to be the one we are running
+        PlottedPlan = SelectedPlan;
+
+        // Immediately clear old measurement view
+        PlottedPlan.ResultPoints.Clear();
+        RefreshPlotDataFromPlottedPlan();
+
         ErrorMessage = string.Empty;
         MeasurementStatus = "Starting...";
         MeasurementProgress = 0;
@@ -994,21 +1056,21 @@ public partial class MainWindowViewModel : ViewModelBase
 
             await smu.ConnectAsync();
 
-            MeasurementStatus = $"Executing plan {SelectedPlan.Name}...";
+            MeasurementStatus = $"Executing plan {PlottedPlan.Name}...";
             int lastPointCount = 0;
             var progressReporter = new Progress<double>(p =>
             {
                 MeasurementProgress = p;
-                if (SelectedPlan != null && SelectedPlan.ResultPoints.Count != lastPointCount)
+                if (PlottedPlan != null && PlottedPlan.ResultPoints.Count != lastPointCount)
                 {
-                    lastPointCount = SelectedPlan.ResultPoints.Count;
-                    RefreshPlotDataFromSelectedPlan();
+                    lastPointCount = PlottedPlan.ResultPoints.Count;
+                    RefreshPlotDataFromPlottedPlan();
                 }
             });
-            await SelectedPlan.RunMeasurementAsync(smu, progressReporter);
+            await PlottedPlan.RunMeasurementAsync(smu, progressReporter);
 
             // Final update of viewer data to ensure we didn't miss anything.
-            RefreshPlotDataFromSelectedPlan();
+            RefreshPlotDataFromPlottedPlan();
 
             if (HasCurvePoints)
             {
@@ -1066,7 +1128,7 @@ public partial class MainWindowViewModel : ViewModelBase
                             System.IO.Directory.CreateDirectory(folderPath);
                         }
                         
-                        var planName = SelectedPlan.Name.Replace(" ", "_").Replace("-", "_");
+                        var planName = PlottedPlan.Name.Replace(" ", "_").Replace("-", "_");
                         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                         
                         string fileName;
@@ -1081,7 +1143,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         
                         var fullPath = System.IO.Path.Combine(folderPath, fileName);
                         
-                        var rawLines = SelectedPlan.GetCsvLines();
+                        var rawLines = PlottedPlan.GetCsvLines();
                         var lines = new List<string>();
                         int insertIndex = 0;
                         if (rawLines.Count > 0 && rawLines[0].StartsWith("sep="))
@@ -1090,8 +1152,8 @@ public partial class MainWindowViewModel : ViewModelBase
                             insertIndex = 1;
                         }
                         
-                        lines.Add($"# Plan: {SelectedPlan.Name}");
-                        foreach (var p in SelectedPlan.Parameters)
+                        lines.Add($"# Plan: {PlottedPlan.Name}");
+                        foreach (var p in PlottedPlan.Parameters)
                         {
                             lines.Add(System.FormattableString.Invariant($"# {p.Name}: {p.GetValueAsString()}"));
                         }
@@ -1150,9 +1212,9 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var lines = new List<string>();
-            if (SelectedPlan != null)
+            if (PlottedPlan != null)
             {
-                var rawLines = SelectedPlan.GetCsvLines();
+                var rawLines = PlottedPlan.GetCsvLines();
                 int insertIndex = 0;
                 if (rawLines.Count > 0 && rawLines[0].StartsWith("sep="))
                 {
@@ -1160,8 +1222,8 @@ public partial class MainWindowViewModel : ViewModelBase
                     insertIndex = 1;
                 }
                 
-                lines.Add($"# Plan: {SelectedPlan.Name}");
-                foreach (var p in SelectedPlan.Parameters)
+                lines.Add($"# Plan: {PlottedPlan.Name}");
+                foreach (var p in PlottedPlan.Parameters)
                 {
                     lines.Add(System.FormattableString.Invariant($"# {p.Name}: {p.GetValueAsString()}"));
                 }
@@ -1314,17 +1376,17 @@ public partial class MainWindowViewModel : ViewModelBase
         WarningMessage = string.Empty;
     }
 
-    private void RefreshPlotDataFromSelectedPlan()
+    private void RefreshPlotDataFromPlottedPlan()
     {
-        if (SelectedPlan == null)
+        if (PlottedPlan == null)
         {
             CurvePoints = Array.Empty<CurvePoint>();
             PlotSeries = Array.Empty<PlotSeries>();
             return;
         }
 
-        CurvePoints = new List<CurvePoint>(SelectedPlan.ResultPoints);
-        PlotSeries = SelectedPlan.PlotSeries
+        CurvePoints = new List<CurvePoint>(PlottedPlan.ResultPoints);
+        PlotSeries = PlottedPlan.PlotSeries
             .Where(s => s.Points.Count > 0)
             .ToList();
     }
@@ -1386,6 +1448,13 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         get => _resultCells;
         set => SetProperty(ref _resultCells, value);
+    }
+
+    private bool _isResultFolderLoaded;
+    public bool IsResultFolderLoaded
+    {
+        get => _isResultFolderLoaded;
+        set => SetProperty(ref _isResultFolderLoaded, value);
     }
 
     private ResultCellViewModel? _selectedResultCell;
@@ -1457,12 +1526,14 @@ public partial class MainWindowViewModel : ViewModelBase
             // Regex pattern: "Cell0104_R1C5_Contact3"
             var regex = new Regex(@"Cell(?<cR>\d{2})(?<cC>\d{2})_R(?<sR>\d)C(?<sC>\d)_Contact(?<cont>\d)");
 
+            bool filesFound = false;
             foreach (var file in csvFiles)
             {
                 var filename = Path.GetFileName(file);
                 var match = regex.Match(filename);
                 if (!match.Success) continue;
 
+                filesFound = true;
                 int cellRow = int.Parse(match.Groups["cR"].Value);
                 int cellCol = int.Parse(match.Groups["cC"].Value);
                 int subRow = int.Parse(match.Groups["sR"].Value);
@@ -1490,11 +1561,21 @@ public partial class MainWindowViewModel : ViewModelBase
                 contactVm.CurveData = ParseCsvPoints(file);
             }
 
-            RecalculateResultMetrics();
-            NotificationRequested?.Invoke("Success", $"Loaded {csvFiles.Length} measurements.", null);
+            if (filesFound)
+            {
+                RecalculateResultMetrics();
+                IsResultFolderLoaded = true;
+                NotificationRequested?.Invoke("Success", $"Loaded {csvFiles.Length} measurements.", null);
+            }
+            else
+            {
+                IsResultFolderLoaded = false;
+                NotificationRequested?.Invoke("No compatible data", "No matching wafer map measurement files were found in the selected folder.", null);
+            }
         }
         catch (Exception ex)
         {
+            IsResultFolderLoaded = false;
             NotificationRequested?.Invoke("Error Loading Folder", ex.Message, null);
         }
     }
@@ -1603,5 +1684,47 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         return double.NaN;
+    }
+
+    // --- Global Progress Properties ---
+
+    public bool IsGlobalProgressVisible => IsMeasuring || IsScanningWafer;
+    
+    public double GlobalProgressValue => IsScanningWafer ? WaferScanProgress : MeasurementProgress;
+    
+    public bool IsGlobalProgressIndeterminate => !IsScanningWafer && IsProgressIndeterminate;
+    
+    public string GlobalProgressTitle => IsScanningWafer ? "Wafer Scan in progress" : $"Measurement: {SelectedPlan?.Name}";
+    
+    public string GlobalProgressStatusText
+    {
+        get
+        {
+            if (IsScanningWafer)
+            {
+                var parts = new System.Collections.Generic.List<string>();
+                if (!string.IsNullOrWhiteSpace(WaferScanCountText)) parts.Add(WaferScanCountText);
+                if (!string.IsNullOrWhiteSpace(WaferScanLog)) parts.Add(WaferScanLog);
+                if (!string.IsNullOrWhiteSpace(WaferScanEstimatedFinish)) parts.Add(WaferScanEstimatedFinish);
+                return string.Join(" | ", parts);
+            }
+            else if (IsMeasuring)
+            {
+                var parts = new System.Collections.Generic.List<string>();
+                if (!string.IsNullOrWhiteSpace(MeasurementStatus)) parts.Add(MeasurementStatus);
+                if (!string.IsNullOrWhiteSpace(MeasurementProgressText)) parts.Add(MeasurementProgressText);
+                return string.Join(" - ", parts);
+            }
+            return string.Empty;
+        }
+    }
+
+    private void NotifyGlobalProgressPropertiesChanged()
+    {
+        OnPropertyChanged(nameof(IsGlobalProgressVisible));
+        OnPropertyChanged(nameof(GlobalProgressValue));
+        OnPropertyChanged(nameof(IsGlobalProgressIndeterminate));
+        OnPropertyChanged(nameof(GlobalProgressTitle));
+        OnPropertyChanged(nameof(GlobalProgressStatusText));
     }
 }

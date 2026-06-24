@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace SMU_Revamp.Services
+namespace SMU_Revamp.Interfaces
 {
     /// <summary>
     /// Basic debug helper surface for instruments used by the debug UI.

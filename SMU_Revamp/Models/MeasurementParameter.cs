@@ -98,7 +98,9 @@ namespace SMU_Revamp.Models
                 {
                     return 0.1;
                 }
-                if (Name.Contains("Compliance", StringComparison.OrdinalIgnoreCase))
+                if (Name.Contains("Compliance", StringComparison.OrdinalIgnoreCase) || 
+                    Name.Contains("Current", StringComparison.OrdinalIgnoreCase) ||
+                    Name.StartsWith("I", StringComparison.OrdinalIgnoreCase))
                 {
                     return 0.01;
                 }

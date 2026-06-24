@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using SMU_Revamp.Services;
+using SMU_Revamp.Interfaces;
 
 namespace SMU_Revamp.Views;
 
