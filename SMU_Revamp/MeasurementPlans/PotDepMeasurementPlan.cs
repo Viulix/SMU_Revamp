@@ -218,8 +218,23 @@ namespace SMU_Revamp.MeasurementPlans
                         await smu.SendCommandAsync("DZ");
                         throw new InvalidOperationException($"SMU error during Depression: {loopError}");
                     }
-                }
             }
+        }
+    }
+
+        public IReadOnlyList<string> GetCsvLines()
+        {
+            var lines = new List<string>
+            {
+                "Cycle\tCurrent (A)"
+            };
+
+            foreach (var point in ResultPoints)
+            {
+                lines.Add(System.FormattableString.Invariant($"{(int)point.X}\t{point.Y:E6}"));
+            }
+
+            return lines;
         }
     }
 }

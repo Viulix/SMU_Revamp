@@ -55,7 +55,7 @@ namespace SMU_Revamp.Interfaces
 
             foreach (var point in ResultPoints)
             {
-                lines.Add(FormattableString.Invariant($"{point.X}\t{point.Y}"));
+                lines.Add(FormattableString.Invariant($"{point.X:E6}\t{point.Y:E6}"));
             }
 
             return lines;

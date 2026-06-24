@@ -213,40 +213,21 @@ namespace SMU_Revamp.MeasurementPlans
             var items = rawData.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
             var parsedCurrents = new List<double>();
-            var parsedVoltages = new List<double>();
-            var parsedTimes = new List<double>();
 
             foreach (var item in items)
             {
                 var trimmed = item.Trim();
                 if (trimmed.Length < 4) continue;
 
-                char firstChar = trimmed[0];
                 char thirdChar = trimmed[2];
                 string numStr = trimmed.Substring(3);
 
-                if (firstChar == 'T')
-                {
-                    // Time stamp (e.g. TAV...)
-                    if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double t))
-                    {
-                        parsedTimes.Add(t);
-                    }
-                }
-                else if (thirdChar == 'I')
+                if (thirdChar == 'I')
                 {
                     // Current measurement (e.g. N2I..., C2I...)
                     if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double iVal))
                     {
                         parsedCurrents.Add(iVal);
-                    }
-                }
-                else if (thirdChar == 'V')
-                {
-                    // Voltage measurement (e.g. N2V..., C2V...)
-                    if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double vVal))
-                    {
-                        parsedVoltages.Add(vVal);
                     }
                 }
             }
@@ -259,56 +240,45 @@ namespace SMU_Revamp.MeasurementPlans
             if (string.IsNullOrWhiteSpace(readingChannel)) readingChannel = channel;
             bool invertCurrent = readingChannel != channel;
 
-            if (parsedVoltages.Count == count)
+            if (modeValue == 1)
             {
+                // Single sweep: start -> stop
                 for (int i = 0; i < count; i++)
                 {
+                    double v = sweepStart;
+                    if (count > 1)
+                    {
+                        v = sweepStart + i * (sweepStop - sweepStart) / (count - 1);
+                    }
                     double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
-                    points.Add(new CurvePoint(parsedVoltages[i], current));
+                    points.Add(new CurvePoint(v, current));
                 }
             }
             else
             {
-                if (modeValue == 1)
+                // Double sweep: start -> stop -> start
+                int halfPoints = (count + 1) / 2;
+                for (int i = 0; i < count; i++)
                 {
-                    // Single sweep: start -> stop
-                    for (int i = 0; i < count; i++)
+                    double v;
+                    if (i < halfPoints)
                     {
-                        double v = sweepStart;
-                        if (count > 1)
+                        v = sweepStart;
+                        if (halfPoints > 1)
                         {
-                            v = sweepStart + i * (sweepStop - sweepStart) / (count - 1);
+                            v = sweepStart + i * (sweepStop - sweepStart) / (halfPoints - 1);
                         }
-                        double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
-                        points.Add(new CurvePoint(v, current));
                     }
-                }
-                else
-                {
-                    // Double sweep: start -> stop -> start
-                    int halfPoints = (count + 1) / 2;
-                    for (int i = 0; i < count; i++)
+                    else
                     {
-                        double v;
-                        if (i < halfPoints)
+                        v = sweepStop;
+                        if (halfPoints > 1)
                         {
-                            v = sweepStart;
-                            if (halfPoints > 1)
-                            {
-                                v = sweepStart + i * (sweepStop - sweepStart) / (halfPoints - 1);
-                            }
+                            v = sweepStop - (i - halfPoints) * (sweepStop - sweepStart) / (halfPoints - 1);
                         }
-                        else
-                        {
-                            v = sweepStop;
-                            if (halfPoints > 1)
-                            {
-                                v = sweepStop - (i - halfPoints) * (sweepStop - sweepStart) / (halfPoints - 1);
-                            }
-                        }
-                        double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
-                        points.Add(new CurvePoint(v, current));
                     }
+                    double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
+                    points.Add(new CurvePoint(v, current));
                 }
             }
 

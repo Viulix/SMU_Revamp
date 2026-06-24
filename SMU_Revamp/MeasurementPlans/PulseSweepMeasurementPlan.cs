@@ -232,7 +232,6 @@ namespace SMU_Revamp.MeasurementPlans
             var items = rawData.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
             var parsedCurrents = new List<double>();
-            var parsedVoltages = new List<double>();
 
             foreach (var item in items)
             {
@@ -249,13 +248,6 @@ namespace SMU_Revamp.MeasurementPlans
                         parsedCurrents.Add(iVal);
                     }
                 }
-                else if (thirdChar == 'V')
-                {
-                    if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double vVal))
-                    {
-                        parsedVoltages.Add(vVal);
-                    }
-                }
             }
 
             int count = parsedCurrents.Count;
@@ -266,54 +258,43 @@ namespace SMU_Revamp.MeasurementPlans
             if (string.IsNullOrWhiteSpace(readingChannel)) readingChannel = channel;
             bool invertCurrent = readingChannel != channel;
 
-            if (parsedVoltages.Count == count)
+            if (modeValue == 1)
             {
                 for (int i = 0; i < count; i++)
                 {
+                    double v = sweepStart;
+                    if (count > 1)
+                    {
+                        v = sweepStart + i * (sweepStop - sweepStart) / (count - 1);
+                    }
                     double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
-                    points.Add(new CurvePoint(parsedVoltages[i], current));
+                    points.Add(new CurvePoint(v, current));
                 }
             }
             else
             {
-                if (modeValue == 1)
+                int halfPoints = (count + 1) / 2;
+                for (int i = 0; i < count; i++)
                 {
-                    for (int i = 0; i < count; i++)
+                    double v;
+                    if (i < halfPoints)
                     {
-                        double v = sweepStart;
-                        if (count > 1)
+                        v = sweepStart;
+                        if (halfPoints > 1)
                         {
-                            v = sweepStart + i * (sweepStop - sweepStart) / (count - 1);
+                            v = sweepStart + i * (sweepStop - sweepStart) / (halfPoints - 1);
                         }
-                        double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
-                        points.Add(new CurvePoint(v, current));
                     }
-                }
-                else
-                {
-                    int halfPoints = (count + 1) / 2;
-                    for (int i = 0; i < count; i++)
+                    else
                     {
-                        double v;
-                        if (i < halfPoints)
+                        v = sweepStop;
+                        if (halfPoints > 1)
                         {
-                            v = sweepStart;
-                            if (halfPoints > 1)
-                            {
-                                v = sweepStart + i * (sweepStop - sweepStart) / (halfPoints - 1);
-                            }
+                            v = sweepStop - (i - halfPoints) * (sweepStop - sweepStart) / (halfPoints - 1);
                         }
-                        else
-                        {
-                            v = sweepStop;
-                            if (halfPoints > 1)
-                            {
-                                v = sweepStop - (i - halfPoints) * (sweepStop - sweepStart) / (halfPoints - 1);
-                            }
-                        }
-                        double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
-                        points.Add(new CurvePoint(v, current));
                     }
+                    double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
+                    points.Add(new CurvePoint(v, current));
                 }
             }
 

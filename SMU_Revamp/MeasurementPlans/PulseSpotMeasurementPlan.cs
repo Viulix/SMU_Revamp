@@ -187,7 +187,6 @@ namespace SMU_Revamp.MeasurementPlans
             var items = rawData.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
             var parsedCurrents = new List<double>();
-            var parsedVoltages = new List<double>();
 
             foreach (var item in items)
             {
@@ -204,13 +203,6 @@ namespace SMU_Revamp.MeasurementPlans
                         parsedCurrents.Add(iVal);
                     }
                 }
-                else if (thirdChar == 'V')
-                {
-                    if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double vVal))
-                    {
-                        parsedVoltages.Add(vVal);
-                    }
-                }
             }
 
             int count = parsedCurrents.Count;
@@ -221,21 +213,10 @@ namespace SMU_Revamp.MeasurementPlans
             if (string.IsNullOrWhiteSpace(readingChannel)) readingChannel = channel;
             bool invertCurrent = readingChannel != channel;
 
-            if (parsedVoltages.Count == count)
+            for (int i = 0; i < count; i++)
             {
-                for (int i = 0; i < count; i++)
-                {
-                    double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
-                    points.Add(new CurvePoint(parsedVoltages[i], current));
-                }
-            }
-            else
-            {
-                for (int i = 0; i < count; i++)
-                {
-                    double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
-                    points.Add(new CurvePoint(forcedVoltage, current));
-                }
+                double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
+                points.Add(new CurvePoint(forcedVoltage, current));
             }
 
             return points;
