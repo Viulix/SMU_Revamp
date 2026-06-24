@@ -91,65 +91,109 @@
         <!-- Main Content with Tabs -->
         <TabControl SelectedIndex="{Binding SelectedTabIndex}" Margin="20" Padding="20">
             <TabItem Header="Viewer">
-                <ScrollViewer Margin="20">
-                    <StackPanel Spacing="16">
-                        <!-- Top Control Bar -->
-                        <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,10">
-                            <!-- Left: Plan Information (Responsive Grid) -->
-                            <Grid Grid.Column="0" ColumnDefinitions="Auto, *" VerticalAlignment="Center" Margin="0,0,20,0">
-                                <Border Grid.Column="0" Background="#EEF2F6" CornerRadius="6" Padding="8,4" VerticalAlignment="Center" Margin="0,0,10,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <Path Fill="#4B5563" Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Active Plan:" FontWeight="SemiBold" Foreground="#4B5563" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding PlottedPlan.Name}" FontWeight="Bold" Foreground="#1F2937" VerticalAlignment="Center"/>
+                <Grid>
+                    <!-- Empty State Placeholder (No Data Loaded) -->
+                    <Border IsVisible="{Binding !IsPlottedPlanLoaded}"
+                            Background="#F9FAFB"
+                            BorderBrush="#E5E7EB"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="40"
+                            Margin="30"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            MaxWidth="500">
+                        <StackPanel Spacing="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <!-- Visual Circle / Icon Representative (Chart Icon) -->
+                            <Border Width="80" Height="80" CornerRadius="40" Background="#EEF2F6" HorizontalAlignment="Center">
+                                <Path Fill="#6B7280" Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" Width="36" Height="36" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            
+                            <TextBlock Text="No measurement data loaded" 
+                                       FontSize="20" 
+                                       FontWeight="Bold" 
+                                       Foreground="#1F2937" 
+                                       HorizontalAlignment="Center" 
+                                       TextAlignment="Center"/>
+                                       
+                            <TextBlock Text="Please execute a measurement in the Measurements tab or import a CSV/TSV measurement file to view the plots." 
+                                       TextWrapping="Wrap" 
+                                       FontSize="14" 
+                                       Foreground="#4B5563" 
+                                       HorizontalAlignment="Center" 
+                                       TextAlignment="Center"
+                                       LineHeight="20"/>
+                            
+                            <Button Content="Import File" 
+                                    Click="ImportFileButton_Click" 
+                                    Classes="Primary" 
+                                    Padding="20,10" 
+                                    HorizontalAlignment="Center" 
+                                    Margin="0,10,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Normal Viewer UI -->
+                    <ScrollViewer IsVisible="{Binding IsPlottedPlanLoaded}" Margin="20">
+                        <StackPanel Spacing="16">
+                            <!-- Top Control Bar -->
+                            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,10">
+                                <!-- Left: Plan Information (Responsive Grid) -->
+                                <Grid Grid.Column="0" ColumnDefinitions="Auto, *" VerticalAlignment="Center" Margin="0,0,20,0">
+                                    <Border Grid.Column="0" Background="#EEF2F6" CornerRadius="6" Padding="8,4" VerticalAlignment="Center" Margin="0,0,10,0">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Path Fill="#4B5563" Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Active Plan:" FontWeight="SemiBold" Foreground="#4B5563" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding PlottedPlan.Name}" FontWeight="Bold" Foreground="#1F2937" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="{Binding PlottedPlan.Description}" FontStyle="Italic" Foreground="#666666" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                </Grid>
+
+                                <!-- Right: Dropdown for Plot View and Export button -->
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <TextBlock Text="Plot View:" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#4B5563"/>
+                                        <ComboBox ItemsSource="{Binding AvailablePlotViews}"
+                                                  SelectedItem="{Binding SelectedPlotView}"
+                                                  Width="150" Height="32" VerticalContentAlignment="Center"/>
                                     </StackPanel>
-                                </Border>
-                                <TextBlock Grid.Column="1" Text="{Binding PlottedPlan.Description}" FontStyle="Italic" Foreground="#666666" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                    
+                                    <Button Content="Import File" 
+                                            Click="ImportFileButton_Click"
+                                            Classes="Primary" 
+                                            Height="32"
+                                            Padding="15,0"
+                                            VerticalContentAlignment="Center" />
+
+                                    <Button Content="Export Data to CSV" 
+                                            Click="ExportCsvButton_Click"
+                                            IsEnabled="{Binding HasCurvePoints}"
+                                            Classes="Secondary" 
+                                            Height="32"
+                                            Padding="15,0"
+                                            VerticalContentAlignment="Center" />
+                                </StackPanel>
                             </Grid>
 
-                            <!-- Right: Dropdown for Plot View and Export button -->
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                    <TextBlock Text="Plot View:" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#4B5563"/>
-                                    <ComboBox ItemsSource="{Binding AvailablePlotViews}"
-                                              SelectedItem="{Binding SelectedPlotView}"
-                                              Width="150" Height="32" VerticalContentAlignment="Center"/>
-                                </StackPanel>
-                                
-                                <Button Content="Import File" 
-                                        Click="ImportFileButton_Click"
-                                        Classes="Primary" 
-                                        Height="32"
-                                        Padding="15,0"
-                                        VerticalContentAlignment="Center" />
-
-                                <Button Content="Export Data to CSV" 
-                                        Click="ExportCsvButton_Click"
-                                        IsEnabled="{Binding HasCurvePoints}"
-                                        Classes="Secondary" 
-                                        Height="32"
-                                        Padding="15,0"
-                                        VerticalContentAlignment="Center" />
-                            </StackPanel>
-                        </Grid>
-
-                        <views:CurvePlotView Title="{Binding LinearPlotTitle}"
-                                             XAxisLabel="{Binding XAxisTitle}"
-                                             YAxisLabel="{Binding YAxisTitle}"
-                                             Series="{Binding PlotSeries}"
-                                             Points="{Binding CurvePoints}"
-                                             IsVisible="{Binding IsLinearPlotVisible}"
-                                             Height="300" />
-                        <views:CurvePlotView Title="{Binding LogPlotTitle}"
-                                             XAxisLabel="{Binding XAxisTitle}"
-                                             YAxisLabel="{Binding YAxisTitle}"
-                                             Series="{Binding PlotSeries}"
-                                             Points="{Binding CurvePoints}"
-                                             LogarithmicY="True"
-                                             IsVisible="{Binding IsLogPlotVisible}"
-                                             Height="300" />
-                    </StackPanel>
-                </ScrollViewer>
+                            <views:CurvePlotView Title="{Binding LinearPlotTitle}"
+                                                 XAxisLabel="{Binding XAxisTitle}"
+                                                 YAxisLabel="{Binding YAxisTitle}"
+                                                 Series="{Binding PlotSeries}"
+                                                 Points="{Binding CurvePoints}"
+                                                 IsVisible="{Binding IsLinearPlotVisible}"
+                                                 Height="300" />
+                            <views:CurvePlotView Title="{Binding LogPlotTitle}"
+                                                 XAxisLabel="{Binding XAxisTitle}"
+                                                 YAxisLabel="{Binding YAxisTitle}"
+                                                 Series="{Binding PlotSeries}"
+                                                 Points="{Binding CurvePoints}"
+                                                 LogarithmicY="True"
+                                                 IsVisible="{Binding IsLogPlotVisible}"
+                                                 Height="300" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </TabItem>
             <TabItem Header="Measurements">
                 <ScrollViewer Margin="20" HorizontalScrollBarVisibility="Disabled">

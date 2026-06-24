@@ -96,6 +96,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (SetProperty(ref _plottedPlan, value))
             {
+                OnPropertyChanged(nameof(IsPlottedPlanLoaded));
                 OnPropertyChanged(nameof(PlotTitle));
                 OnPropertyChanged(nameof(LinearPlotTitle));
                 OnPropertyChanged(nameof(LogPlotTitle));
@@ -106,6 +107,8 @@ public partial class MainWindowViewModel : ViewModelBase
             }
         }
     }
+
+    public bool IsPlottedPlanLoaded => PlottedPlan != null;
 
     public string PlotTitle => PlottedPlan?.PlotTitle ?? "Measurement Data";
     public string LinearPlotTitle => $"{PlotTitle} - Linear";
@@ -421,12 +424,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel()
     {
-        CurvePoints = CreateCurvePoints();
+        CurvePoints = Array.Empty<CurvePoint>();
         Settings = new SettingsViewModel();
 
         MeasurementPlans = MeasurementPlanLoader.LoadPlans();
         SelectedPlan = MeasurementPlans.Count > 0 ? MeasurementPlans.Find(p => p.Name == "Measure Point") ?? MeasurementPlans[0] : null!;
-        PlottedPlan = SelectedPlan;
+        PlottedPlan = null;
 
         GoToContactCommand = new AsyncRelayCommand(GoToContactAsync);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAndConfigurationAsync);
