@@ -6,7 +6,7 @@
         mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="400"
         x:Class="SMU_Revamp.Views.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
-        Icon="/Assets/nano_logo.png"
+        Icon="/Assets/tf_logo_rgb_en.ico"
         Title="Settings"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"

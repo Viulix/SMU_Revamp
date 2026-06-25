@@ -8,8 +8,8 @@
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="SMU_Revamp.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/nano_logo.png"
-        Title="SMU_Revamp"
+        Icon="/Assets/tf_logo_rgb_en.ico"
+        Title="Wafer Measurement Tool"
         WindowState="Maximized">
 
     <Design.DataContext>

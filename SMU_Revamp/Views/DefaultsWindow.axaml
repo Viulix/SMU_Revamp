@@ -8,7 +8,7 @@
         mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="400"
         x:Class="SMU_Revamp.Views.DefaultsWindow"
         x:DataType="vm:DefaultsViewModel"
-        Icon="/Assets/nano_logo.png"
+        Icon="/Assets/tf_logo_rgb_en.ico"
         Title="Edit Measurement Defaults"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
