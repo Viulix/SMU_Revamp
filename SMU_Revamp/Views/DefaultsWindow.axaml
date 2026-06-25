@@ -107,14 +107,40 @@
         </StackPanel>
     </ScrollViewer>
 
-    <!-- Discord-style Unsaved Changes Bar -->
+    <!-- Unsaved Changes Bar -->
     <Border Grid.Row="1" 
             IsVisible="{Binding HasUnsavedChanges}" 
-            Background="#2B2D31" 
+            Background="Black" 
             Padding="16,12" 
             Margin="20,0,20,20" 
             CornerRadius="8"
             BoxShadow="0 4 10 0 #40000000">
+        <Border.Styles>
+            <Style Selector="Button.DiscardBtn">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Cursor" Value="Hand" />
+            </Style>
+            <Style Selector="Button.DiscardBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="#333333" />
+                <Setter Property="TextBlock.Foreground" Value="White" />
+            </Style>
+            
+            <Style Selector="Button.SaveBtn">
+                <Setter Property="Background" Value="White" />
+                <Setter Property="Foreground" Value="Black" />
+                <Setter Property="FontWeight" Value="Bold" />
+                <Setter Property="Padding" Value="15,8" />
+                <Setter Property="CornerRadius" Value="4" />
+                <Setter Property="Cursor" Value="Hand" />
+            </Style>
+            <Style Selector="Button.SaveBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="#E0E0E0" />
+                <Setter Property="TextBlock.Foreground" Value="Black" />
+            </Style>
+        </Border.Styles>
+
         <Grid ColumnDefinitions="*, Auto">
             <TextBlock Grid.Column="0" 
                        Text="Careful - you have unsaved changes!" 
@@ -122,8 +148,8 @@
                        FontWeight="Bold" 
                        VerticalAlignment="Center" />
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                <Button Content="Discard" Command="{Binding DiscardChangesCommand}" Background="Transparent" Foreground="White" FontWeight="SemiBold" />
-                <Button Content="Save Changes" Command="{Binding SaveDefaultsCommand}" Background="#23A559" Foreground="White" FontWeight="Bold" Padding="15,8" CornerRadius="4" />
+                <Button Classes="DiscardBtn" Content="Discard" Command="{Binding DiscardChangesCommand}" />
+                <Button Classes="SaveBtn" Content="Save Changes" Command="{Binding SaveDefaultsCommand}" />
             </StackPanel>
         </Grid>
     </Border>
