@@ -34,6 +34,12 @@ namespace SMU_Revamp.Interfaces
         bool ShowLogPlot => true;
 
         /// <summary>
+        /// The aspect ratio (Width / Height) for plots in the viewer.
+        /// Defaults to 4:3 (1.333).
+        /// </summary>
+        double PlotAspectRatio => 1.333;
+
+        /// <summary>
         /// Named curves shown in the viewer. Classic measurements use one default series.
         /// Advanced measurements can override this and return several series.
         /// </summary>

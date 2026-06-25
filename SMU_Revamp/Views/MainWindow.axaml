@@ -176,21 +176,25 @@
                                 </StackPanel>
                             </Grid>
 
-                            <views:CurvePlotView Title="{Binding LinearPlotTitle}"
-                                                 XAxisLabel="{Binding XAxisTitle}"
-                                                 YAxisLabel="{Binding YAxisTitle}"
-                                                 Series="{Binding PlotSeries}"
-                                                 Points="{Binding CurvePoints}"
-                                                 IsVisible="{Binding IsLinearPlotVisible}"
-                                                 Height="300" />
-                            <views:CurvePlotView Title="{Binding LogPlotTitle}"
-                                                 XAxisLabel="{Binding XAxisTitle}"
-                                                 YAxisLabel="{Binding YAxisTitle}"
-                                                 Series="{Binding PlotSeries}"
-                                                 Points="{Binding CurvePoints}"
-                                                 LogarithmicY="True"
-                                                 IsVisible="{Binding IsLogPlotVisible}"
-                                                 Height="300" />
+                            <Viewbox Stretch="Uniform" IsVisible="{Binding IsLinearPlotVisible}">
+                                <views:CurvePlotView Title="{Binding LinearPlotTitle}"
+                                                     XAxisLabel="{Binding XAxisTitle}"
+                                                     YAxisLabel="{Binding YAxisTitle}"
+                                                     Series="{Binding PlotSeries}"
+                                                     Points="{Binding CurvePoints}"
+                                                     Width="{Binding PlotBaseWidth}"
+                                                     Height="{Binding PlotBaseHeight}" />
+                            </Viewbox>
+                            <Viewbox Stretch="Uniform" IsVisible="{Binding IsLogPlotVisible}">
+                                <views:CurvePlotView Title="{Binding LogPlotTitle}"
+                                                     XAxisLabel="{Binding XAxisTitle}"
+                                                     YAxisLabel="{Binding YAxisTitle}"
+                                                     Series="{Binding PlotSeries}"
+                                                     Points="{Binding CurvePoints}"
+                                                     LogarithmicY="True"
+                                                     Width="{Binding PlotBaseWidth}"
+                                                     Height="{Binding PlotBaseHeight}" />
+                            </Viewbox>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -338,6 +342,16 @@
                                        TextWrapping="Wrap" 
                                        MaxWidth="400" 
                                        HorizontalAlignment="Left" />
+
+                            <Viewbox Stretch="Uniform" MaxHeight="250" Margin="0,15,0,0" HorizontalAlignment="Left">
+                                <views:CurvePlotView Title="Live Measurement Preview"
+                                                     XAxisLabel="{Binding XAxisTitle}"
+                                                     YAxisLabel="{Binding YAxisTitle}"
+                                                     Series="{Binding PlotSeries}"
+                                                     Points="{Binding CurvePoints}"
+                                                     Width="{Binding PlotBaseWidth}"
+                                                     Height="{Binding PlotBaseHeight}" />
+                            </Viewbox>
                         </StackPanel>
                     </Grid>
                 </ScrollViewer>

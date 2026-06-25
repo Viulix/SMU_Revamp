@@ -104,6 +104,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 OnPropertyChanged(nameof(YAxisTitle));
                 OnPropertyChanged(nameof(ShowLogPlot));
                 OnPropertyChanged(nameof(IsLogPlotVisible));
+                OnPropertyChanged(nameof(PlotAspectRatio));
+                OnPropertyChanged(nameof(PlotBaseWidth));
+                OnPropertyChanged(nameof(PlotBaseHeight));
             }
         }
     }
@@ -116,6 +119,10 @@ public partial class MainWindowViewModel : ViewModelBase
     public string XAxisTitle => PlottedPlan?.XAxisLabel ?? "X";
     public string YAxisTitle => PlottedPlan?.YAxisLabel ?? "Y";
     public bool ShowLogPlot => PlottedPlan?.ShowLogPlot ?? true;
+
+    public double PlotAspectRatio => PlottedPlan?.PlotAspectRatio ?? 1.333;
+    public double PlotBaseWidth => 800.0;
+    public double PlotBaseHeight => PlotBaseWidth / PlotAspectRatio;
 
     public System.Collections.Generic.IReadOnlyList<string> AvailablePlotViews { get; } = new[] { "Both", "Linear Only", "Logarithmic Only" };
 

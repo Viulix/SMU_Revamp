@@ -37,6 +37,7 @@ namespace SMU_Revamp.MeasurementPlans
         public string XAxisLabel => "Delay after Last Spike End (ms)";
         public string YAxisLabel => "Read Current (A)";
         public bool ShowLogPlot => true;
+        public double PlotAspectRatio => 3.0;
 
         public List<MeasurementParameter> Parameters { get; }
 

@@ -13,6 +13,7 @@ namespace SMU_Revamp.MeasurementPlans
         public string Description => "Performs a single-point pulsed measurement of current at a specified pulse voltage.";
         public List<MeasurementParameter> Parameters { get; }
         public List<CurvePoint> ResultPoints { get; } = new();
+        public double PlotAspectRatio => 3.0;
 
         private string GetParamValueString(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsString() ?? string.Empty;
         private double GetParamValueDouble(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsDouble() ?? 0.0;
