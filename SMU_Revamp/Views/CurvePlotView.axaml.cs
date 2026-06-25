@@ -147,8 +147,25 @@ public partial class CurvePlotView : UserControl
         var marginTop = 16.0;
         var marginBottom = 28.0;
 
-        var width = Math.Max(1, PlotCanvas.Bounds.Width - marginLeft - marginRight);
-        var height = Math.Max(1, PlotCanvas.Bounds.Height - marginTop - marginBottom);
+        var availableWidth = Math.Max(1, PlotCanvas.Bounds.Width - marginLeft - marginRight);
+        var availableHeight = Math.Max(1, PlotCanvas.Bounds.Height - marginTop - marginBottom);
+
+        double targetAspectRatio = 1.6;
+        double currentAspectRatio = availableWidth / availableHeight;
+
+        double width = availableWidth;
+        double height = availableHeight;
+
+        if (currentAspectRatio > targetAspectRatio)
+        {
+            width = availableHeight * targetAspectRatio;
+            marginLeft += (availableWidth - width) / 2.0;
+        }
+        else
+        {
+            height = availableWidth / targetAspectRatio;
+            marginTop += (availableHeight - height) / 2.0;
+        }
 
         var xMin = allPoints.Min(p => p.X);
         var xMax = allPoints.Max(p => p.X);
@@ -288,13 +305,10 @@ public partial class CurvePlotView : UserControl
     private void DrawCurve(IReadOnlyList<CurvePoint> points, double width, double height, double marginLeft, double marginTop, double xMin, double xMax, double yMin, double yMax, IBrush brush)
     {
         bool drawLine = PlotStyle == PlotStyle.Line || PlotStyle == PlotStyle.LineAndScatter;
-        bool drawScatter = PlotStyle == PlotStyle.Scatter || PlotStyle == PlotStyle.LineAndScatter;
+        bool drawScatter = PlotStyle == PlotStyle.Scatter || PlotStyle == PlotStyle.LineAndScatter || PlotStyle == PlotStyle.InterpolatedLineAndScatter;
+        bool drawInterpolated = PlotStyle == PlotStyle.InterpolatedLine || PlotStyle == PlotStyle.InterpolatedLineAndScatter;
 
-        var polyline = new Polyline
-        {
-            Stroke = brush,
-            StrokeThickness = 2
-        };
+        var canvasPoints = new List<Point>();
 
         foreach (var point in points)
         {
@@ -302,10 +316,7 @@ public partial class CurvePlotView : UserControl
             var rawY = LogarithmicY ? Math.Log10(Math.Max(Math.Abs(point.Y), 1e-12)) : point.Y;
             var y = marginTop + height - ((rawY - yMin) / (yMax - yMin)) * height;
             
-            if (drawLine)
-            {
-                polyline.Points.Add(new Point(x, y));
-            }
+            canvasPoints.Add(new Point(x, y));
 
             if (drawScatter)
             {
@@ -321,10 +332,50 @@ public partial class CurvePlotView : UserControl
             }
         }
 
-        if (drawLine)
+        if (drawLine && canvasPoints.Count > 0)
         {
+            var polyline = new Polyline
+            {
+                Stroke = brush,
+                StrokeThickness = 2
+            };
+            foreach (var p in canvasPoints) polyline.Points.Add(p);
             PlotCanvas.Children.Add(polyline);
         }
+        else if (drawInterpolated && canvasPoints.Count > 1)
+        {
+            var path = new Path
+            {
+                Stroke = brush,
+                StrokeThickness = 2,
+                Data = CreateSpline(canvasPoints, 0.3)
+            };
+            PlotCanvas.Children.Add(path);
+        }
+    }
+
+    private PathGeometry CreateSpline(List<Point> points, double tension)
+    {
+        var geometry = new PathGeometry();
+        if (points.Count < 2) return geometry;
+
+        var figure = new PathFigure { StartPoint = points[0], IsClosed = false };
+
+        for (int i = 0; i < points.Count - 1; i++)
+        {
+            var p0 = i == 0 ? points[0] : points[i - 1];
+            var p1 = points[i];
+            var p2 = points[i + 1];
+            var p3 = i + 2 < points.Count ? points[i + 2] : p2;
+
+            var cp1 = new Point(p1.X + (p2.X - p0.X) * tension, p1.Y + (p2.Y - p0.Y) * tension);
+            var cp2 = new Point(p2.X - (p3.X - p1.X) * tension, p2.Y - (p3.Y - p1.Y) * tension);
+
+            figure.Segments.Add(new BezierSegment { Point1 = cp1, Point2 = cp2, Point3 = p2 });
+        }
+
+        geometry.Figures.Add(figure);
+        return geometry;
     }
 
     private void DrawLegend(IReadOnlyList<PlotSeries> series, double left, double top)

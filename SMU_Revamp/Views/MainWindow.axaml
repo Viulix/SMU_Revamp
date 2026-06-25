@@ -161,7 +161,7 @@
                                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                         <TextBlock Text="Plot Style:" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#4B5563"/>
                                         <ComboBox ItemsSource="{Binding AvailablePlotStyles}"
-                                                  SelectedItem="{Binding SelectedPlotStyle}"
+                                                  SelectedItem="{Binding SelectedPlotStyleString}"
                                                   Width="150" Height="32" VerticalContentAlignment="Center"/>
                                     </StackPanel>
                                     
@@ -312,7 +312,7 @@
                         </StackPanel>
 
                         <!-- Right Column: Status -->
-                        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="15" Margin="20,15,10,0" MaxWidth="650" HorizontalAlignment="Left">
+                        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="15" Margin="20,15,10,0" HorizontalAlignment="Stretch">
                             <Border BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="15" Background="#F9F9F9" MinWidth="450" MinHeight="150">
                                 <TextBlock Text="{Binding MeasurementStatus}" 
                                            FontFamily="Courier New" 
@@ -348,16 +348,16 @@
                                        MaxWidth="400" 
                                        HorizontalAlignment="Left" />
 
-                            <Viewbox Stretch="Uniform" MaxHeight="250" Margin="0,15,0,0" HorizontalAlignment="Left">
+                            <CheckBox Content="Logarithmic Y-Axis" IsChecked="{Binding IsMeasurementLogarithmic}" Margin="0,10,0,0" />
+                            <Border Height="400" HorizontalAlignment="Stretch">
                                 <views:CurvePlotView Title="Live Measurement Preview"
                                                      XAxisLabel="{Binding XAxisTitle}"
                                                      YAxisLabel="{Binding YAxisTitle}"
                                                      Series="{Binding PlotSeries}"
                                                      Points="{Binding CurvePoints}"
                                                      PlotStyle="{Binding SelectedPlotStyle}"
-                                                     Width="{Binding PlotBaseWidth}"
-                                                     Height="{Binding PlotBaseHeight}" />
-                            </Viewbox>
+                                                     LogarithmicY="{Binding IsMeasurementLogarithmic}" />
+                            </Border>
                         </StackPanel>
                     </Grid>
                 </ScrollViewer>

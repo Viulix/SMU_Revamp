@@ -144,18 +144,52 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public System.Collections.Generic.IReadOnlyList<PlotStyle> AvailablePlotStyles { get; } = new[] { PlotStyle.Line, PlotStyle.Scatter, PlotStyle.LineAndScatter };
+    public System.Collections.Generic.IReadOnlyList<string> AvailablePlotStyles { get; } = new[] 
+    { 
+        "Line", 
+        "Scatter", 
+        "Line & Scatter", 
+        "Interpolated Line", 
+        "Interpolated Line & Scatter" 
+    };
+
+    private string _selectedPlotStyleString = "Line";
+    public string SelectedPlotStyleString
+    {
+        get => _selectedPlotStyleString;
+        set
+        {
+            if (SetProperty(ref _selectedPlotStyleString, value))
+            {
+                SelectedPlotStyle = value switch
+                {
+                    "Scatter" => PlotStyle.Scatter,
+                    "Line & Scatter" => PlotStyle.LineAndScatter,
+                    "Interpolated Line" => PlotStyle.InterpolatedLine,
+                    "Interpolated Line & Scatter" => PlotStyle.InterpolatedLineAndScatter,
+                    _ => PlotStyle.Line
+                };
+            }
+        }
+    }
 
     private PlotStyle _selectedPlotStyle = PlotStyle.Line;
     public PlotStyle SelectedPlotStyle
     {
         get => _selectedPlotStyle;
-        set => SetProperty(ref _selectedPlotStyle, value);
+        private set => SetProperty(ref _selectedPlotStyle, value);
     }
 
     public bool IsLinearPlotVisible => SelectedPlotView == "Both" || SelectedPlotView == "Linear Only";
 
     public bool IsLogPlotVisible => (SelectedPlotView == "Both" || SelectedPlotView == "Logarithmic Only") && ShowLogPlot;
+
+    private bool _isMeasurementLogarithmic = false;
+    public bool IsMeasurementLogarithmic
+    {
+        get => _isMeasurementLogarithmic;
+        set => SetProperty(ref _isMeasurementLogarithmic, value);
+    }
 
     private List<ParameterSection> _selectedPlanSections = new();
     public List<ParameterSection> SelectedPlanSections

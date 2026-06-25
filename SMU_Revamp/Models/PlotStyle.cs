@@ -4,6 +4,8 @@ namespace SMU_Revamp.Models
     {
         Line,
         Scatter,
-        LineAndScatter
+        LineAndScatter,
+        InterpolatedLine,
+        InterpolatedLineAndScatter
     }
 }
