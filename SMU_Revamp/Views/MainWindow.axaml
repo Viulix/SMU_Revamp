@@ -134,10 +134,9 @@
                     </Border>
 
                     <!-- Normal Viewer UI -->
-                    <ScrollViewer IsVisible="{Binding IsPlottedPlanLoaded}" Margin="20">
-                        <StackPanel Spacing="16">
-                            <!-- Top Control Bar -->
-                            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,10">
+                    <Grid IsVisible="{Binding IsPlottedPlanLoaded}" Margin="20" RowDefinitions="Auto, *">
+                        <!-- Top Control Bar -->
+                        <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,10">
                                 <!-- Left: Plan Information (Responsive Grid) -->
                                 <Grid Grid.Column="0" ColumnDefinitions="Auto, *" VerticalAlignment="Center" Margin="0,0,20,0">
                                     <Border Grid.Column="0" Background="#EEF2F6" CornerRadius="6" Padding="8,4" VerticalAlignment="Center" Margin="0,0,10,0">
@@ -183,29 +182,26 @@
                                 </StackPanel>
                             </Grid>
 
-                            <Viewbox Stretch="Uniform" IsVisible="{Binding IsLinearPlotVisible}">
-                                <views:CurvePlotView Title="{Binding LinearPlotTitle}"
-                                                     XAxisLabel="{Binding XAxisTitle}"
-                                                     YAxisLabel="{Binding YAxisTitle}"
-                                                     Series="{Binding PlotSeries}"
-                                                     Points="{Binding CurvePoints}"
-                                                     PlotStyle="{Binding SelectedPlotStyle}"
-                                                     Width="{Binding PlotBaseWidth}"
-                                                     Height="{Binding PlotBaseHeight}" />
-                            </Viewbox>
-                            <Viewbox Stretch="Uniform" IsVisible="{Binding IsLogPlotVisible}">
-                                <views:CurvePlotView Title="{Binding LogPlotTitle}"
-                                                     XAxisLabel="{Binding XAxisTitle}"
-                                                     YAxisLabel="{Binding YAxisTitle}"
-                                                     Series="{Binding PlotSeries}"
-                                                     Points="{Binding CurvePoints}"
-                                                     PlotStyle="{Binding SelectedPlotStyle}"
-                                                     LogarithmicY="True"
-                                                     Width="{Binding PlotBaseWidth}"
-                                                     Height="{Binding PlotBaseHeight}" />
-                            </Viewbox>
-                        </StackPanel>
-                    </ScrollViewer>
+                            <UniformGrid Grid.Row="1" Rows="1">
+                                <Border IsVisible="{Binding IsLinearPlotVisible}" Margin="5">
+                                    <views:CurvePlotView Title="{Binding LinearPlotTitle}"
+                                                         XAxisLabel="{Binding XAxisTitle}"
+                                                         YAxisLabel="{Binding YAxisTitle}"
+                                                         Series="{Binding PlotSeries}"
+                                                         Points="{Binding CurvePoints}"
+                                                         PlotStyle="{Binding SelectedPlotStyle}" />
+                                </Border>
+                                <Border IsVisible="{Binding IsLogPlotVisible}" Margin="5">
+                                    <views:CurvePlotView Title="{Binding LogPlotTitle}"
+                                                         XAxisLabel="{Binding XAxisTitle}"
+                                                         YAxisLabel="{Binding YAxisTitle}"
+                                                         Series="{Binding PlotSeries}"
+                                                         Points="{Binding CurvePoints}"
+                                                         PlotStyle="{Binding SelectedPlotStyle}"
+                                                         LogarithmicY="True" />
+                                </Border>
+                            </UniformGrid>
+                    </Grid>
                 </Grid>
             </TabItem>
             <TabItem Header="Measurements">
