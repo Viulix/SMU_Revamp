@@ -40,6 +40,11 @@ namespace SMU_Revamp.Interfaces
         double PlotAspectRatio => 1.333;
 
         /// <summary>
+        /// The default plot style (Line, Scatter, LineAndScatter).
+        /// </summary>
+        PlotStyle DefaultPlotStyle => PlotStyle.Line;
+
+        /// <summary>
         /// Named curves shown in the viewer. Classic measurements use one default series.
         /// Advanced measurements can override this and return several series.
         /// </summary>

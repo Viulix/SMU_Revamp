@@ -37,6 +37,9 @@ public partial class CurvePlotView : UserControl
     public static readonly StyledProperty<bool> LogarithmicYProperty =
         AvaloniaProperty.Register<CurvePlotView, bool>(nameof(LogarithmicY));
 
+    public static readonly StyledProperty<PlotStyle> PlotStyleProperty =
+        AvaloniaProperty.Register<CurvePlotView, PlotStyle>(nameof(PlotStyle), PlotStyle.Line);
+
     static CurvePlotView()
     {
         TitleProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.UpdateLabels());
@@ -45,6 +48,7 @@ public partial class CurvePlotView : UserControl
         PointsProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
         SeriesProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
         LogarithmicYProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
+        PlotStyleProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
     }
 
     public string? Title
@@ -81,6 +85,12 @@ public partial class CurvePlotView : UserControl
     {
         get => GetValue(LogarithmicYProperty);
         set => SetValue(LogarithmicYProperty, value);
+    }
+
+    public PlotStyle PlotStyle
+    {
+        get => GetValue(PlotStyleProperty);
+        set => SetValue(PlotStyleProperty, value);
     }
 
     public CurvePlotView()
@@ -277,6 +287,9 @@ public partial class CurvePlotView : UserControl
 
     private void DrawCurve(IReadOnlyList<CurvePoint> points, double width, double height, double marginLeft, double marginTop, double xMin, double xMax, double yMin, double yMax, IBrush brush)
     {
+        bool drawLine = PlotStyle == PlotStyle.Line || PlotStyle == PlotStyle.LineAndScatter;
+        bool drawScatter = PlotStyle == PlotStyle.Scatter || PlotStyle == PlotStyle.LineAndScatter;
+
         var polyline = new Polyline
         {
             Stroke = brush,
@@ -288,10 +301,30 @@ public partial class CurvePlotView : UserControl
             var x = marginLeft + ((point.X - xMin) / (xMax - xMin)) * width;
             var rawY = LogarithmicY ? Math.Log10(Math.Max(Math.Abs(point.Y), 1e-12)) : point.Y;
             var y = marginTop + height - ((rawY - yMin) / (yMax - yMin)) * height;
-            polyline.Points.Add(new Point(x, y));
+            
+            if (drawLine)
+            {
+                polyline.Points.Add(new Point(x, y));
+            }
+
+            if (drawScatter)
+            {
+                var ellipse = new Ellipse
+                {
+                    Fill = brush,
+                    Width = 6,
+                    Height = 6
+                };
+                Canvas.SetLeft(ellipse, x - 3);
+                Canvas.SetTop(ellipse, y - 3);
+                PlotCanvas.Children.Add(ellipse);
+            }
         }
 
-        PlotCanvas.Children.Add(polyline);
+        if (drawLine)
+        {
+            PlotCanvas.Children.Add(polyline);
+        }
     }
 
     private void DrawLegend(IReadOnlyList<PlotSeries> series, double left, double top)

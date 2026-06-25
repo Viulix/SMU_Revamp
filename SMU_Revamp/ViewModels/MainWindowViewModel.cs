@@ -96,6 +96,10 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (SetProperty(ref _plottedPlan, value))
             {
+                if (_plottedPlan != null)
+                {
+                    SelectedPlotStyle = _plottedPlan.DefaultPlotStyle;
+                }
                 OnPropertyChanged(nameof(IsPlottedPlanLoaded));
                 OnPropertyChanged(nameof(PlotTitle));
                 OnPropertyChanged(nameof(LinearPlotTitle));
@@ -138,6 +142,15 @@ public partial class MainWindowViewModel : ViewModelBase
                 OnPropertyChanged(nameof(IsLogPlotVisible));
             }
         }
+    }
+
+    public System.Collections.Generic.IReadOnlyList<PlotStyle> AvailablePlotStyles { get; } = new[] { PlotStyle.Line, PlotStyle.Scatter, PlotStyle.LineAndScatter };
+
+    private PlotStyle _selectedPlotStyle = PlotStyle.Line;
+    public PlotStyle SelectedPlotStyle
+    {
+        get => _selectedPlotStyle;
+        set => SetProperty(ref _selectedPlotStyle, value);
     }
 
     public bool IsLinearPlotVisible => SelectedPlotView == "Both" || SelectedPlotView == "Linear Only";

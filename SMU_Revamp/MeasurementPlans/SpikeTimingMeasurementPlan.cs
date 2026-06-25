@@ -38,6 +38,7 @@ namespace SMU_Revamp.MeasurementPlans
         public string YAxisLabel => "Read Current (A)";
         public bool ShowLogPlot => true;
         public double PlotAspectRatio => 3.0;
+        public PlotStyle DefaultPlotStyle => PlotStyle.LineAndScatter;
 
         public List<MeasurementParameter> Parameters { get; }
 

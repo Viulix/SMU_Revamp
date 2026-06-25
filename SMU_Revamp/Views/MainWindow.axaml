@@ -158,6 +158,13 @@
                                                   SelectedItem="{Binding SelectedPlotView}"
                                                   Width="150" Height="32" VerticalContentAlignment="Center"/>
                                     </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <TextBlock Text="Plot Style:" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#4B5563"/>
+                                        <ComboBox ItemsSource="{Binding AvailablePlotStyles}"
+                                                  SelectedItem="{Binding SelectedPlotStyle}"
+                                                  Width="150" Height="32" VerticalContentAlignment="Center"/>
+                                    </StackPanel>
                                     
                                     <Button Content="Import File" 
                                             Click="ImportFileButton_Click"
@@ -182,6 +189,7 @@
                                                      YAxisLabel="{Binding YAxisTitle}"
                                                      Series="{Binding PlotSeries}"
                                                      Points="{Binding CurvePoints}"
+                                                     PlotStyle="{Binding SelectedPlotStyle}"
                                                      Width="{Binding PlotBaseWidth}"
                                                      Height="{Binding PlotBaseHeight}" />
                             </Viewbox>
@@ -191,6 +199,7 @@
                                                      YAxisLabel="{Binding YAxisTitle}"
                                                      Series="{Binding PlotSeries}"
                                                      Points="{Binding CurvePoints}"
+                                                     PlotStyle="{Binding SelectedPlotStyle}"
                                                      LogarithmicY="True"
                                                      Width="{Binding PlotBaseWidth}"
                                                      Height="{Binding PlotBaseHeight}" />
@@ -349,6 +358,7 @@
                                                      YAxisLabel="{Binding YAxisTitle}"
                                                      Series="{Binding PlotSeries}"
                                                      Points="{Binding CurvePoints}"
+                                                     PlotStyle="{Binding SelectedPlotStyle}"
                                                      Width="{Binding PlotBaseWidth}"
                                                      Height="{Binding PlotBaseHeight}" />
                             </Viewbox>

@@ -16,6 +16,7 @@ namespace SMU_Revamp.MeasurementPlans
         public List<MeasurementParameter> Parameters { get; }
         public List<CurvePoint> ResultPoints { get; } = new();
         public double PlotAspectRatio => 3.0;
+        public PlotStyle DefaultPlotStyle => PlotStyle.LineAndScatter;
 
         private string GetParamValueString(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsString() ?? string.Empty;
         public double GetParamValueDouble(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsDouble() ?? 0.0;
