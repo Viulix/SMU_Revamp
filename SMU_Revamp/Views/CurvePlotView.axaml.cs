@@ -144,7 +144,7 @@ public partial class CurvePlotView : UserControl
 
         var marginLeft = 58.0;
         var marginRight = 18.0;
-        var marginTop = 16.0;
+        var marginTop = series.Count > 1 ? 36.0 : 16.0;
         var marginBottom = 28.0;
 
         var availableWidth = Math.Max(1, PlotCanvas.Bounds.Width - marginLeft - marginRight);
@@ -166,6 +166,8 @@ public partial class CurvePlotView : UserControl
             height = availableWidth / targetAspectRatio;
             marginTop += (availableHeight - height) / 2.0;
         }
+
+        LegendPanel.Margin = new Avalonia.Thickness(0, Math.Max(0, marginTop - 25), marginRight, 0);
 
         var xMin = allPoints.Min(p => p.X);
         var xMax = allPoints.Max(p => p.X);
