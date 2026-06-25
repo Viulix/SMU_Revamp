@@ -12,6 +12,12 @@
         Width="700"
         Height="700">
 
+    <Window.Styles>
+        <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+            <Setter Property="Background" Value="Black" />
+        </Style>
+    </Window.Styles>
+
     <Grid>
         <TabControl Margin="10">
             <!-- Configuration Tab -->
@@ -100,8 +106,6 @@
                                 
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <Button Content="Test Connection" Click="TestSwitchConnection_Click" Classes="Primary" Padding="15,8" />
-                                    <Button Content="Query Identity" Click="QuerySwitchIdentity_Click" Classes="Secondary" Padding="15,8" />
-                                    <Button Content="Read Connection" Click="ReadSwitchConnection_Click" Classes="Secondary" Padding="15,8" />
                                     <Button Content="Clear All" Click="ClearAllSwitchConnections_Click" Classes="Secondary" Padding="15,8" />
                                 </StackPanel>
 

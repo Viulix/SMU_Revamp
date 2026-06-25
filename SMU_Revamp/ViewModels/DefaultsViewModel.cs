@@ -40,6 +40,16 @@ namespace SMU_Revamp.ViewModels
         }
 
         public ICommand SaveDefaultsCommand { get; }
+        public ICommand DiscardChangesCommand { get; }
+
+        private bool _hasUnsavedChanges;
+        public bool HasUnsavedChanges
+        {
+            get => _hasUnsavedChanges;
+            set => SetProperty(ref _hasUnsavedChanges, value);
+        }
+
+        private Dictionary<string, object> _originalValuesObj = new();
 
         public DefaultsViewModel()
         {
@@ -48,6 +58,75 @@ namespace SMU_Revamp.ViewModels
             _selectedPlan = MeasurementPlans.Count > 0 ? MeasurementPlans[0] : null!;
 
             SaveDefaultsCommand = new AsyncRelayCommand(SaveDefaultsAsync);
+            DiscardChangesCommand = new RelayCommand(DiscardChanges);
+
+            CaptureOriginalValues();
+
+            foreach (var plan in MeasurementPlans)
+            {
+                foreach (var param in plan.Parameters)
+                {
+                    param.PropertyChanged += (s, e) => 
+                    {
+                        if (e.PropertyName == nameof(MeasurementParameter.Value))
+                        {
+                            CheckForUnsavedChanges();
+                        }
+                    };
+                }
+            }
+        }
+
+        private void CaptureOriginalValues()
+        {
+            _originalValuesObj.Clear();
+            foreach (var plan in MeasurementPlans)
+            {
+                foreach (var param in plan.Parameters)
+                {
+                    _originalValuesObj[$"{plan.Name}_{param.Name}"] = param.Value;
+                }
+            }
+            HasUnsavedChanges = false;
+        }
+
+        private void CheckForUnsavedChanges()
+        {
+            bool hasChanges = false;
+            foreach (var plan in MeasurementPlans)
+            {
+                foreach (var param in plan.Parameters)
+                {
+                    if (_originalValuesObj.TryGetValue($"{plan.Name}_{param.Name}", out object originalObj))
+                    {
+                        var origStr = originalObj?.ToString() ?? "";
+                        var currStr = param.GetValueAsString();
+                        if (origStr != currStr)
+                        {
+                            hasChanges = true;
+                            break;
+                        }
+                    }
+                }
+                if (hasChanges) break;
+            }
+            HasUnsavedChanges = hasChanges;
+        }
+
+        private void DiscardChanges()
+        {
+            foreach (var plan in MeasurementPlans)
+            {
+                foreach (var param in plan.Parameters)
+                {
+                    if (_originalValuesObj.TryGetValue($"{plan.Name}_{param.Name}", out object originalObj))
+                    {
+                        param.Value = originalObj;
+                    }
+                }
+            }
+            HasUnsavedChanges = false;
+            StatusMessage = "Changes discarded.";
         }
 
         private async Task SaveDefaultsAsync()
@@ -75,6 +154,7 @@ namespace SMU_Revamp.ViewModels
                 }
 
                 await ConfigurationService.Instance.SaveAsync(config);
+                CaptureOriginalValues();
                 StatusMessage = "Default values successfully saved!";
             }
             catch (Exception ex)

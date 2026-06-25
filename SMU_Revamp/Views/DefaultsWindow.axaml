@@ -20,7 +20,8 @@
         <vm:DefaultsViewModel />
     </Design.DataContext>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <Grid RowDefinitions="*, Auto">
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Orientation="Vertical" Margin="20" Spacing="15">
             <!-- Warning Disclaimer Box -->
             <Border Background="#FEEBEE" BorderBrush="#EF5350" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,5">
@@ -97,14 +98,34 @@
 
             <!-- Action Buttons -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
-                <Button Content="Save Defaults" Command="{Binding SaveDefaultsCommand}" Classes="Primary" Padding="15,8" />
+                <TextBlock Text="{Binding StatusMessage}"
+                           VerticalAlignment="Center"
+                           Foreground="#2E7D32"
+                           FontWeight="SemiBold" />
                 <Button Content="Close" Click="CloseButton_Click" Classes="Tertiary" Padding="15,8" />
             </StackPanel>
-
-            <TextBlock Text="{Binding StatusMessage}"
-                       HorizontalAlignment="Right"
-                       Foreground="#2E7D32"
-                       FontWeight="SemiBold" />
         </StackPanel>
     </ScrollViewer>
+
+    <!-- Discord-style Unsaved Changes Bar -->
+    <Border Grid.Row="1" 
+            IsVisible="{Binding HasUnsavedChanges}" 
+            Background="#2B2D31" 
+            Padding="16,12" 
+            Margin="20,0,20,20" 
+            CornerRadius="8"
+            BoxShadow="0 4 10 0 #40000000">
+        <Grid ColumnDefinitions="*, Auto">
+            <TextBlock Grid.Column="0" 
+                       Text="Careful - you have unsaved changes!" 
+                       Foreground="White" 
+                       FontWeight="Bold" 
+                       VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                <Button Content="Discard" Command="{Binding DiscardChangesCommand}" Background="Transparent" Foreground="White" FontWeight="SemiBold" />
+                <Button Content="Save Changes" Command="{Binding SaveDefaultsCommand}" Background="#23A559" Foreground="White" FontWeight="Bold" Padding="15,8" CornerRadius="4" />
+            </StackPanel>
+        </Grid>
+    </Border>
+    </Grid>
 </Window>

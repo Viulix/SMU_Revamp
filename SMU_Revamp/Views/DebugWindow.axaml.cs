@@ -33,12 +33,6 @@ public partial class DebugWindow : Window
         SwitchOutputTextBox.Text = result;
     }
 
-    private async void QuerySwitchIdentity_Click(object? sender, RoutedEventArgs e)
-    {
-        SwitchOutputTextBox.Text = "Querying Switch Matrix identity...";
-        var result = await _debugService.QuerySwitchMatrixIdentityAsync();
-        SwitchOutputTextBox.Text = result;
-    }
 
     private async void CreateSwitchConnection_Click(object? sender, RoutedEventArgs e)
     {
@@ -79,12 +73,6 @@ public partial class DebugWindow : Window
         SwitchOutputTextBox.Text = result;
     }
 
-    private async void ReadSwitchConnection_Click(object? sender, RoutedEventArgs e)
-    {
-        SwitchOutputTextBox.Text = "Reading active Switch Matrix connections...";
-        var result = await _debugService.ReadSwitchMatrixConnectionAsync();
-        SwitchOutputTextBox.Text = result;
-    }
 
     private async void TestSMUConnection_Click(object? sender, RoutedEventArgs e)
     {
