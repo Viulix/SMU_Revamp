@@ -143,7 +143,7 @@ public partial class CurvePlotView : UserControl
         }
 
         var marginLeft = 58.0;
-        var marginRight = series.Count > 1 ? 120.0 : 18.0;
+        var marginRight = 18.0;
         var marginTop = 16.0;
         var marginBottom = 28.0;
 
@@ -193,10 +193,7 @@ public partial class CurvePlotView : UserControl
             DrawCurve(series[i].Points, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax, GetSeriesBrush(i));
         }
 
-        if (series.Count > 1)
-        {
-            DrawLegend(series, marginLeft + width + 16, marginTop);
-        }
+        BuildLegend(series);
     }
 
     private List<PlotSeries> GetEffectiveSeries()
@@ -378,30 +375,43 @@ public partial class CurvePlotView : UserControl
         return geometry;
     }
 
-    private void DrawLegend(IReadOnlyList<PlotSeries> series, double left, double top)
+    private void BuildLegend(IReadOnlyList<PlotSeries> series)
     {
+        LegendPanel.Children.Clear();
+        if (series.Count <= 1)
+        {
+            LegendPanel.IsVisible = false;
+            return;
+        }
+
+        LegendPanel.IsVisible = true;
         for (int i = 0; i < series.Count; i++)
         {
-            var y = top + i * 20;
             var brush = GetSeriesBrush(i);
-
-            PlotCanvas.Children.Add(new Line
+            
+            var stack = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Margin = new Thickness(15, 0, 0, 0) };
+            
+            var line = new Line
             {
-                StartPoint = new Point(left, y + 8),
-                EndPoint = new Point(left + 18, y + 8),
+                StartPoint = new Point(0, 8),
+                EndPoint = new Point(18, 8),
                 Stroke = brush,
-                StrokeThickness = 2
-            });
-
-            var label = new TextBlock
+                StrokeThickness = 2,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 5, 0)
+            };
+            
+            var text = new TextBlock
             {
                 Text = series[i].Name,
                 FontSize = 11,
-                Foreground = new SolidColorBrush(Color.Parse("#303030"))
+                Foreground = new SolidColorBrush(Color.Parse("#303030")),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
             };
-            Canvas.SetLeft(label, left + 24);
-            Canvas.SetTop(label, y);
-            PlotCanvas.Children.Add(label);
+            
+            stack.Children.Add(line);
+            stack.Children.Add(text);
+            LegendPanel.Children.Add(stack);
         }
     }
 

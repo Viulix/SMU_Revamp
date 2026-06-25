@@ -2,15 +2,22 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="SMU_Revamp.Views.CurvePlotView">
     <Border Background="#FFFFFF" CornerRadius="10" Padding="12" BorderBrush="#E5E7EB" BorderThickness="1">
-        <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="Auto,*" RowSpacing="8" ColumnSpacing="8">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" ColumnDefinitions="Auto,*" RowSpacing="8" ColumnSpacing="8">
             <TextBlock x:Name="TitleText"
                        Grid.Row="0"
                        Grid.ColumnSpan="2"
                        FontSize="16"
                        FontWeight="SemiBold" />
 
-            <TextBlock x:Name="YAxisText"
+            <WrapPanel x:Name="LegendPanel"
                        Grid.Row="1"
+                       Grid.ColumnSpan="2"
+                       Orientation="Horizontal"
+                       HorizontalAlignment="Right"
+                       Margin="0,0,10,0" />
+
+            <TextBlock x:Name="YAxisText"
+                       Grid.Row="2"
                        Grid.Column="0"
                        VerticalAlignment="Center"
                        RenderTransformOrigin="0.5,0.5">
@@ -20,12 +27,12 @@
             </TextBlock>
 
             <Canvas x:Name="PlotCanvas"
-                    Grid.Row="1"
+                    Grid.Row="2"
                     Grid.Column="1"
                     MinHeight="240" />
 
             <TextBlock x:Name="XAxisText"
-                       Grid.Row="2"
+                       Grid.Row="3"
                        Grid.Column="1"
                        HorizontalAlignment="Center"
                        Foreground="#404040" />
