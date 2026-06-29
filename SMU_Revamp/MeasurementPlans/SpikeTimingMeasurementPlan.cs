@@ -86,7 +86,8 @@ namespace SMU_Revamp.MeasurementPlans
                 new() { Name = "SpikeLengthMs", DisplayName = "Spike Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of each spike in milliseconds. The plan always uses four spikes.", Section = "Spike Settings" },
 
                 new() { Name = "ReadVoltage", DisplayName = "Read Voltage (V):", Type = ParameterType.Number, Tooltip = "Small non-switching readout voltage.", Section = "Readout Settings" },
-                new() { Name = "ReadPulseLengthMs", DisplayName = "Read Pulse Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of each readout pulse in milliseconds.", Section = "Readout Settings" },
+                new() { Name = "ReadoutDurationMs", DisplayName = "Readout Duration (ms):", Type = ParameterType.Number, Tooltip = "Total duration of the continuous sampling measurement after the last spike.", Section = "Readout Settings" },
+                new() { Name = "ReadoutIntervalMs", DisplayName = "Readout Interval (ms):", Type = ParameterType.Number, Tooltip = "Time interval between measurement points.", Section = "Readout Settings" },
 
                 new() { Name = "Compliance", DisplayName = "Compliance (A):", Type = ParameterType.Number, Tooltip = "Current compliance used for spike, reset, baseline, and read pulses.", Section = "Advanced / Safety" },
                 new() { Name = "ShuffleSeed", DisplayName = "Shuffle Seed:", Type = ParameterType.Number, Tooltip = "Integer seed for reproducible pseudo-random execution order when shuffling is enabled.", Section = "Advanced / Safety" },
@@ -122,7 +123,8 @@ namespace SMU_Revamp.MeasurementPlans
                     case "SpikeLengthMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "SpikeLengthMs", 30.0); break;
 
                     case "ReadVoltage": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadVoltage", 0.3); break;
-                    case "ReadPulseLengthMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadPulseLengthMs", 30.0); break;
+                    case "ReadoutDurationMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadoutDurationMs", 3000.0); break;
+                    case "ReadoutIntervalMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadoutIntervalMs", 1.0); break;
 
                     case "Compliance": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Compliance", config.SweepCompliance); break;
                     case "ShuffleSeed": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ShuffleSeed", 12345); break;
@@ -147,10 +149,6 @@ namespace SMU_Revamp.MeasurementPlans
             var settings = ReadAndValidateSettings();
             var patterns = GenerateTimeConstantPatterns(settings);
             var schedule = BuildExecutionSchedule(patterns, settings);
-            var chronologicalReadouts = settings.Readouts
-                .OrderBy(r => r.TargetDelayAfterLastSpikeEndMs)
-                .ThenBy(r => r.ReadoutNumber)
-                .ToArray();
 
             if (schedule.Count == 0)
             {
@@ -201,58 +199,16 @@ namespace SMU_Revamp.MeasurementPlans
                     var trialStopwatch = Stopwatch.StartNew();
                     await RunSpikePatternAsync(smu, settings, item.Pattern, trialStopwatch, cts.Token, patternFraction =>
                     {
-                        // Reset/baseline account for roughly the first 22% of the trial progress.
-                        // Spike train and three readouts use the remaining portion.
                         ReportTrialProgress(0.22 + 0.38 * patternFraction);
                     });
                     ReportTrialProgress(0.60);
 
-                    var readoutMeasurements = new ReadoutMeasurement?[3];
-                    var actualReadoutOrder = new List<string>();
+                    // Continuous Sweep Readout
+                    var sampledPoints = await RunSweepReadoutAsync(smu, settings, cts.Token);
+                    ReportTrialProgress(0.95);
 
-                    for (int chronologicalIndex = 0; chronologicalIndex < chronologicalReadouts.Length; chronologicalIndex++)
-                    {
-                        var spec = chronologicalReadouts[chronologicalIndex];
-                        double targetElapsed = item.Pattern.LastSpikeEndMs + spec.TargetDelayAfterLastSpikeEndMs;
-
-                        await WaitUntilElapsedAsync(trialStopwatch, targetElapsed, cts.Token, elapsedFraction =>
-                        {
-                            double fraction = (chronologicalIndex + elapsedFraction) / chronologicalReadouts.Length;
-                            ReportTrialProgress(0.60 + 0.35 * fraction);
-                        }, Math.Max(targetElapsed, 1.0));
-
-                        double actualReadStartMs = trialStopwatch.Elapsed.TotalMilliseconds;
-                        double actualDelayAfterLastEnd = actualReadStartMs - item.Pattern.LastSpikeEndMs;
-                        double readCurrent = await ReadCurrentPulseAsync(smu, settings, cts.Token);
-                        double deltaCurrent = double.IsNaN(baselineCurrent) ? double.NaN : readCurrent - baselineCurrent;
-                        double conductance = settings.ReadVoltage == 0 ? double.NaN : readCurrent / settings.ReadVoltage;
-
-                        var measurement = new ReadoutMeasurement(
-                            ReadoutNumber: spec.ReadoutNumber,
-                            ReadoutLabel: spec.Label,
-                            TargetDelayAfterLastSpikeEndMs: spec.TargetDelayAfterLastSpikeEndMs,
-                            ActualDelayAfterLastSpikeEndMs: actualDelayAfterLastEnd,
-                            ReadCurrentA: readCurrent,
-                            DeltaCurrentA: deltaCurrent,
-                            ConductanceS: conductance);
-
-                        readoutMeasurements[spec.ReadoutNumber - 1] = measurement;
-                        actualReadoutOrder.Add(spec.Label);
-
-                        var readMsg = FormattableString.Invariant($"[Spike Timing] Trial {trialIndex}/{totalTrials}, Rep {item.RepetitionIndex}, Pattern {item.Pattern.GapOrder}, Readout {spec.Label}: target={spec.TargetDelayAfterLastSpikeEndMs:G9} ms, actual={actualDelayAfterLastEnd:G9} ms, I={readCurrent:E6} A");
-                        Console.WriteLine(readMsg);
-                        Debug.WriteLine(readMsg);
-
-                        ReportTrialProgress(0.60 + 0.40 * ((chronologicalIndex + 1.0) / chronologicalReadouts.Length));
-                    }
-
-                    if (readoutMeasurements.Any(r => r is null))
-                    {
-                        throw new InvalidOperationException("Internal error: at least one readout was not measured.");
-                    }
-
-                    var readouts = readoutMeasurements.Cast<ReadoutMeasurement>().ToArray();
-                    UpdateLatestTrialCurve(readouts);
+                    ResultPoints.Clear();
+                    ResultPoints.AddRange(sampledPoints);
 
                     TrialResults.Add(new SpikeTimingTrialResult(
                         TrialIndex: trialIndex,
@@ -266,11 +222,8 @@ namespace SMU_Revamp.MeasurementPlans
                         SpikeEndTimesMs: string.Join(";", item.Pattern.SpikeEndTimesMs.Select(v => v.ToString("G9", CultureInfo.InvariantCulture))),
                         LastSpikeStartMs: item.Pattern.LastSpikeStartMs,
                         LastSpikeEndMs: item.Pattern.LastSpikeEndMs,
-                        ActualReadoutOrder: string.Join(";", actualReadoutOrder),
                         BaselineCurrentA: baselineCurrent,
-                        Readout1: readouts[0],
-                        Readout2: readouts[1],
-                        Readout3: readouts[2]));
+                        SampledPoints: sampledPoints));
 
                     trialIndex++;
                     progress?.Report((trialIndex - 1) * 100.0 / totalTrials);
@@ -364,35 +317,12 @@ namespace SMU_Revamp.MeasurementPlans
             int idxSpikeEndTimes = GetIndex("SpikeEndTimes_ms");
             int idxLastSpikeStart = GetIndex("LastSpikeStart_ms");
             int idxLastSpikeEnd = GetIndex("LastSpikeEnd_ms");
-            int idxActualReadoutOrder = GetIndex("ActualReadoutOrder");
             int idxBaselineCurrent = GetIndex("BaselineCurrent_A");
+            int idxTime = GetIndex("TimeAfterLastSpike_ms");
+            int idxCurrent = GetIndex("MeasuredCurrent_A");
 
-            // Readouts
-            int idxR1Label = GetIndex("Readout1_Label");
-            int idxR1TargetDelay = GetIndex("Readout1_TargetDelayAfterLastSpikeEnd_ms");
-            int idxR1ActualDelay = GetIndex("Readout1_ActualDelayAfterLastSpikeEnd_ms");
-            int idxR1Current = GetIndex("Readout1_Current_A");
-            int idxR1Delta = GetIndex("Readout1_DeltaCurrent_A");
-            int idxR1Cond = GetIndex("Readout1_Conductance_S");
-
-            int idxR2Label = GetIndex("Readout2_Label");
-            int idxR2TargetDelay = GetIndex("Readout2_TargetDelayAfterLastSpikeEnd_ms");
-            int idxR2ActualDelay = GetIndex("Readout2_ActualDelayAfterLastSpikeEnd_ms");
-            int idxR2Current = GetIndex("Readout2_Current_A");
-            int idxR2Delta = GetIndex("Readout2_DeltaCurrent_A");
-            int idxR2Cond = GetIndex("Readout2_Conductance_S");
-
-            int idxR3Label = GetIndex("Readout3_Label");
-            int idxR3TargetDelay = GetIndex("Readout3_TargetDelayAfterLastSpikeEnd_ms");
-            int idxR3ActualDelay = GetIndex("Readout3_ActualDelayAfterLastSpikeEnd_ms");
-            int idxR3Current = GetIndex("Readout3_Current_A");
-            int idxR3Delta = GetIndex("Readout3_DeltaCurrent_A");
-            int idxR3Cond = GetIndex("Readout3_Conductance_S");
-
-            // If we don't have essential columns, fallback to default parsing
-            if (idxTrial == -1 || idxR1Current == -1)
+            if (idxTrial == -1 || idxTime == -1 || idxCurrent == -1)
             {
-                // Fallback: just parse first two columns into ResultPoints
                 foreach (var line in dataLines)
                 {
                     var parts = line.Split(separator);
@@ -408,79 +338,53 @@ namespace SMU_Revamp.MeasurementPlans
                 return;
             }
 
+            var trialGroups = new Dictionary<int, (int rep, int pat, string gap, double g1, double g2, double g3, string st, string set, double lss, double lse, double bl, List<CurvePoint> pts)>();
+
             foreach (var line in dataLines)
             {
                 var parts = line.Split(separator).Select(p => p.Trim()).ToArray();
                 if (parts.Length < headers.Count) continue;
 
-                int trialIndex = int.TryParse(parts[idxTrial], out var tri) ? tri : 0;
-                int repIndex = int.TryParse(parts[idxRep], out var rep) ? rep : 0;
-                int patIndex = int.TryParse(parts[idxPat], out var pat) ? pat : 0;
-                string gapOrder = idxGapOrder != -1 ? parts[idxGapOrder] : string.Empty;
-                double gap1 = idxGap1 != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxGap1], out var g1) ? g1 : 0.0;
-                double gap2 = idxGap2 != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxGap2], out var g2) ? g2 : 0.0;
-                double gap3 = idxGap3 != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxGap3], out var g3) ? g3 : 0.0;
-                string spikeTimes = idxSpikeTimes != -1 ? parts[idxSpikeTimes] : string.Empty;
-                string spikeEndTimes = idxSpikeEndTimes != -1 ? parts[idxSpikeEndTimes] : string.Empty;
-                double lastSpikeStart = idxLastSpikeStart != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxLastSpikeStart], out var lss) ? lss : 0.0;
-                double lastSpikeEnd = idxLastSpikeEnd != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxLastSpikeEnd], out var lse) ? lse : 0.0;
-                string actualReadoutOrder = idxActualReadoutOrder != -1 ? parts[idxActualReadoutOrder] : string.Empty;
-                double baseline = idxBaselineCurrent != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxBaselineCurrent], out var bl) ? bl : 0.0;
+                if (!int.TryParse(parts[idxTrial], out var trialIndex)) continue;
+                if (!SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxTime], out var timeVal)) continue;
+                if (!SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxCurrent], out var currentVal)) continue;
 
-                // Readout 1
-                string r1Label = idxR1Label != -1 ? parts[idxR1Label] : "A";
-                double r1TargetDelay = idxR1TargetDelay != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR1TargetDelay], out var r1td) ? r1td : 0.0;
-                double r1ActualDelay = idxR1ActualDelay != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR1ActualDelay], out var r1ad) ? r1ad : 0.0;
-                double r1Current = SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR1Current], out var r1c) ? r1c : 0.0;
-                double r1Delta = idxR1Delta != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR1Delta], out var r1d) ? r1d : 0.0;
-                double r1Cond = idxR1Cond != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR1Cond], out var r1co) ? r1co : 0.0;
+                if (!trialGroups.TryGetValue(trialIndex, out var entry))
+                {
+                    int repIndex = int.TryParse(parts[idxRep], out var rep) ? rep : 0;
+                    int patIndex = int.TryParse(parts[idxPat], out var pat) ? pat : 0;
+                    string gapOrder = idxGapOrder != -1 ? parts[idxGapOrder] : string.Empty;
+                    double gap1 = idxGap1 != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxGap1], out var g1) ? g1 : 0.0;
+                    double gap2 = idxGap2 != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxGap2], out var g2) ? g2 : 0.0;
+                    double gap3 = idxGap3 != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxGap3], out var g3) ? g3 : 0.0;
+                    string spikeTimes = idxSpikeTimes != -1 ? parts[idxSpikeTimes] : string.Empty;
+                    string spikeEndTimes = idxSpikeEndTimes != -1 ? parts[idxSpikeEndTimes] : string.Empty;
+                    double lastSpikeStart = idxLastSpikeStart != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxLastSpikeStart], out var lss) ? lss : 0.0;
+                    double lastSpikeEnd = idxLastSpikeEnd != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxLastSpikeEnd], out var lse) ? lse : 0.0;
+                    double baseline = idxBaselineCurrent != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxBaselineCurrent], out var bl) ? bl : 0.0;
 
-                var readout1 = new ReadoutMeasurement(1, r1Label, r1TargetDelay, r1ActualDelay, r1Current, r1Delta, r1Cond);
+                    entry = (repIndex, patIndex, gapOrder, gap1, gap2, gap3, spikeTimes, spikeEndTimes, lastSpikeStart, lastSpikeEnd, baseline, new List<CurvePoint>());
+                    trialGroups[trialIndex] = entry;
+                }
 
-                // Readout 2
-                string r2Label = idxR2Label != -1 ? parts[idxR2Label] : "B";
-                double r2TargetDelay = idxR2TargetDelay != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR2TargetDelay], out var r2td) ? r2td : 0.0;
-                double r2ActualDelay = idxR2ActualDelay != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR2ActualDelay], out var r2ad) ? r2ad : 0.0;
-                double r2Current = SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR2Current], out var r2c) ? r2c : 0.0;
-                double r2Delta = idxR2Delta != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR2Delta], out var r2d) ? r2d : 0.0;
-                double r2Cond = idxR2Cond != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR2Cond], out var r2co) ? r2co : 0.0;
+                entry.pts.Add(new CurvePoint(timeVal, currentVal));
+            }
 
-                var readout2 = new ReadoutMeasurement(2, r2Label, r2TargetDelay, r2ActualDelay, r2Current, r2Delta, r2Cond);
-
-                // Readout 3
-                string r3Label = idxR3Label != -1 ? parts[idxR3Label] : "C";
-                double r3TargetDelay = idxR3TargetDelay != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR3TargetDelay], out var r3td) ? r3td : 0.0;
-                double r3ActualDelay = idxR3ActualDelay != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR3ActualDelay], out var r3ad) ? r3ad : 0.0;
-                double r3Current = SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR3Current], out var r3c) ? r3c : 0.0;
-                double r3Delta = idxR3Delta != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR3Delta], out var r3d) ? r3d : 0.0;
-                double r3Cond = idxR3Cond != -1 && SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[idxR3Cond], out var r3co) ? r3co : 0.0;
-
-                var readout3 = new ReadoutMeasurement(3, r3Label, r3TargetDelay, r3ActualDelay, r3Current, r3Delta, r3Cond);
-
+            foreach (var kp in trialGroups.OrderBy(kv => kv.Key))
+            {
+                var val = kp.Value;
                 var trialResult = new SpikeTimingTrialResult(
-                    trialIndex, repIndex, patIndex, gapOrder,
-                    gap1, gap2, gap3, spikeTimes, spikeEndTimes,
-                    lastSpikeStart, lastSpikeEnd, actualReadoutOrder,
-                    baseline, readout1, readout2, readout3
+                    kp.Key, val.rep, val.pat, val.gap,
+                    val.g1, val.g2, val.g3, val.st, val.set,
+                    val.lss, val.lse, val.bl, val.pts
                 );
-
                 TrialResults.Add(trialResult);
             }
 
-            // Also populate ResultPoints from the last trial (as is done in a normal measurement run)
             if (TrialResults.Any())
             {
-                var lastTrial = TrialResults.Last();
-                UpdateLatestTrialCurve(new[] { lastTrial.Readout1, lastTrial.Readout2, lastTrial.Readout3 });
-            }
-        }
-
-        private void UpdateLatestTrialCurve(IEnumerable<ReadoutMeasurement> readouts)
-        {
-            ResultPoints.Clear();
-            foreach (var r in readouts.OrderBy(r => r.TargetDelayAfterLastSpikeEndMs))
-            {
-                ResultPoints.Add(new CurvePoint(r.TargetDelayAfterLastSpikeEndMs, r.ReadCurrentA));
+                ResultPoints.Clear();
+                ResultPoints.AddRange(TrialResults.Last().SampledPoints);
             }
         }
 
@@ -492,24 +396,30 @@ namespace SMU_Revamp.MeasurementPlans
                          .GroupBy(r => new { r.PatternIndex, r.GapOrder })
                          .OrderBy(g => g.Key.PatternIndex))
             {
-                var readout1 = group.Select(r => r.Readout1).ToList();
-                var readout2 = group.Select(r => r.Readout2).ToList();
-                var readout3 = group.Select(r => r.Readout3).ToList();
+                var trials = group.ToList();
+                if (trials.Count == 0) continue;
 
-                var points = new[]
+                int maxPoints = trials.Max(t => t.SampledPoints.Count);
+                var avgPoints = new List<CurvePoint>();
+
+                for (int k = 0; k < maxPoints; k++)
                 {
-                    AverageReadoutPoint(readout1),
-                    AverageReadoutPoint(readout2),
-                    AverageReadoutPoint(readout3)
+                    var pointsAtIndex = trials
+                        .Where(t => k < t.SampledPoints.Count)
+                        .Select(t => t.SampledPoints[k])
+                        .ToList();
+
+                    if (pointsAtIndex.Count > 0)
+                    {
+                        double avgX = pointsAtIndex.Average(p => p.X);
+                        double avgY = pointsAtIndex.Average(p => p.Y);
+                        avgPoints.Add(new CurvePoint(avgX, avgY));
+                    }
                 }
-                .Where(p => p is not null)
-                .Cast<CurvePoint>()
-                .OrderBy(p => p.X)
-                .ToList();
 
-                if (points.Count >= 2)
+                if (avgPoints.Count >= 2)
                 {
-                    series.Add(new PlotSeries(group.Key.GapOrder, points));
+                    series.Add(new PlotSeries(group.Key.GapOrder, avgPoints));
                 }
             }
 
@@ -523,15 +433,6 @@ namespace SMU_Revamp.MeasurementPlans
                 : new List<PlotSeries>();
         }
 
-        private static CurvePoint? AverageReadoutPoint(IReadOnlyCollection<ReadoutMeasurement> readouts)
-        {
-            if (readouts.Count == 0) return null;
-
-            double meanDelay = readouts.Average(r => r.TargetDelayAfterLastSpikeEndMs);
-            double meanCurrent = readouts.Average(r => r.ReadCurrentA);
-            return new CurvePoint(meanDelay, meanCurrent);
-        }
-
         /// <summary>
         /// Detailed CSV export for this measurement plan. One row is written per full trial.
         /// The three readouts after the same spike pattern are stored in separate columns.
@@ -541,65 +442,49 @@ namespace SMU_Revamp.MeasurementPlans
             var lines = new List<string>
             {
                 "sep=\t",
-                "TrialIndex\tRepetitionIndex\tPatternIndex\tGapOrder\tGap1_ms\tGap2_ms\tGap3_ms\tSpikeTimes_ms\tSpikeEndTimes_ms\tLastSpikeStart_ms\tLastSpikeEnd_ms\tActualReadoutOrder\tBaselineCurrent_A\tReadout1_Label\tReadout1_TargetDelayAfterLastSpikeEnd_ms\tReadout1_ActualDelayAfterLastSpikeEnd_ms\tReadout1_Current_A\tReadout1_DeltaCurrent_A\tReadout1_Conductance_S\tReadout2_Label\tReadout2_TargetDelayAfterLastSpikeEnd_ms\tReadout2_ActualDelayAfterLastSpikeEnd_ms\tReadout2_Current_A\tReadout2_DeltaCurrent_A\tReadout2_Conductance_S\tReadout3_Label\tReadout3_TargetDelayAfterLastSpikeEnd_ms\tReadout3_ActualDelayAfterLastSpikeEnd_ms\tReadout3_Current_A\tReadout3_DeltaCurrent_A\tReadout3_Conductance_S\tTimeConstantA_ms\tTimeConstantB_ms\tTimeConstantC_ms\tSpikeVoltage_V\tSpikeLength_ms\tReadVoltage_V\tReadPulseLength_ms\tCompliance_A\tShuffleExecutionOrder\tShuffleSeed\tResetEnabled\tResetVoltage_V\tResetPulseLength_ms\tResetRepetitions\tResetRecovery_ms"
+                "TrialIndex\tRepetitionIndex\tPatternIndex\tGapOrder\tGap1_ms\tGap2_ms\tGap3_ms\tSpikeTimes_ms\tSpikeEndTimes_ms\tLastSpikeStart_ms\tLastSpikeEnd_ms\tBaselineCurrent_A\tTimeAfterLastSpike_ms\tMeasuredCurrent_A\tTimeConstantA_ms\tTimeConstantB_ms\tTimeConstantC_ms\tSpikeVoltage_V\tSpikeLength_ms\tReadVoltage_V\tReadoutDuration_ms\tReadoutInterval_ms\tCompliance_A\tShuffleExecutionOrder\tShuffleSeed\tResetEnabled\tResetVoltage_V\tResetPulseLength_ms\tResetRepetitions\tResetRecovery_ms"
             };
 
             var settings = ReadAndValidateSettings();
             foreach (var r in TrialResults)
             {
-                lines.Add(string.Join("\t", new[]
+                foreach (var pt in r.SampledPoints)
                 {
-                    r.TrialIndex.ToString(CultureInfo.InvariantCulture),
-                    r.RepetitionIndex.ToString(CultureInfo.InvariantCulture),
-                    r.PatternIndex.ToString(CultureInfo.InvariantCulture),
-                    Csv(r.GapOrder),
-                    r.Gap1Ms.ToString("G9", CultureInfo.InvariantCulture),
-                    r.Gap2Ms.ToString("G9", CultureInfo.InvariantCulture),
-                    r.Gap3Ms.ToString("G9", CultureInfo.InvariantCulture),
-                    Csv(r.SpikeTimesMs),
-                    Csv(r.SpikeEndTimesMs),
-                    r.LastSpikeStartMs.ToString("G9", CultureInfo.InvariantCulture),
-                    r.LastSpikeEndMs.ToString("G9", CultureInfo.InvariantCulture),
-                    Csv(r.ActualReadoutOrder),
-                    r.BaselineCurrentA.ToString("E9", CultureInfo.InvariantCulture),
+                    lines.Add(string.Join("\t", new[]
+                    {
+                        r.TrialIndex.ToString(CultureInfo.InvariantCulture),
+                        r.RepetitionIndex.ToString(CultureInfo.InvariantCulture),
+                        r.PatternIndex.ToString(CultureInfo.InvariantCulture),
+                        Csv(r.GapOrder),
+                        r.Gap1Ms.ToString("G9", CultureInfo.InvariantCulture),
+                        r.Gap2Ms.ToString("G9", CultureInfo.InvariantCulture),
+                        r.Gap3Ms.ToString("G9", CultureInfo.InvariantCulture),
+                        Csv(r.SpikeTimesMs),
+                        Csv(r.SpikeEndTimesMs),
+                        r.LastSpikeStartMs.ToString("G9", CultureInfo.InvariantCulture),
+                        r.LastSpikeEndMs.ToString("G9", CultureInfo.InvariantCulture),
+                        r.BaselineCurrentA.ToString("E9", CultureInfo.InvariantCulture),
+                        pt.X.ToString("G9", CultureInfo.InvariantCulture), // TimeAfterLastSpike_ms
+                        pt.Y.ToString("E9", CultureInfo.InvariantCulture), // MeasuredCurrent_A
 
-                    Csv(r.Readout1.ReadoutLabel),
-                    r.Readout1.TargetDelayAfterLastSpikeEndMs.ToString("G9", CultureInfo.InvariantCulture),
-                    r.Readout1.ActualDelayAfterLastSpikeEndMs.ToString("G9", CultureInfo.InvariantCulture),
-                    r.Readout1.ReadCurrentA.ToString("E9", CultureInfo.InvariantCulture),
-                    r.Readout1.DeltaCurrentA.ToString("E9", CultureInfo.InvariantCulture),
-                    r.Readout1.ConductanceS.ToString("E9", CultureInfo.InvariantCulture),
-
-                    Csv(r.Readout2.ReadoutLabel),
-                    r.Readout2.TargetDelayAfterLastSpikeEndMs.ToString("G9", CultureInfo.InvariantCulture),
-                    r.Readout2.ActualDelayAfterLastSpikeEndMs.ToString("G9", CultureInfo.InvariantCulture),
-                    r.Readout2.ReadCurrentA.ToString("E9", CultureInfo.InvariantCulture),
-                    r.Readout2.DeltaCurrentA.ToString("E9", CultureInfo.InvariantCulture),
-                    r.Readout2.ConductanceS.ToString("E9", CultureInfo.InvariantCulture),
-
-                    Csv(r.Readout3.ReadoutLabel),
-                    r.Readout3.TargetDelayAfterLastSpikeEndMs.ToString("G9", CultureInfo.InvariantCulture),
-                    r.Readout3.ActualDelayAfterLastSpikeEndMs.ToString("G9", CultureInfo.InvariantCulture),
-                    r.Readout3.ReadCurrentA.ToString("E9", CultureInfo.InvariantCulture),
-                    r.Readout3.DeltaCurrentA.ToString("E9", CultureInfo.InvariantCulture),
-                    r.Readout3.ConductanceS.ToString("E9", CultureInfo.InvariantCulture),
-
-                    settings.TimeConstantA_Ms.ToString("G9", CultureInfo.InvariantCulture),
-                    settings.TimeConstantB_Ms.ToString("G9", CultureInfo.InvariantCulture),
-                    settings.TimeConstantC_Ms.ToString("G9", CultureInfo.InvariantCulture),
-                    settings.SpikeVoltage.ToString("G9", CultureInfo.InvariantCulture),
-                    settings.SpikeLengthMs.ToString("G9", CultureInfo.InvariantCulture),
-                    settings.ReadVoltage.ToString("G9", CultureInfo.InvariantCulture),
-                    settings.ReadPulseLengthMs.ToString("G9", CultureInfo.InvariantCulture),
-                    settings.Compliance.ToString("G9", CultureInfo.InvariantCulture),
-                    settings.ShuffleExecutionOrder ? "true" : "false",
-                    settings.ShuffleSeed.ToString(CultureInfo.InvariantCulture),
-                    settings.ResetEnabled ? "true" : "false",
-                    settings.ResetVoltage.ToString("G9", CultureInfo.InvariantCulture),
-                    settings.ResetPulseLengthMs.ToString("G9", CultureInfo.InvariantCulture),
-                    settings.ResetRepetitions.ToString(CultureInfo.InvariantCulture),
-                    settings.ResetRecoveryMs.ToString("G9", CultureInfo.InvariantCulture)
-                }));
+                        settings.TimeConstantA_Ms.ToString("G9", CultureInfo.InvariantCulture),
+                        settings.TimeConstantB_Ms.ToString("G9", CultureInfo.InvariantCulture),
+                        settings.TimeConstantC_Ms.ToString("G9", CultureInfo.InvariantCulture),
+                        settings.SpikeVoltage.ToString("G9", CultureInfo.InvariantCulture),
+                        settings.SpikeLengthMs.ToString("G9", CultureInfo.InvariantCulture),
+                        settings.ReadVoltage.ToString("G9", CultureInfo.InvariantCulture),
+                        settings.ReadoutDurationMs.ToString("G9", CultureInfo.InvariantCulture),
+                        settings.ReadoutIntervalMs.ToString("G9", CultureInfo.InvariantCulture),
+                        settings.Compliance.ToString("G9", CultureInfo.InvariantCulture),
+                        settings.ShuffleExecutionOrder ? "true" : "false",
+                        settings.ShuffleSeed.ToString(CultureInfo.InvariantCulture),
+                        settings.ResetEnabled ? "true" : "false",
+                        settings.ResetVoltage.ToString("G9", CultureInfo.InvariantCulture),
+                        settings.ResetPulseLengthMs.ToString("G9", CultureInfo.InvariantCulture),
+                        settings.ResetRepetitions.ToString(CultureInfo.InvariantCulture),
+                        settings.ResetRecoveryMs.ToString("G9", CultureInfo.InvariantCulture)
+                    }));
+                }
             }
 
             return lines;
@@ -628,7 +513,8 @@ namespace SMU_Revamp.MeasurementPlans
                 SpikeLengthMs = GetParamValueDouble("SpikeLengthMs"),
 
                 ReadVoltage = GetParamValueDouble("ReadVoltage"),
-                ReadPulseLengthMs = GetParamValueDouble("ReadPulseLengthMs"),
+                ReadoutDurationMs = GetParamValueDouble("ReadoutDurationMs"),
+                ReadoutIntervalMs = GetParamValueDouble("ReadoutIntervalMs"),
 
                 Compliance = GetParamValueDouble("Compliance"),
                 ShuffleSeed = GetParamValueInt("ShuffleSeed"),
@@ -646,7 +532,8 @@ namespace SMU_Revamp.MeasurementPlans
             if (settings.TimeConstantC_Ms <= 0) throw new InvalidOperationException("Time Constant C must be > 0 ms.");
             if (settings.RepetitionsPerPattern < 1) throw new InvalidOperationException("Repetitions per pattern must be at least 1.");
             if (settings.SpikeLengthMs <= 0) throw new InvalidOperationException("Spike length must be > 0 ms.");
-            if (settings.ReadPulseLengthMs <= 0) throw new InvalidOperationException("Read pulse length must be > 0 ms.");
+            if (settings.ReadoutDurationMs <= 0) throw new InvalidOperationException("Readout duration must be > 0 ms.");
+            if (settings.ReadoutIntervalMs <= 0) throw new InvalidOperationException("Readout interval must be > 0 ms.");
             if (settings.Compliance <= 0) throw new InvalidOperationException("Compliance must be > 0 A.");
 
             if (settings.ResetEnabled)
@@ -728,13 +615,107 @@ namespace SMU_Revamp.MeasurementPlans
             await smu.SendCommandAsync(FormattableString.Invariant($"DV {s.WriteChannel},0,{s.ReadVoltage},{s.Compliance}"));
             await WaitMillisecondsAccurateAsync(5, ct);
             await smu.SendCommandAsync("XE");
-            await WaitMillisecondsAccurateAsync(s.ReadPulseLengthMs, ct);
+            await WaitMillisecondsAccurateAsync(30.0, ct); // Fixed 30ms pulse for baseline read
             await WaitMillisecondsAccurateAsync(10, ct);
 
             string response = await smu.ReadResponseAsync(100);
             await smu.SendCommandAsync($"DZ {s.WriteChannel}");
 
             return ParseCurrent(response, s.InvertCurrent);
+        }
+
+        private async Task<List<CurvePoint>> RunSweepReadoutAsync(E5263_SMU smu, SpikeTimingSettings s, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            int pointsCount = (int)Math.Round(s.ReadoutDurationMs / s.ReadoutIntervalMs);
+            if (pointsCount < 1) pointsCount = 1;
+            if (pointsCount > 4001) pointsCount = 4001;
+
+            double intervalSec = s.ReadoutIntervalMs / 1000.0;
+
+            await smu.SendCommandAsync("AV 1,0");
+
+            var wvCommand = System.FormattableString.Invariant($"WV {s.WriteChannel},1,0,{s.ReadVoltage},{s.ReadVoltage},{pointsCount},{s.Compliance}");
+            await smu.SendCommandAsync(wvCommand);
+
+            var wvError = await smu.CheckErrorAsync();
+            if (wvError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected WV command in Sweep Readout: {wvError}");
+            }
+
+            var wtCommand = System.FormattableString.Invariant($"WT 0,{intervalSec:F5},{intervalSec:F5}");
+            await smu.SendCommandAsync(wtCommand);
+            var wtError = await smu.CheckErrorAsync();
+            if (wtError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected WT command: {wtError}");
+            }
+
+            await smu.SendCommandAsync($"RI {s.ReadingChannel},0");
+            await smu.SendCommandAsync($"MM 2,{s.ReadingChannel}");
+            var mmError = await smu.CheckErrorAsync();
+            if (mmError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected MM 2 in Sweep Readout: {mmError}");
+            }
+
+            await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
+            var cmmError = await smu.CheckErrorAsync();
+            if (cmmError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected CMM in Sweep Readout: {cmmError}");
+            }
+
+            await smu.SendCommandAsync("TSR");
+            await smu.SendCommandAsync("XE");
+
+            double totalDurationMs = s.ReadoutDurationMs + 200.0;
+            await WaitMillisecondsAccurateAsync(totalDurationMs, ct);
+
+            await smu.SendCommandAsync("TSQ");
+
+            string response = await smu.ReadResponseAsync(60000);
+            string tsqResponse = await smu.ReadResponseAsync(100);
+
+            await smu.SendCommandAsync($"MM 1,{s.ReadingChannel}");
+            var config = ConfigurationService.Instance.GetConfig();
+            await smu.SendCommandAsync($"AV -{config.SweepAdcSamples},0");
+            await smu.SendCommandAsync($"DZ {s.WriteChannel}");
+
+            return ParseSweepReadoutResponse(response, s.ReadoutIntervalMs, s.InvertCurrent);
+        }
+
+        private List<CurvePoint> ParseSweepReadoutResponse(string rawData, double intervalMs, bool invertCurrent)
+        {
+            var points = new List<CurvePoint>();
+            if (string.IsNullOrWhiteSpace(rawData)) return points;
+
+            var items = rawData.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            int index = 0;
+
+            foreach (var item in items)
+            {
+                var trimmed = item.Trim();
+                if (trimmed.Length < 4) continue;
+
+                char thirdChar = trimmed[2];
+                string numStr = trimmed.Substring(3);
+
+                if (thirdChar == 'I')
+                {
+                    if (double.TryParse(numStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double iVal))
+                    {
+                        double current = invertCurrent ? -iVal : iVal;
+                        double timeMs = (index + 1) * intervalMs;
+                        points.Add(new CurvePoint(timeMs, current));
+                        index++;
+                    }
+                }
+            }
+
+            return points;
         }
 
         private static double ParseCurrent(string rawData, bool invertCurrent)
@@ -883,7 +864,8 @@ namespace SMU_Revamp.MeasurementPlans
             public double SpikeLengthMs { get; init; }
 
             public double ReadVoltage { get; init; }
-            public double ReadPulseLengthMs { get; init; }
+            public double ReadoutDurationMs { get; init; }
+            public double ReadoutIntervalMs { get; init; }
 
             public double Compliance { get; init; }
             public bool BaselineReadEnabled { get; init; }
@@ -893,19 +875,7 @@ namespace SMU_Revamp.MeasurementPlans
             public double ResetPulseLengthMs { get; init; }
             public int ResetRepetitions { get; init; }
             public double ResetRecoveryMs { get; init; }
-
-            public ReadoutSpec[] Readouts => new[]
-            {
-                new ReadoutSpec(1, "A", TimeConstantA_Ms),
-                new ReadoutSpec(2, "B", TimeConstantB_Ms),
-                new ReadoutSpec(3, "C", TimeConstantC_Ms)
-            };
         }
-
-        private sealed record ReadoutSpec(
-            int ReadoutNumber,
-            string Label,
-            double TargetDelayAfterLastSpikeEndMs);
 
         public sealed record ReadoutMeasurement(
             int ReadoutNumber,
@@ -955,10 +925,7 @@ namespace SMU_Revamp.MeasurementPlans
             string SpikeEndTimesMs,
             double LastSpikeStartMs,
             double LastSpikeEndMs,
-            string ActualReadoutOrder,
             double BaselineCurrentA,
-            ReadoutMeasurement Readout1,
-            ReadoutMeasurement Readout2,
-            ReadoutMeasurement Readout3);
+            List<CurvePoint> SampledPoints);
     }
 }

@@ -13,6 +13,46 @@
         <FluentTheme />
 
         <!-- ========================================== -->
+        <!-- CONTAINER CARDS (Minimal Dropshadow)       -->
+        <!-- ========================================== -->
+        <Style Selector="Border.Card">
+            <Setter Property="BoxShadow">
+                <Setter.Value>
+                    <BoxShadows>0 4 16 0 #30000000</BoxShadows>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush" Value="#E5E7EB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+
+        <!-- ========================================== -->
+        <!-- BUTTON DROPSHADOW TEMPLATE                 -->
+        <!-- ========================================== -->
+        <Style Selector="Button:not(.Tertiary):not(.DiscardBtn)">
+            <Setter Property="Theme" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border CornerRadius="{TemplateBinding CornerRadius}"
+                            Background="Transparent"
+                            BoxShadow="0 4 10 0 #4C000000">
+                        <ContentPresenter x:Name="PART_ContentPresenter"
+                                          Background="{TemplateBinding Background}"
+                                          BorderBrush="{TemplateBinding BorderBrush}"
+                                          BorderThickness="{TemplateBinding BorderThickness}"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          Padding="{TemplateBinding Padding}"
+                                          RecognizesAccessKey="True"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          CornerRadius="{TemplateBinding CornerRadius}"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+
+        <!-- ========================================== -->
         <!-- PRIMARY BUTTON (Schwarz mit weißem Text)   -->
         <!-- ========================================== -->
         <Style Selector="Button.Primary">
@@ -43,7 +83,7 @@
             <Setter Property="Background" Value="White"/>
             <Setter Property="Foreground" Value="Black"/>
             <Setter Property="BorderBrush" Value="Black"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderThickness" Value="0.7"/>
             <Setter Property="CornerRadius" Value="4"/>
             <Setter Property="Padding" Value="16,8"/>
             <Setter Property="FontWeight" Value="SemiBold"/>

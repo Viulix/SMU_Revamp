@@ -103,7 +103,7 @@ public partial class CurvePlotView : UserControl
             Redraw();
         };
 
-        SizeChanged += (_, _) => Redraw();
+        PlotCanvas.SizeChanged += (_, _) => Redraw();
     }
 
     private void UpdateLabels()
@@ -287,8 +287,8 @@ public partial class CurvePlotView : UserControl
             PlotCanvas.Children.Add(xLabel);
 
             var yLabelText = LogarithmicY
-                ? $"10^{Math.Round(Math.Log10(yValue))}"
-                : yValue.ToString("0.###E0", CultureInfo.InvariantCulture);
+                ? $"1E{(int)Math.Round(Math.Log10(yValue))}"
+                : yValue.ToString("0.00E+0", CultureInfo.InvariantCulture);
             var yLabel = new TextBlock
             {
                 Text = yLabelText,
@@ -362,8 +362,8 @@ public partial class CurvePlotView : UserControl
 
         if (points.Count == 2)
         {
-            figure.Segments.Add(new LineSegment { Point = points[1] });
-            geometry.Figures.Add(figure);
+            figure.Segments!.Add(new LineSegment { Point = points[1] });
+            geometry.Figures!.Add(figure);
             return geometry;
         }
 
@@ -411,10 +411,10 @@ public partial class CurvePlotView : UserControl
             var cp1 = new Point(p1.X + h / 3.0, p1.Y + t[i] * h / 3.0);
             var cp2 = new Point(p2.X - h / 3.0, p2.Y - t[i + 1] * h / 3.0);
 
-            figure.Segments.Add(new BezierSegment { Point1 = cp1, Point2 = cp2, Point3 = p2 });
+            figure.Segments!.Add(new BezierSegment { Point1 = cp1, Point2 = cp2, Point3 = p2 });
         }
 
-        geometry.Figures.Add(figure);
+        geometry.Figures!.Add(figure);
         return geometry;
     }
 

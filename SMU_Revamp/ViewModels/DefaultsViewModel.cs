@@ -97,7 +97,7 @@ namespace SMU_Revamp.ViewModels
             {
                 foreach (var param in plan.Parameters)
                 {
-                    if (_originalValuesObj.TryGetValue($"{plan.Name}_{param.Name}", out object originalObj))
+                    if (_originalValuesObj.TryGetValue($"{plan.Name}_{param.Name}", out object? originalObj))
                     {
                         var origStr = originalObj?.ToString() ?? "";
                         var currStr = param.GetValueAsString();
@@ -119,7 +119,7 @@ namespace SMU_Revamp.ViewModels
             {
                 foreach (var param in plan.Parameters)
                 {
-                    if (_originalValuesObj.TryGetValue($"{plan.Name}_{param.Name}", out object originalObj))
+                    if (_originalValuesObj.TryGetValue($"{plan.Name}_{param.Name}", out object? originalObj))
                     {
                         param.Value = originalObj;
                     }
