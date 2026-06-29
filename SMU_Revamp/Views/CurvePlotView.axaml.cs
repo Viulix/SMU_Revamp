@@ -347,28 +347,69 @@ public partial class CurvePlotView : UserControl
             {
                 Stroke = brush,
                 StrokeThickness = 2,
-                Data = CreateSpline(canvasPoints, 0.3)
+                Data = CreateAkimaSpline(canvasPoints)
             };
             PlotCanvas.Children.Add(path);
         }
     }
 
-    private PathGeometry CreateSpline(List<Point> points, double tension)
+    private PathGeometry CreateAkimaSpline(List<Point> points)
     {
         var geometry = new PathGeometry();
         if (points.Count < 2) return geometry;
 
         var figure = new PathFigure { StartPoint = points[0], IsClosed = false };
 
-        for (int i = 0; i < points.Count - 1; i++)
+        if (points.Count == 2)
         {
-            var p0 = i == 0 ? points[0] : points[i - 1];
+            figure.Segments.Add(new LineSegment { Point = points[1] });
+            geometry.Figures.Add(figure);
+            return geometry;
+        }
+
+        int n = points.Count;
+        double[] m = new double[n + 3];
+
+        for (int i = 0; i < n - 1; i++)
+        {
+            double dx = points[i + 1].X - points[i].X;
+            m[i + 2] = Math.Abs(dx) > 1e-12 ? (points[i + 1].Y - points[i].Y) / dx : 0.0;
+        }
+
+        m[1] = 2 * m[2] - m[3];
+        m[0] = 2 * m[1] - m[2];
+        m[n + 1] = 2 * m[n] - m[n - 1];
+        m[n + 2] = 2 * m[n + 1] - m[n];
+
+        double[] t = new double[n];
+        for (int i = 0; i < n; i++)
+        {
+            double m_im2 = m[i];
+            double m_im1 = m[i + 1];
+            double m_i = m[i + 2];
+            double m_ip1 = m[i + 3];
+
+            double w1 = Math.Abs(m_ip1 - m_i);
+            double w2 = Math.Abs(m_im1 - m_im2);
+
+            if (w1 + w2 > 1e-12)
+            {
+                t[i] = (w1 * m_im1 + w2 * m_i) / (w1 + w2);
+            }
+            else
+            {
+                t[i] = 0.5 * (m_im1 + m_i);
+            }
+        }
+
+        for (int i = 0; i < n - 1; i++)
+        {
             var p1 = points[i];
             var p2 = points[i + 1];
-            var p3 = i + 2 < points.Count ? points[i + 2] : p2;
+            double h = p2.X - p1.X;
 
-            var cp1 = new Point(p1.X + (p2.X - p0.X) * tension, p1.Y + (p2.Y - p0.Y) * tension);
-            var cp2 = new Point(p2.X - (p3.X - p1.X) * tension, p2.Y - (p3.Y - p1.Y) * tension);
+            var cp1 = new Point(p1.X + h / 3.0, p1.Y + t[i] * h / 3.0);
+            var cp2 = new Point(p2.X - h / 3.0, p2.Y - t[i + 1] * h / 3.0);
 
             figure.Segments.Add(new BezierSegment { Point1 = cp1, Point2 = cp2, Point3 = p2 });
         }
