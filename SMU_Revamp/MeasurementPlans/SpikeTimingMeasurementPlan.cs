@@ -196,6 +196,12 @@ namespace SMU_Revamp.MeasurementPlans
                     }
                     ReportTrialProgress(0.22);
 
+                    int pointsCount = (int)Math.Round(settings.ReadoutDurationMs / settings.ReadoutIntervalMs);
+                    if (pointsCount < 1) pointsCount = 1;
+                    if (pointsCount > 4001) pointsCount = 4001;
+
+                    await ConfigureSweepReadoutAsync(smu, settings, pointsCount);
+
                     var trialStopwatch = Stopwatch.StartNew();
                     await RunSpikePatternAsync(smu, settings, item.Pattern, trialStopwatch, cts.Token, patternFraction =>
                     {
@@ -203,8 +209,8 @@ namespace SMU_Revamp.MeasurementPlans
                     });
                     ReportTrialProgress(0.60);
 
-                    // Continuous Sweep Readout
-                    var sampledPoints = await RunSweepReadoutAsync(smu, settings, cts.Token);
+                    // Start and read sweep readout
+                    var sampledPoints = await StartAndReadSweepReadoutAsync(smu, settings, pointsCount, cts.Token);
                     ReportTrialProgress(0.95);
 
                     ResultPoints.Clear();
@@ -591,7 +597,11 @@ namespace SMU_Revamp.MeasurementPlans
             {
                 double targetStartMs = pattern.SpikeStartTimesMs[i];
                 await WaitUntilElapsedAsync(trialStopwatch, targetStartMs, ct, progressCallback, Math.Max(pattern.LastSpikeEndMs, 1.0));
-                await ApplyVoltagePulseAsync(smu, s.WriteChannel, s.SpikeVoltage, s.SpikeLengthMs, s.Compliance, ct);
+
+                bool isLastSpike = (i == pattern.SpikeStartTimesMs.Length - 1);
+                double endingVoltage = isLastSpike ? s.ReadVoltage : 0.0;
+
+                await ApplyVoltagePulseAsync(smu, s.WriteChannel, s.SpikeVoltage, s.SpikeLengthMs, s.Compliance, ct, endingVoltage);
                 progressCallback?.Invoke(Math.Clamp(trialStopwatch.Elapsed.TotalMilliseconds / Math.Max(pattern.LastSpikeEndMs, 1.0), 0.0, 1.0));
             }
 
@@ -599,13 +609,20 @@ namespace SMU_Revamp.MeasurementPlans
             progressCallback?.Invoke(1.0);
         }
 
-        private async Task ApplyVoltagePulseAsync(E5263_SMU smu, string channel, double voltage, double pulseLengthMs, double compliance, CancellationToken ct)
+        private async Task ApplyVoltagePulseAsync(E5263_SMU smu, string channel, double voltage, double pulseLengthMs, double compliance, CancellationToken ct, double endingVoltage = 0.0)
         {
             ct.ThrowIfCancellationRequested();
             await smu.SendCommandAsync($"DZ {channel}");
             await smu.SendCommandAsync(FormattableString.Invariant($"DV {channel},0,{voltage},{compliance}"));
             await WaitMillisecondsAccurateAsync(pulseLengthMs, ct);
-            await smu.SendCommandAsync($"DZ {channel}");
+            if (endingVoltage == 0.0)
+            {
+                await smu.SendCommandAsync($"DZ {channel}");
+            }
+            else
+            {
+                await smu.SendCommandAsync(FormattableString.Invariant($"DV {channel},0,{endingVoltage},{compliance}"));
+            }
         }
 
         private async Task<double> ReadCurrentPulseAsync(E5263_SMU smu, SpikeTimingSettings s, CancellationToken ct)
@@ -624,14 +641,8 @@ namespace SMU_Revamp.MeasurementPlans
             return ParseCurrent(response, s.InvertCurrent);
         }
 
-        private async Task<List<CurvePoint>> RunSweepReadoutAsync(E5263_SMU smu, SpikeTimingSettings s, CancellationToken ct)
+        private async Task ConfigureSweepReadoutAsync(E5263_SMU smu, SpikeTimingSettings s, int pointsCount)
         {
-            ct.ThrowIfCancellationRequested();
-
-            int pointsCount = (int)Math.Round(s.ReadoutDurationMs / s.ReadoutIntervalMs);
-            if (pointsCount < 1) pointsCount = 1;
-            if (pointsCount > 4001) pointsCount = 4001;
-
             double intervalSec = s.ReadoutIntervalMs / 1000.0;
 
             await smu.SendCommandAsync("AV 1,0");
@@ -669,6 +680,17 @@ namespace SMU_Revamp.MeasurementPlans
             }
 
             await smu.SendCommandAsync("TSR");
+            var tsrError = await smu.CheckErrorAsync();
+            if (tsrError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected TSR in Sweep Readout: {tsrError}");
+            }
+        }
+
+        private async Task<List<CurvePoint>> StartAndReadSweepReadoutAsync(E5263_SMU smu, SpikeTimingSettings s, int pointsCount, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
             await smu.SendCommandAsync("XE");
 
             double totalDurationMs = s.ReadoutDurationMs + 200.0;
