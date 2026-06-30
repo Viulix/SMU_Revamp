@@ -196,11 +196,19 @@ namespace SMU_Revamp.MeasurementPlans
                     }
                     ReportTrialProgress(0.22);
 
-                    int pointsCount = (int)Math.Round(settings.ReadoutDurationMs / settings.ReadoutIntervalMs);
-                    if (pointsCount < 1) pointsCount = 1;
-                    if (pointsCount > 10001) pointsCount = 10001; // Max points for sampling on E5263
+                    double effectiveIntervalMs = settings.ReadoutIntervalMs;
+                    int pointsCount = (int)Math.Round(settings.ReadoutDurationMs / effectiveIntervalMs);
+                    
+                    // The E5263 hardware limits sweep points to 1001.
+                    // If the user requests more, we must increase the interval to cover the duration.
+                    if (pointsCount > 1001)
+                    {
+                        pointsCount = 1001;
+                        effectiveIntervalMs = settings.ReadoutDurationMs / 1000.0;
+                    }
+                    if (pointsCount < 2) pointsCount = 2; // Sweep needs at least 2 points
 
-                    await ConfigureSweepReadoutAsync(smu, settings, pointsCount);
+                    await ConfigureSweepReadoutAsync(smu, settings, pointsCount, effectiveIntervalMs);
 
                     var trialStopwatch = Stopwatch.StartNew();
                     await RunSpikePatternAsync(smu, settings, item.Pattern, trialStopwatch, cts.Token, patternFraction =>
@@ -210,7 +218,7 @@ namespace SMU_Revamp.MeasurementPlans
                     ReportTrialProgress(0.60);
 
                     // Start and read sweep readout
-                    var sampledPoints = await StartAndReadSweepReadoutAsync(smu, settings, pointsCount, cts.Token);
+                    var sampledPoints = await StartAndReadSweepReadoutAsync(smu, settings, pointsCount, effectiveIntervalMs, cts.Token);
                     ReportTrialProgress(0.95);
 
                     ResultPoints.Clear();
@@ -641,33 +649,40 @@ namespace SMU_Revamp.MeasurementPlans
             return ParseCurrent(response, s.InvertCurrent);
         }
 
-        private async Task ConfigureSweepReadoutAsync(E5263_SMU smu, SpikeTimingSettings s, int pointsCount)
+        private async Task ConfigureSweepReadoutAsync(E5263_SMU smu, SpikeTimingSettings s, int pointsCount, double effectiveIntervalMs)
         {
-            double intervalSec = s.ReadoutIntervalMs / 1000.0;
+            double intervalSec = effectiveIntervalMs / 1000.0;
 
-            await smu.SendCommandAsync("AV 1,0"); // High speed A/D
+            await smu.SendCommandAsync("AV 1,0");
 
-            // Use MT (Sampling mode configuration) instead of WV for constant time sampling.
-            // MT hold_time, interval, number_of_samples
-            var mtCommand = System.FormattableString.Invariant($"MT 0,{intervalSec:F5},{pointsCount}");
-            await smu.SendCommandAsync(mtCommand);
+            // Hardware Sweep requires start != stop for some firmware versions. Add 0.1 mV difference.
+            double readStart = s.ReadVoltage;
+            double readStop = s.ReadVoltage + 0.0001; 
 
-            var mtError = await smu.CheckErrorAsync();
-            if (mtError != null)
+            var wvCommand = System.FormattableString.Invariant($"WV {s.WriteChannel},1,0,{readStart},{readStop},{pointsCount},{s.Compliance}");
+            await smu.SendCommandAsync(wvCommand);
+
+            var wvError = await smu.CheckErrorAsync();
+            if (wvError != null)
             {
-                throw new InvalidOperationException($"SMU rejected MT command in Sweep Readout: {mtError}");
+                throw new InvalidOperationException($"SMU rejected WV command in Sweep Readout: {wvError}");
             }
 
-            // Fixed range is often required for Sampling Mode. E.g. setting RI ch,0 is auto but some models need a fixed range (e.g. -1A).
-            // We'll set auto-range for now, if it rejects, we might need a fixed negative value.
+            var wtCommand = System.FormattableString.Invariant($"WT 0,{intervalSec:F5},{intervalSec:F5}");
+            await smu.SendCommandAsync(wtCommand);
+            var wtError = await smu.CheckErrorAsync();
+            if (wtError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected WT command: {wtError}");
+            }
+
             await smu.SendCommandAsync($"RI {s.ReadingChannel},0");
             
-            // MM 10 is Sampling Mode
-            await smu.SendCommandAsync($"MM 10,{s.ReadingChannel}");
+            await smu.SendCommandAsync($"MM 2,{s.ReadingChannel}");
             var mmError = await smu.CheckErrorAsync();
             if (mmError != null)
             {
-                throw new InvalidOperationException($"SMU rejected MM 10 in Sweep Readout: {mmError}");
+                throw new InvalidOperationException($"SMU rejected MM 2 in Sweep Readout: {mmError}");
             }
 
             await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
@@ -685,7 +700,7 @@ namespace SMU_Revamp.MeasurementPlans
             }
         }
 
-        private async Task<List<CurvePoint>> StartAndReadSweepReadoutAsync(E5263_SMU smu, SpikeTimingSettings s, int pointsCount, CancellationToken ct)
+        private async Task<List<CurvePoint>> StartAndReadSweepReadoutAsync(E5263_SMU smu, SpikeTimingSettings s, int pointsCount, double effectiveIntervalMs, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -704,7 +719,7 @@ namespace SMU_Revamp.MeasurementPlans
             await smu.SendCommandAsync($"AV -{config.SweepAdcSamples},0");
             await smu.SendCommandAsync($"DZ {s.WriteChannel}");
 
-            return ParseSweepReadoutResponse(response, s.ReadoutIntervalMs, s.InvertCurrent);
+            return ParseSweepReadoutResponse(response, effectiveIntervalMs, s.InvertCurrent);
         }
 
         private List<CurvePoint> ParseSweepReadoutResponse(string rawData, double intervalMs, bool invertCurrent)
