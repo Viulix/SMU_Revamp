@@ -134,7 +134,7 @@
                     </Border>
 
                     <!-- Normal Viewer UI -->
-                    <Grid IsVisible="{Binding IsPlottedPlanLoaded}" Margin="20" RowDefinitions="Auto, *">
+                    <Grid IsVisible="{Binding IsPlottedPlanLoaded}" Margin="20" RowDefinitions="Auto, *, Auto">
                         <!-- Top Control Bar -->
                         <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,10">
                                 <!-- Left: Plan Information (Responsive Grid) -->
@@ -164,6 +164,8 @@
                                                   SelectedItem="{Binding SelectedPlotStyleString}"
                                                   Width="150" Height="32" VerticalContentAlignment="Center"/>
                                     </StackPanel>
+
+                                    <CheckBox Content="Logarithmic X" IsChecked="{Binding IsViewerLogarithmicX}" VerticalAlignment="Center" Foreground="#4B5563" FontWeight="SemiBold"/>
                                     
                                     <Button Content="Import File" 
                                             Click="ImportFileButton_Click"
@@ -189,7 +191,8 @@
                                                          YAxisLabel="{Binding YAxisTitle}"
                                                          Series="{Binding PlotSeries}"
                                                          Points="{Binding CurvePoints}"
-                                                         PlotStyle="{Binding SelectedPlotStyle}" />
+                                                         PlotStyle="{Binding SelectedPlotStyle}"
+                                                         LogarithmicX="{Binding IsViewerLogarithmicX}" />
                                 </Border>
                                 <Border IsVisible="{Binding IsLogPlotVisible}" Margin="5">
                                     <views:CurvePlotView Title="{Binding LogPlotTitle}"
@@ -198,15 +201,42 @@
                                                          Series="{Binding PlotSeries}"
                                                          Points="{Binding CurvePoints}"
                                                          PlotStyle="{Binding SelectedPlotStyle}"
-                                                         LogarithmicY="True" />
+                                                         LogarithmicY="True"
+                                                         LogarithmicX="{Binding IsViewerLogarithmicX}" />
                                 </Border>
                             </UniformGrid>
+
+                            <!-- Measurement Settings & Stats -->
+                            <Border Grid.Row="2" Background="#EEF2F6" CornerRadius="6" Padding="15" Margin="0,15,0,0">
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" MaxHeight="150">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="Measurement Settings" FontWeight="SemiBold" FontSize="16" Foreground="#1F2937" />
+                                        <ItemsControl ItemsSource="{Binding PlottedPlan.Parameters}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,0,20,5">
+                                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="#4B5563" />
+                                                        <TextBlock Text="{Binding Value}" Foreground="#1F2937" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
                     </Grid>
                 </Grid>
             </TabItem>
             <TabItem Header="Measurements">
-                <ScrollViewer Margin="20" HorizontalScrollBarVisibility="Disabled">
-                    <Grid ColumnDefinitions="1.4*, *" RowDefinitions="Auto, *" Margin="10">
+                <Grid RowDefinitions="*, Auto" Margin="20">
+                    <Grid Grid.Row="0">
+                        <ScrollViewer x:Name="MeasurementScrollViewer" HorizontalScrollBarVisibility="Disabled" ScrollChanged="MeasurementScrollViewer_ScrollChanged">
+                            <Grid ColumnDefinitions="1.4*, *" RowDefinitions="Auto, *" Margin="10">
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Measurement Configuration" FontSize="18" FontWeight="SemiBold" />
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="Measurement Status &amp; Diagnostics" FontSize="18" FontWeight="SemiBold" Margin="20,0,0,0" />
                         
@@ -294,21 +324,6 @@
                                       IsChecked="{Binding AutoSaveMeasurements}"
                                       Margin="0,5,0,0" />
 
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <Button Content="Run Measurement" 
-                                        Command="{Binding RunMeasurementCommand}" 
-                                        IsEnabled="{Binding !IsMeasuring}"
-                                        Classes="Primary" 
-                                        Width="180" 
-                                        Margin="0,15,0,0" />
-
-                                <Button Content="Export to CSV" 
-                                        Click="ExportCsvButton_Click"
-                                        IsEnabled="{Binding HasCurvePoints}"
-                                        Classes="Secondary" 
-                                        Width="150" 
-                                        Margin="0,15,0,0" />
-                            </StackPanel>
                         </StackPanel>
 
                         <!-- Right Column: Status -->
@@ -348,7 +363,10 @@
                                        MaxWidth="400" 
                                        HorizontalAlignment="Left" />
 
-                            <CheckBox Content="Logarithmic Y-Axis" IsChecked="{Binding IsMeasurementLogarithmic}" Margin="0,10,0,0" />
+                            <StackPanel Orientation="Horizontal" Spacing="15" Margin="0,10,0,0">
+                                <CheckBox Content="Logarithmic X-Axis" IsChecked="{Binding IsMeasurementLogarithmicX}" />
+                                <CheckBox Content="Logarithmic Y-Axis" IsChecked="{Binding IsMeasurementLogarithmic}" />
+                            </StackPanel>
                             <Border Height="400" HorizontalAlignment="Stretch">
                                 <views:CurvePlotView Title="Live Measurement Preview"
                                                      XAxisLabel="{Binding XAxisTitle}"
@@ -356,12 +374,52 @@
                                                      Series="{Binding PlotSeries}"
                                                      Points="{Binding CurvePoints}"
                                                      PlotStyle="{Binding SelectedPlotStyle}"
-                                                     LogarithmicY="{Binding IsMeasurementLogarithmic}" />
+                                                     LogarithmicY="{Binding IsMeasurementLogarithmic}"
+                                                     LogarithmicX="{Binding IsMeasurementLogarithmicX}" />
                             </Border>
                         </StackPanel>
+                            </Grid>
+                        </ScrollViewer>
+
+                        <!-- Scroll Indicator -->
+                        <Border x:Name="MeasurementScrollIndicator" 
+                                VerticalAlignment="Bottom" 
+                                Height="30" 
+                                IsHitTestVisible="False"
+                                Opacity="0">
+                            <Border.Transitions>
+                                <Transitions>
+                                    <DoubleTransition Property="Opacity" Duration="0:0:0.2"/>
+                                </Transitions>
+                            </Border.Transitions>
+                            <Path Data="M0,0 L6,6 L12,0" 
+                                  Stroke="#888888" 
+                                  StrokeThickness="2" 
+                                  Fill="Transparent" 
+                                  HorizontalAlignment="Center" 
+                                  VerticalAlignment="Bottom" 
+                                  Margin="0,0,0,10"/>
+                        </Border>
                     </Grid>
-                </ScrollViewer>
-            </TabItem>
+                
+                <!-- Fixed Action Buttons at the Bottom -->
+                <Border Grid.Row="1" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="10,15,10,0" Margin="0,10,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Content="Run Measurement" 
+                                Command="{Binding RunMeasurementCommand}" 
+                                IsEnabled="{Binding !IsMeasuring}"
+                                Classes="Primary" 
+                                Width="180" />
+
+                        <Button Content="Export to CSV" 
+                                Click="ExportCsvButton_Click"
+                                IsEnabled="{Binding HasCurvePoints}"
+                                Classes="Secondary" 
+                                Width="150" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </TabItem>
 
             <TabItem Header="Wafermap">
                 <ScrollViewer Margin="20" HorizontalScrollBarVisibility="Disabled">

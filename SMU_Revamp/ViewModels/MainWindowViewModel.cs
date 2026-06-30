@@ -191,6 +191,20 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _isMeasurementLogarithmic, value);
     }
 
+    private bool _isMeasurementLogarithmicX = false;
+    public bool IsMeasurementLogarithmicX
+    {
+        get => _isMeasurementLogarithmicX;
+        set => SetProperty(ref _isMeasurementLogarithmicX, value);
+    }
+
+    private bool _isViewerLogarithmicX = false;
+    public bool IsViewerLogarithmicX
+    {
+        get => _isViewerLogarithmicX;
+        set => SetProperty(ref _isViewerLogarithmicX, value);
+    }
+
     private List<ParameterSection> _selectedPlanSections = new();
     public List<ParameterSection> SelectedPlanSections
     {

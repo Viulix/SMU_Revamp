@@ -199,4 +199,19 @@ public partial class MainWindow : Window
             }
         }
     }
+
+    private void MeasurementScrollViewer_ScrollChanged(object? sender, Avalonia.Controls.ScrollChangedEventArgs e)
+    {
+        if (sender is ScrollViewer sv)
+        {
+            var indicator = this.FindControl<Border>("MeasurementScrollIndicator");
+            if (indicator != null)
+            {
+                // Show indicator if there is still content to scroll down to
+                bool canScrollDown = sv.Extent.Height > sv.Viewport.Height && 
+                                     sv.Offset.Y < (sv.Extent.Height - sv.Viewport.Height) - 1.0;
+                indicator.Opacity = canScrollDown ? 1.0 : 0.0;
+            }
+        }
+    }
 }
