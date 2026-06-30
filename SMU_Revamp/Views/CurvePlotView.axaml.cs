@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
+using Avalonia.Media;
 using SMU_Revamp.Models;
-using ScottPlot;
 
 namespace SMU_Revamp.Views;
 
@@ -19,160 +21,401 @@ public partial class CurvePlotView : UserControl
     public static readonly StyledProperty<string?> YAxisLabelProperty =
         AvaloniaProperty.Register<CurvePlotView, string?>(nameof(YAxisLabel));
 
+    /// <summary>
+    /// Legacy single-series input. Kept so old XAML/views continue to work.
+    /// Prefer Series for new multi-curve measurements.
+    /// </summary>
     public static readonly StyledProperty<IEnumerable<CurvePoint>?> PointsProperty =
         AvaloniaProperty.Register<CurvePlotView, IEnumerable<CurvePoint>?>(nameof(Points));
 
+    /// <summary>
+    /// Multi-series input. If this contains valid series, it takes precedence over Points.
+    /// </summary>
     public static readonly StyledProperty<IEnumerable<PlotSeries>?> SeriesProperty =
         AvaloniaProperty.Register<CurvePlotView, IEnumerable<PlotSeries>?>(nameof(Series));
 
     public static readonly StyledProperty<bool> LogarithmicYProperty =
         AvaloniaProperty.Register<CurvePlotView, bool>(nameof(LogarithmicY));
 
-    public static readonly StyledProperty<bool> LogarithmicXProperty =
-        AvaloniaProperty.Register<CurvePlotView, bool>(nameof(LogarithmicX));
-
-    public static readonly StyledProperty<SMU_Revamp.Models.PlotStyle> PlotStyleProperty =
-        AvaloniaProperty.Register<CurvePlotView, SMU_Revamp.Models.PlotStyle>(nameof(PlotStyle), SMU_Revamp.Models.PlotStyle.Line);
-
     static CurvePlotView()
     {
-        TitleProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        XAxisLabelProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        YAxisLabelProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
+        TitleProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.UpdateLabels());
+        XAxisLabelProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.UpdateLabels());
+        YAxisLabelProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.UpdateLabels());
         PointsProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
         SeriesProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
         LogarithmicYProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        LogarithmicXProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        PlotStyleProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
     }
 
-    public string? Title { get => GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
-    public string? XAxisLabel { get => GetValue(XAxisLabelProperty); set => SetValue(XAxisLabelProperty, value); }
-    public string? YAxisLabel { get => GetValue(YAxisLabelProperty); set => SetValue(YAxisLabelProperty, value); }
-    public IEnumerable<CurvePoint>? Points { get => GetValue(PointsProperty); set => SetValue(PointsProperty, value); }
-    public IEnumerable<PlotSeries>? Series { get => GetValue(SeriesProperty); set => SetValue(SeriesProperty, value); }
-    public bool LogarithmicY { get => GetValue(LogarithmicYProperty); set => SetValue(LogarithmicYProperty, value); }
-    public bool LogarithmicX { get => GetValue(LogarithmicXProperty); set => SetValue(LogarithmicXProperty, value); }
-    public SMU_Revamp.Models.PlotStyle PlotStyle { get => GetValue(PlotStyleProperty); set => SetValue(PlotStyleProperty, value); }
+    public string? Title
+    {
+        get => GetValue(TitleProperty);
+        set => SetValue(TitleProperty, value);
+    }
+
+    public string? XAxisLabel
+    {
+        get => GetValue(XAxisLabelProperty);
+        set => SetValue(XAxisLabelProperty, value);
+    }
+
+    public string? YAxisLabel
+    {
+        get => GetValue(YAxisLabelProperty);
+        set => SetValue(YAxisLabelProperty, value);
+    }
+
+    public IEnumerable<CurvePoint>? Points
+    {
+        get => GetValue(PointsProperty);
+        set => SetValue(PointsProperty, value);
+    }
+
+    public IEnumerable<PlotSeries>? Series
+    {
+        get => GetValue(SeriesProperty);
+        set => SetValue(SeriesProperty, value);
+    }
+
+    public bool LogarithmicY
+    {
+        get => GetValue(LogarithmicYProperty);
+        set => SetValue(LogarithmicYProperty, value);
+    }
 
     public CurvePlotView()
     {
         InitializeComponent();
-        AttachedToVisualTree += (_, _) => Redraw();
+
+        AttachedToVisualTree += (_, _) =>
+        {
+            UpdateLabels();
+            Redraw();
+        };
+
+        SizeChanged += (_, _) => Redraw();
     }
 
-    private List<PlotSeries> GetEffectiveSeries()
+    private void UpdateLabels()
     {
-        var suppliedSeries = Series?.Where(s => s.Points.Count >= 2).ToList() ?? new List<PlotSeries>();
-        if (suppliedSeries.Count > 0) return suppliedSeries;
+        if (TitleText is not null)
+        {
+            TitleText.Text = Title ?? string.Empty;
+        }
 
-        var points = Points?.ToList() ?? new List<CurvePoint>();
-        return points.Count >= 2
-            ? new List<PlotSeries> { new PlotSeries(Title ?? "Data", points) }
-            : new List<PlotSeries>();
+        if (XAxisText is not null)
+        {
+            XAxisText.Text = XAxisLabel ?? string.Empty;
+        }
+
+        if (YAxisText is not null)
+        {
+            YAxisText.Text = YAxisLabel ?? string.Empty;
+        }
     }
 
     private void Redraw()
     {
-        if (AvaPlot is null) return;
-        AvaPlot.Plot.Clear();
-
-        var series = GetEffectiveSeries();
-        if (series.Count == 0)
+        if (PlotCanvas is null)
         {
-            AvaPlot.Plot.Title("No curve data");
-            AvaPlot.Refresh();
             return;
         }
 
-        AvaPlot.Plot.Title(Title ?? string.Empty);
-        AvaPlot.Plot.Axes.Bottom.Label.Text = XAxisLabel ?? string.Empty;
-        AvaPlot.Plot.Axes.Left.Label.Text = YAxisLabel ?? string.Empty;
+        PlotCanvas.Children.Clear();
 
-        // Configure X Axis
-        if (LogarithmicX)
+        var series = GetEffectiveSeries();
+        var allPoints = series.SelectMany(s => s.Points).ToList();
+
+        if (allPoints.Count < 1 || PlotCanvas.Bounds.Width <= 0 || PlotCanvas.Bounds.Height <= 0)
         {
-            var tickGen = new ScottPlot.TickGenerators.NumericAutomatic()
-            {
-                MinorTickGenerator = new ScottPlot.TickGenerators.LogMinorTickGenerator(),
-                LabelFormatter = (double val) => $"1E{(int)Math.Round(val)}"
-            };
-            AvaPlot.Plot.Axes.Bottom.TickGenerator = tickGen;
-        }
-        else
-        {
-            AvaPlot.Plot.Axes.Bottom.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
+            DrawEmptyState();
+            return;
         }
 
-        // Configure Y Axis
-        if (LogarithmicY)
+        var marginLeft = 58.0;
+        var marginRight = series.Count > 1 ? 120.0 : 18.0;
+        var marginTop = 16.0;
+        var marginBottom = 28.0;
+
+        var width = Math.Max(1, PlotCanvas.Bounds.Width - marginLeft - marginRight);
+        var height = Math.Max(1, PlotCanvas.Bounds.Height - marginTop - marginBottom);
+
+        var xMin = allPoints.Min(p => p.X);
+        var xMax = allPoints.Max(p => p.X);
+        if (Math.Abs(xMax - xMin) < 1e-12)
         {
-            var tickGen = new ScottPlot.TickGenerators.NumericAutomatic()
-            {
-                MinorTickGenerator = new ScottPlot.TickGenerators.LogMinorTickGenerator(),
-                LabelFormatter = (double val) => $"1E{(int)Math.Round(val)}"
-            };
-            AvaPlot.Plot.Axes.Left.TickGenerator = tickGen;
+            xMax = xMin + 1;
         }
-        else
+
+        var yBounds = allPoints.SelectMany(GetPointYBounds).ToList();
+        var yValues = yBounds
+            .Select(y => LogarithmicY ? Math.Max(Math.Abs(y), 1e-12) : y)
+            .Select(y => LogarithmicY ? Math.Log10(y) : y)
+            .ToList();
+
+        var yMin = yValues.Min();
+        var yMax = yValues.Max();
+        if (Math.Abs(yMax - yMin) < 1e-12)
         {
-            AvaPlot.Plot.Axes.Left.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
+            yMax = yMin + 1;
         }
 
-        bool drawLine = PlotStyle == SMU_Revamp.Models.PlotStyle.Line || PlotStyle == SMU_Revamp.Models.PlotStyle.LineAndScatter || PlotStyle == SMU_Revamp.Models.PlotStyle.InterpolatedLine || PlotStyle == SMU_Revamp.Models.PlotStyle.InterpolatedLineAndScatter;
-        bool drawScatter = PlotStyle == SMU_Revamp.Models.PlotStyle.Scatter || PlotStyle == SMU_Revamp.Models.PlotStyle.LineAndScatter || PlotStyle == SMU_Revamp.Models.PlotStyle.InterpolatedLineAndScatter;
+        DrawBackground(width, height, marginLeft, marginTop, marginBottom, marginRight, xMin, xMax, yMin, yMax);
 
-        foreach (var s in series)
+        for (int i = 0; i < series.Count; i++)
         {
-            var xs = new double[s.Points.Count];
-            var ys = new double[s.Points.Count];
-            
-            for (int i = 0; i < s.Points.Count; i++)
-            {
-                double x = s.Points[i].X;
-                double y = s.Points[i].Y;
-
-                if (LogarithmicX) x = Math.Log10(Math.Max(Math.Abs(x), 1e-12));
-                if (LogarithmicY) y = Math.Log10(Math.Max(Math.Abs(y), 1e-12));
-
-                xs[i] = x;
-                ys[i] = y;
-            }
-
-            var sp = AvaPlot.Plot.Add.Scatter(xs, ys);
-            sp.LegendText = s.Name;
-            
-            if (drawLine && drawScatter)
-            {
-                sp.LineWidth = 2;
-                sp.MarkerSize = 5;
-            }
-            else if (drawLine)
-            {
-                sp.LineWidth = 2;
-                sp.MarkerSize = 0;
-            }
-            else if (drawScatter)
-            {
-                sp.LineWidth = 0;
-                sp.MarkerSize = 5;
-            }
+            DrawCurve(series[i].Points, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax, GetSeriesBrush(i));
         }
 
         if (series.Count > 1)
         {
-            AvaPlot.Plot.ShowLegend();
+            DrawLegend(series, marginLeft + width + 16, marginTop);
         }
-        else
+    }
+
+    private static IEnumerable<double> GetPointYBounds(CurvePoint point)
+    {
+        yield return point.Y;
+
+        if (point.YError is double error && error > 0 && !double.IsNaN(error) && !double.IsInfinity(error))
         {
-            AvaPlot.Plot.HideLegend();
+            yield return point.Y - error;
+            yield return point.Y + error;
+        }
+    }
+
+    private List<PlotSeries> GetEffectiveSeries()
+    {
+        var suppliedSeries = Series?
+            .Where(s => s.Points.Count > 0)
+            .ToList() ?? new List<PlotSeries>();
+
+        if (suppliedSeries.Count > 0)
+        {
+            return suppliedSeries;
         }
 
-        AvaPlot.Plot.Axes.Margins(0.05, 0.05);
+        var points = Points?.ToList() ?? new List<CurvePoint>();
+        return points.Count > 0
+            ? new List<PlotSeries> { new PlotSeries(Title ?? "Data", points) }
+            : new List<PlotSeries>();
+    }
 
-        AvaPlot.Plot.Grid.MajorLineColor = ScottPlot.Colors.Black.WithOpacity(0.15);
-        AvaPlot.Plot.Grid.MinorLineColor = ScottPlot.Colors.Black.WithOpacity(0.05);
+    private void DrawEmptyState()
+    {
+        var text = new TextBlock
+        {
+            Text = "No curve data",
+            Foreground = new SolidColorBrush(Color.Parse("#606060"))
+        };
 
-        AvaPlot.Refresh();
+        Canvas.SetLeft(text, 16);
+        Canvas.SetTop(text, 16);
+        PlotCanvas.Children.Add(text);
+    }
+
+    private void DrawBackground(double width, double height, double marginLeft, double marginTop, double marginBottom, double marginRight, double xMin, double xMax, double yMin, double yMax)
+    {
+        var xAxisY = marginTop + height;
+        var yAxisX = marginLeft;
+
+        PlotCanvas.Children.Add(new Line
+        {
+            StartPoint = new Point(yAxisX, marginTop),
+            EndPoint = new Point(yAxisX, xAxisY),
+            Stroke = new SolidColorBrush(Color.Parse("#202020")),
+            StrokeThickness = 1
+        });
+
+        PlotCanvas.Children.Add(new Line
+        {
+            StartPoint = new Point(yAxisX, xAxisY),
+            EndPoint = new Point(yAxisX + width, xAxisY),
+            Stroke = new SolidColorBrush(Color.Parse("#202020")),
+            StrokeThickness = 1
+        });
+
+        var gridBrush = new SolidColorBrush(Color.Parse("#D0D0D0"));
+        var tickBrush = new SolidColorBrush(Color.Parse("#404040"));
+
+        for (var i = 0; i <= 4; i++)
+        {
+            var ratio = i / 4.0;
+            var x = yAxisX + ratio * width;
+            var y = marginTop + ratio * height;
+
+            PlotCanvas.Children.Add(new Line
+            {
+                StartPoint = new Point(x, marginTop),
+                EndPoint = new Point(x, xAxisY),
+                Stroke = gridBrush,
+                StrokeThickness = 0.75
+            });
+
+            PlotCanvas.Children.Add(new Line
+            {
+                StartPoint = new Point(yAxisX, y),
+                EndPoint = new Point(yAxisX + width, y),
+                Stroke = gridBrush,
+                StrokeThickness = 0.75
+            });
+
+            var xValue = xMin + ratio * (xMax - xMin);
+            var yValue = LogarithmicY ? Math.Pow(10, yMax - ratio * (yMax - yMin)) : yMax - ratio * (yMax - yMin);
+            var xLabel = new TextBlock
+            {
+                Text = xValue.ToString("0.###", CultureInfo.InvariantCulture),
+                FontSize = 11,
+                Foreground = tickBrush
+            };
+            Canvas.SetLeft(xLabel, x - 12);
+            Canvas.SetTop(xLabel, xAxisY + 4);
+            PlotCanvas.Children.Add(xLabel);
+
+            var yLabelText = LogarithmicY
+                ? $"10^{Math.Round(Math.Log10(yValue))}"
+                : yValue.ToString("0.###E0", CultureInfo.InvariantCulture);
+            var yLabel = new TextBlock
+            {
+                Text = yLabelText,
+                FontSize = 11,
+                Foreground = tickBrush
+            };
+            Canvas.SetLeft(yLabel, 4);
+            Canvas.SetTop(yLabel, y - 8);
+            PlotCanvas.Children.Add(yLabel);
+        }
+    }
+
+    private void DrawCurve(IReadOnlyList<CurvePoint> points, double width, double height, double marginLeft, double marginTop, double xMin, double xMax, double yMin, double yMax, IBrush brush)
+    {
+        var orderedPoints = points.OrderBy(p => p.X).ToList();
+
+        if (orderedPoints.Count >= 2)
+        {
+            var polyline = new Polyline
+            {
+                Stroke = brush,
+                StrokeThickness = 2
+            };
+
+            foreach (var point in orderedPoints)
+            {
+                polyline.Points.Add(ToCanvasPoint(point.X, point.Y, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax));
+            }
+
+            PlotCanvas.Children.Add(polyline);
+        }
+
+        foreach (var point in orderedPoints)
+        {
+            DrawErrorBar(point, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax, brush);
+            DrawMarker(point, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax, brush);
+        }
+    }
+
+    private Point ToCanvasPoint(double xValue, double yValue, double width, double height, double marginLeft, double marginTop, double xMin, double xMax, double yMin, double yMax)
+    {
+        var x = marginLeft + ((xValue - xMin) / (xMax - xMin)) * width;
+        var rawY = LogarithmicY ? Math.Log10(Math.Max(Math.Abs(yValue), 1e-12)) : yValue;
+        var y = marginTop + height - ((rawY - yMin) / (yMax - yMin)) * height;
+        return new Point(x, y);
+    }
+
+    private void DrawErrorBar(CurvePoint point, double width, double height, double marginLeft, double marginTop, double xMin, double xMax, double yMin, double yMax, IBrush brush)
+    {
+        if (LogarithmicY)
+        {
+            return;
+        }
+
+        if (point.YError is not double error || error <= 0 || double.IsNaN(error) || double.IsInfinity(error))
+        {
+            return;
+        }
+
+        var center = ToCanvasPoint(point.X, point.Y, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax);
+        var upper = ToCanvasPoint(point.X, point.Y + error, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax);
+        var lower = ToCanvasPoint(point.X, point.Y - error, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax);
+        const double cap = 4.0;
+
+        PlotCanvas.Children.Add(new Line
+        {
+            StartPoint = upper,
+            EndPoint = lower,
+            Stroke = brush,
+            StrokeThickness = 1.2
+        });
+
+        PlotCanvas.Children.Add(new Line
+        {
+            StartPoint = new Point(center.X - cap, upper.Y),
+            EndPoint = new Point(center.X + cap, upper.Y),
+            Stroke = brush,
+            StrokeThickness = 1.2
+        });
+
+        PlotCanvas.Children.Add(new Line
+        {
+            StartPoint = new Point(center.X - cap, lower.Y),
+            EndPoint = new Point(center.X + cap, lower.Y),
+            Stroke = brush,
+            StrokeThickness = 1.2
+        });
+    }
+
+    private void DrawMarker(CurvePoint point, double width, double height, double marginLeft, double marginTop, double xMin, double xMax, double yMin, double yMax, IBrush brush)
+    {
+        var center = ToCanvasPoint(point.X, point.Y, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax);
+        const double r = 3.0;
+        var marker = new Ellipse
+        {
+            Width = 2 * r,
+            Height = 2 * r,
+            Fill = brush,
+            Stroke = brush,
+            StrokeThickness = 1
+        };
+
+        Canvas.SetLeft(marker, center.X - r);
+        Canvas.SetTop(marker, center.Y - r);
+        PlotCanvas.Children.Add(marker);
+    }
+
+    private void DrawLegend(IReadOnlyList<PlotSeries> series, double left, double top)
+    {
+        for (int i = 0; i < series.Count; i++)
+        {
+            var y = top + i * 20;
+            var brush = GetSeriesBrush(i);
+
+            PlotCanvas.Children.Add(new Line
+            {
+                StartPoint = new Point(left, y + 8),
+                EndPoint = new Point(left + 18, y + 8),
+                Stroke = brush,
+                StrokeThickness = 2
+            });
+
+            var label = new TextBlock
+            {
+                Text = series[i].Name,
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.Parse("#303030"))
+            };
+            Canvas.SetLeft(label, left + 24);
+            Canvas.SetTop(label, y);
+            PlotCanvas.Children.Add(label);
+        }
+    }
+
+    private static IBrush GetSeriesBrush(int index)
+    {
+        string[] colors =
+        {
+            "#0A66C2", "#C2185B", "#388E3C", "#F57C00", "#7B1FA2", "#0097A7", "#5D4037", "#455A64"
+        };
+
+        return new SolidColorBrush(Color.Parse(colors[index % colors.Length]));
     }
 }
