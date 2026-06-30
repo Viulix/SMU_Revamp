@@ -1044,8 +1044,13 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public string MeasurementProgressText => IsProgressIndeterminate ? "Running..." : $"{MeasurementProgress:F0}%";
 
-    public bool IsMeasuringSweep => IsMeasuring && (SelectedPlan is USweepMeasurementPlan || SelectedPlan is PulseSweepMeasurementPlan || SelectedPlan is SpikeTimingMeasurementPlan || SelectedPlan is MemristorSweepMeasurementPlan);
-
+    public bool IsMeasuringSweep =>
+        IsMeasuring &&
+        (SelectedPlan is USweepMeasurementPlan ||
+         SelectedPlan is PulseSweepMeasurementPlan ||
+         SelectedPlan is SpikeTimingMeasurementPlan ||
+         SelectedPlan is MemristorSweepMeasurementPlan ||
+         SelectedPlan is FrequencyMemoryMeasurementPlan);
     public ICommand RunMeasurementCommand { get; }
 
     private async Task RunMeasurementAsync()
