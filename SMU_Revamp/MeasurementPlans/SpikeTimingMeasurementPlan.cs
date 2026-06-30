@@ -198,7 +198,7 @@ namespace SMU_Revamp.MeasurementPlans
 
                     int pointsCount = (int)Math.Round(settings.ReadoutDurationMs / settings.ReadoutIntervalMs);
                     if (pointsCount < 1) pointsCount = 1;
-                    if (pointsCount > 4001) pointsCount = 4001;
+                    if (pointsCount > 10001) pointsCount = 10001; // Max points for sampling on E5263
 
                     await ConfigureSweepReadoutAsync(smu, settings, pointsCount);
 
@@ -645,31 +645,29 @@ namespace SMU_Revamp.MeasurementPlans
         {
             double intervalSec = s.ReadoutIntervalMs / 1000.0;
 
-            await smu.SendCommandAsync("AV 1,0");
+            await smu.SendCommandAsync("AV 1,0"); // High speed A/D
 
-            var wvCommand = System.FormattableString.Invariant($"WV {s.WriteChannel},1,0,{s.ReadVoltage},{s.ReadVoltage},{pointsCount},{s.Compliance}");
-            await smu.SendCommandAsync(wvCommand);
+            // Use MT (Sampling mode configuration) instead of WV for constant time sampling.
+            // MT hold_time, interval, number_of_samples
+            var mtCommand = System.FormattableString.Invariant($"MT 0,{intervalSec:F5},{pointsCount}");
+            await smu.SendCommandAsync(mtCommand);
 
-            var wvError = await smu.CheckErrorAsync();
-            if (wvError != null)
+            var mtError = await smu.CheckErrorAsync();
+            if (mtError != null)
             {
-                throw new InvalidOperationException($"SMU rejected WV command in Sweep Readout: {wvError}");
+                throw new InvalidOperationException($"SMU rejected MT command in Sweep Readout: {mtError}");
             }
 
-            var wtCommand = System.FormattableString.Invariant($"WT 0,{intervalSec:F5},{intervalSec:F5}");
-            await smu.SendCommandAsync(wtCommand);
-            var wtError = await smu.CheckErrorAsync();
-            if (wtError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected WT command: {wtError}");
-            }
-
+            // Fixed range is often required for Sampling Mode. E.g. setting RI ch,0 is auto but some models need a fixed range (e.g. -1A).
+            // We'll set auto-range for now, if it rejects, we might need a fixed negative value.
             await smu.SendCommandAsync($"RI {s.ReadingChannel},0");
-            await smu.SendCommandAsync($"MM 2,{s.ReadingChannel}");
+            
+            // MM 10 is Sampling Mode
+            await smu.SendCommandAsync($"MM 10,{s.ReadingChannel}");
             var mmError = await smu.CheckErrorAsync();
             if (mmError != null)
             {
-                throw new InvalidOperationException($"SMU rejected MM 2 in Sweep Readout: {mmError}");
+                throw new InvalidOperationException($"SMU rejected MM 10 in Sweep Readout: {mmError}");
             }
 
             await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
