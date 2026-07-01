@@ -345,7 +345,11 @@ public partial class CurvePlotView : UserControl
         foreach (var point in orderedPoints)
         {
             DrawErrorBar(point, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax, brush);
-            DrawMarker(point, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax, brush);
+
+            if (ShouldDrawMarker())
+            {
+                DrawMarker(point, width, height, marginLeft, marginTop, xMin, xMax, yMin, yMax, brush);
+            }
         }
     }
 
@@ -379,6 +383,13 @@ public partial class CurvePlotView : UserControl
     private bool ShouldDrawLine()
     {
         return PlotStyle != SMU_Revamp.Models.PlotStyle.Scatter;
+    }
+
+    private bool ShouldDrawMarker()
+    {
+        return PlotStyle == SMU_Revamp.Models.PlotStyle.Scatter ||
+               PlotStyle == SMU_Revamp.Models.PlotStyle.LineAndScatter ||
+               PlotStyle == SMU_Revamp.Models.PlotStyle.InterpolatedLineAndScatter;
     }
 
     private void DrawErrorBar(CurvePoint point, double width, double height, double marginLeft, double marginTop, double xMin, double xMax, double yMin, double yMax, IBrush brush)

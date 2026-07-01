@@ -392,10 +392,11 @@ namespace SMU_Revamp.MeasurementPlans
 
         private FrequencyMemorySettings ReadAndValidateSettings()
         {
-            string writeChannel = GetParamValueString("WriteChannel").Trim();
-            string readingChannel = GetParamValueString("ReadingChannel").Trim();
-            if (string.IsNullOrWhiteSpace(writeChannel)) throw new InvalidOperationException("Write Channel must not be empty.");
-            if (string.IsNullOrWhiteSpace(readingChannel)) readingChannel = writeChannel;
+            string writeChannel = NormalizeSingleChannel(GetParamValueString("WriteChannel"), "Write Channel");
+            string readingChannelRaw = GetParamValueString("ReadingChannel");
+            string readingChannel = string.IsNullOrWhiteSpace(readingChannelRaw)
+                ? writeChannel
+                : NormalizeSingleChannel(readingChannelRaw, "Reading Channel");
 
             var settings = new FrequencyMemorySettings
             {
@@ -515,13 +516,38 @@ namespace SMU_Revamp.MeasurementPlans
             await ForceVoltageAsync(smu, s.WriteChannel, 0.0, s.Compliance);
         }
 
+        private static string NormalizeSingleChannel(string rawChannel, string parameterName)
+        {
+            string channel = (rawChannel ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(channel))
+            {
+                throw new InvalidOperationException($"{parameterName} must not be empty.");
+            }
+
+            if (!Regex.IsMatch(channel, @"^\d+$"))
+            {
+                throw new InvalidOperationException($"{parameterName} must be one single SMU channel number, for example 1 or 2. Current value: '{rawChannel}'. Do not enter comma-separated channel lists here.");
+            }
+
+            return channel;
+        }
+
         private static async Task ForceVoltageAsync(E5263_SMU smu, string channel, double voltage, double compliance)
         {
-            await smu.SendCommandAsync(FormattableString.Invariant($"DV {channel},0,{voltage},{compliance}"));
+            // Clear the channel before forcing a new voltage. This matches the existing
+            // pulse-based plans and avoids stale WV/MM state after reset sweeps.
+            await smu.SendCommandAsync($"DZ {channel}");
+
+            if (Math.Abs(voltage) > 1e-15)
+            {
+                await smu.SendCommandAsync(FormattableString.Invariant($"DV {channel},0,{voltage},{compliance}"));
+            }
+
             var error = await smu.CheckErrorAsync();
             if (error != null)
             {
-                throw new InvalidOperationException($"SMU rejected DV command: {error}");
+                throw new InvalidOperationException($"SMU rejected voltage command on channel {channel}: {error}");
             }
         }
 
