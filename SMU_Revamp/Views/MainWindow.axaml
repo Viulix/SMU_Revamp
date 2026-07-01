@@ -248,7 +248,12 @@
                                                              Series="{Binding PlotSeries}"
                                                              Points="{Binding CurvePoints}"
                                                              PlotStyle="{Binding SelectedPlotStyle}"
-                                                             LogarithmicX="{Binding IsViewerLogarithmicX}" />
+                                                             LogarithmicX="{Binding IsViewerLogarithmicX}"
+                                                             PlotAspectRatio="{Binding PlotAspectRatio}"
+                                                             XMin="{Binding CustomXMin}" XMax="{Binding CustomXMax}"
+                                                             YMin="{Binding CustomYMin}" YMax="{Binding CustomYMax}"
+                                                             AutoFitData="{Binding AutoFitData}"
+                                                             SeriesSettings="{Binding SeriesSettings}" />
                                     </Border>
                                     <Border IsVisible="{Binding IsLogPlotVisible}" Margin="5">
                                         <views:CurvePlotView Title="{Binding LogPlotTitle}"
@@ -258,7 +263,12 @@
                                                              Points="{Binding CurvePoints}"
                                                              PlotStyle="{Binding SelectedPlotStyle}"
                                                              LogarithmicY="True"
-                                                             LogarithmicX="{Binding IsViewerLogarithmicX}" />
+                                                             LogarithmicX="{Binding IsViewerLogarithmicX}"
+                                                             PlotAspectRatio="{Binding PlotAspectRatio}"
+                                                             XMin="{Binding CustomXMin}" XMax="{Binding CustomXMax}"
+                                                             YMin="{Binding CustomYMin}" YMax="{Binding CustomYMax}"
+                                                             AutoFitData="{Binding AutoFitData}"
+                                                             SeriesSettings="{Binding SeriesSettings}" />
                                     </Border>
                                 </UniformGrid>
                             </DockPanel>
@@ -440,7 +450,8 @@
                                                      Points="{Binding CurvePoints}"
                                                      PlotStyle="{Binding SelectedPlotStyle}"
                                                      LogarithmicY="{Binding IsMeasurementLogarithmic}"
-                                                     LogarithmicX="{Binding IsMeasurementLogarithmicX}" />
+                                                     LogarithmicX="{Binding IsMeasurementLogarithmicX}"
+                                                     PlotAspectRatio="{Binding PlotAspectRatio}" />
                             </Border>
                         </StackPanel>
                             </Grid>
