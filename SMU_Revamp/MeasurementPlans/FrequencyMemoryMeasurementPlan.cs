@@ -496,19 +496,34 @@ namespace SMU_Revamp.MeasurementPlans
 
             double pulseWidthSeconds = s.InputSpikeLengthMs / 1000.0;
 
-            if (s.InputSpikeCount <= 1 || interSpikeIntervalMs <= 1e-12)
+            if (interSpikeIntervalMs <= 1e-12 && s.InputSpikeCount > 1)
             {
-                double effectivePulseWidthSeconds = pulseWidthSeconds * Math.Max(1, s.InputSpikeCount);
+                // With 0 ms pause, the spike train never returns to 0 V between spikes.
+                // This is physically one continuous pulse of duration N * spikeLength.
+                // Do NOT use PT/PV pulse mode here: the effective pulse can easily be
+                // much longer than the SMU pulse-mode limit. A normal DC force with a
+                // timed wait is the correct representation of the 0 ms limit case.
+                double continuousPulseDurationMs = s.InputSpikeCount * s.InputSpikeLengthMs;
+
+                await ConfigurePointMeasurementModeAsync(smu, s);
+                await ForceVoltageAsync(smu, s.WriteChannel, s.InputSpikeVoltage, s.Compliance);
+                await Task.Delay(ToDelayMilliseconds(continuousPulseDurationMs));
+                await ForceVoltageAsync(smu, s.WriteChannel, 0.0, s.Compliance);
+
+                progress?.Invoke(1.0);
+                return;
+            }
+
+            if (s.InputSpikeCount <= 1)
+            {
+                double effectivePulseWidthSeconds = pulseWidthSeconds;
                 double effectivePulsePeriodSeconds = MakeValidSinglePulsePeriod(effectivePulseWidthSeconds);
 
                 await smu.SendCommandAsync(FormattableString.Invariant($"PT 0,{effectivePulseWidthSeconds},{effectivePulsePeriodSeconds}"));
                 var ptError = await smu.CheckErrorAsync();
                 if (ptError != null)
                 {
-                    string modeDescription = interSpikeIntervalMs <= 1e-12 && s.InputSpikeCount > 1
-                        ? "0 ms interval was converted to one continuous equivalent pulse"
-                        : "single input pulse";
-                    throw new InvalidOperationException($"SMU rejected input spike timing PT command for {modeDescription}. Pulse width = {effectivePulseWidthSeconds:G9} s, period = {effectivePulsePeriodSeconds:G9} s: {ptError}");
+                    throw new InvalidOperationException(FormattableString.Invariant($"SMU rejected input spike timing PT command for single input pulse. Pulse width = {effectivePulseWidthSeconds:G9} s, period = {effectivePulsePeriodSeconds:G9} s: {ptError}"));
                 }
 
                 await smu.SendCommandAsync(FormattableString.Invariant($"PV {s.WriteChannel},0,0,{s.InputSpikeVoltage},{s.Compliance}"));
