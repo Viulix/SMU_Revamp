@@ -506,7 +506,11 @@ namespace SMU_Revamp.MeasurementPlans
             await smu.SendCommandAsync("TSR");
             await smu.SendCommandAsync("XE");
             await smu.SendCommandAsync("TSQ");
+
+            // The first response block contains the measurement data. A second, short
+            // read clears the TSQ status response from the output queue.
             string response = await smu.ReadResponseAsync(512);
+            try { _ = await smu.ReadResponseAsync(50); } catch { }
 
             await ForceVoltageAsync(smu, s.WriteChannel, 0.0, s.Compliance);
             return ParseCurrent(response, s.InvertCurrent);
@@ -531,6 +535,7 @@ namespace SMU_Revamp.MeasurementPlans
             await smu.SendCommandAsync("XE");
             await smu.SendCommandAsync("TSQ");
             try { _ = await smu.ReadResponseAsync(4096); } catch { }
+            try { _ = await smu.ReadResponseAsync(50); } catch { }
 
             await smu.SendCommandAsync(FormattableString.Invariant($"WV {s.WriteChannel},1,0,{s.ResetSweepMinimum},0,{resetPoints},{s.Compliance}"));
             await smu.SendCommandAsync($"RI {s.ReadingChannel},0");
@@ -547,6 +552,7 @@ namespace SMU_Revamp.MeasurementPlans
             await smu.SendCommandAsync("XE");
             await smu.SendCommandAsync("TSQ");
             try { _ = await smu.ReadResponseAsync(4096); } catch { }
+            try { _ = await smu.ReadResponseAsync(50); } catch { }
 
             await ConfigurePointMeasurementModeAsync(smu, s);
             await smu.SendCommandAsync($"DZ {s.WriteChannel}");
@@ -636,16 +642,41 @@ namespace SMU_Revamp.MeasurementPlans
                 throw new InvalidOperationException("The SMU returned an empty current response.");
             }
 
-            var matches = Regex.Matches(rawData, @"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?");
-            foreach (Match match in matches)
+            // E5263 measurement data usually contain coded values such as
+            // N1V+3.000E-01 and N1I-1.234E-06. The generic numeric parser used
+            // before can accidentally return the voltage value instead of the current,
+            // which explains apparent currents in the 10^-1...10^-3 range.
+            // Therefore, explicitly select the current token first.
+            var items = rawData.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var item in items)
             {
-                if (double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+                var token = item.Trim();
+                if (token.Length >= 4 && char.ToUpperInvariant(token[2]) == 'I')
                 {
-                    return invertCurrent ? -value : value;
+                    string numberText = token.Substring(3);
+                    if (double.TryParse(numberText, NumberStyles.Float, CultureInfo.InvariantCulture, out double current))
+                    {
+                        return invertCurrent ? -current : current;
+                    }
                 }
             }
 
-            throw new InvalidOperationException($"Could not parse current from SMU response: {rawData}");
+            // Only fall back to a bare numeric response if the response does not
+            // contain coded channel/value letters. This prevents voltage tokens from
+            // being silently interpreted as currents.
+            if (!rawData.Any(char.IsLetter))
+            {
+                var matches = Regex.Matches(rawData, @"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?");
+                foreach (Match match in matches)
+                {
+                    if (double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+                    {
+                        return invertCurrent ? -value : value;
+                    }
+                }
+            }
+
+            throw new InvalidOperationException($"Could not parse a current token from SMU response: {rawData}");
         }
 
         private sealed record FrequencyMemorySettings
