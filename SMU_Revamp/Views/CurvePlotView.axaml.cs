@@ -293,6 +293,8 @@ public partial class CurvePlotView : UserControl
                 sp.LineWidth = 0;
                 sp.MarkerSize = 5;
             }
+
+            DrawYErrorBars(s.Points, sp.Color);
         }
 
         if (series.Count > 1)
@@ -353,4 +355,76 @@ public partial class CurvePlotView : UserControl
 
         AvaPlot.Refresh();
     }
+    private void DrawYErrorBars(IReadOnlyList<CurvePoint> points, ScottPlot.Color color)
+    {
+        // Error bars are optional. Existing measurement plans keep YError = null, so they are unaffected.
+        // Frequency Memory mean points use YError = sample standard deviation.
+        if (points.Count == 0)
+            return;
+
+        // The current log plot implementation transforms Y to log10(abs(Y)).
+        // Symmetric linear ±SD bars would be misleading there, so draw them only on linear Y plots.
+        if (LogarithmicY)
+            return;
+
+        bool hasErrorBars = points.Any(p =>
+            p.YError is double error &&
+            error > 0 &&
+            !double.IsNaN(error) &&
+            !double.IsInfinity(error));
+
+        if (!hasErrorBars)
+            return;
+
+        double TransformX(double x) => LogarithmicX ? Math.Log10(Math.Max(Math.Abs(x), 1e-12)) : x;
+
+        var transformedXs = points.Select(p => TransformX(p.X)).ToList();
+        double xMin = transformedXs.Min();
+        double xMax = transformedXs.Max();
+        double xSpan = xMax - xMin;
+
+        double capHalfWidth;
+        if (double.IsNaN(xSpan) || double.IsInfinity(xSpan) || xSpan <= 0)
+        {
+            capHalfWidth = Math.Max(Math.Abs(xMin) * 0.01, 0.5);
+        }
+        else
+        {
+            capHalfWidth = xSpan * 0.0075;
+        }
+
+        foreach (var point in points)
+        {
+            if (point.YError is not double error ||
+                error <= 0 ||
+                double.IsNaN(error) ||
+                double.IsInfinity(error))
+            {
+                continue;
+            }
+
+            double x = TransformX(point.X);
+            double yLow = point.Y - error;
+            double yHigh = point.Y + error;
+
+            if (!double.IsFinite(x) || !double.IsFinite(yLow) || !double.IsFinite(yHigh))
+                continue;
+
+            var vertical = AvaPlot.Plot.Add.Scatter(new[] { x, x }, new[] { yLow, yHigh });
+            vertical.Color = color;
+            vertical.LineWidth = 1;
+            vertical.MarkerSize = 0;
+
+            var lowerCap = AvaPlot.Plot.Add.Scatter(new[] { x - capHalfWidth, x + capHalfWidth }, new[] { yLow, yLow });
+            lowerCap.Color = color;
+            lowerCap.LineWidth = 1;
+            lowerCap.MarkerSize = 0;
+
+            var upperCap = AvaPlot.Plot.Add.Scatter(new[] { x - capHalfWidth, x + capHalfWidth }, new[] { yHigh, yHigh });
+            upperCap.Color = color;
+            upperCap.LineWidth = 1;
+            upperCap.MarkerSize = 0;
+        }
+    }
+
 }
