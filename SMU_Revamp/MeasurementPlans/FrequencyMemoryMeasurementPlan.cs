@@ -447,7 +447,7 @@ namespace SMU_Revamp.MeasurementPlans
         private async Task InitializeSmuAsync(E5263_SMU smu, FrequencyMemorySettings s)
         {
             await smu.SendCommandAsync("*RST");
-            await smu.SendCommandAsync("FMT 1");
+            await smu.SendCommandAsync("FMT 1,0");
             await smu.SendCommandAsync("TSC 1");
 
             if (s.ReadingChannel != s.WriteChannel)
@@ -460,7 +460,24 @@ namespace SMU_Revamp.MeasurementPlans
             }
 
             await smu.SendCommandAsync("AV -1,0");
-            await smu.CheckErrorAsync();
+            await ConfigurePointMeasurementModeAsync(smu, s);
+
+            var error = await smu.CheckErrorAsync();
+            if (error != null)
+            {
+                throw new InvalidOperationException($"SMU rejected initialization command: {error}");
+            }
+        }
+
+        private static async Task ConfigurePointMeasurementModeAsync(E5263_SMU smu, FrequencyMemorySettings s)
+        {
+            // The SMU keeps its last measurement mode. After a WV reset sweep the mode is
+            // staircase sweep (MM 2). DV commands for spike/read pulses must be issued in
+            // spot/point measurement mode again, matching the existing pulse plans.
+            await smu.SendCommandAsync($"MM 1,{s.ReadingChannel}");
+            await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
+            await smu.SendCommandAsync($"RV {s.WriteChannel},0");
+            await smu.SendCommandAsync($"RI {s.WriteChannel},0");
         }
 
         private async Task ApplyInputSpikeTrainAsync(E5263_SMU smu, FrequencyMemorySettings s, double interSpikeIntervalMs, Action<double>? progress = null)
@@ -482,11 +499,10 @@ namespace SMU_Revamp.MeasurementPlans
 
         private async Task<double> ReadCurrentPulseAsync(E5263_SMU smu, FrequencyMemorySettings s, double voltage, double durationMs)
         {
+            await ConfigurePointMeasurementModeAsync(smu, s);
             await ForceVoltageAsync(smu, s.WriteChannel, voltage, s.Compliance);
             await Task.Delay(ToDelayMilliseconds(durationMs));
 
-            await smu.SendCommandAsync($"MM 1,{s.ReadingChannel}");
-            await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
             await smu.SendCommandAsync("TSR");
             await smu.SendCommandAsync("XE");
             await smu.SendCommandAsync("TSQ");
@@ -500,20 +516,46 @@ namespace SMU_Revamp.MeasurementPlans
         {
             const int resetPoints = 51;
 
-            await smu.SendCommandAsync("MM 2");
             await smu.SendCommandAsync(FormattableString.Invariant($"WV {s.WriteChannel},1,0,0,{s.ResetSweepMinimum},{resetPoints},{s.Compliance}"));
+            await smu.SendCommandAsync($"RI {s.ReadingChannel},0");
+            await smu.SendCommandAsync($"MM 2,{s.ReadingChannel}");
+            await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
+
+            var firstSweepSetupError = await smu.CheckErrorAsync();
+            if (firstSweepSetupError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected reset sweep setup 0→minimum: {firstSweepSetupError}");
+            }
+
             await smu.SendCommandAsync("TSR");
             await smu.SendCommandAsync("XE");
             await smu.SendCommandAsync("TSQ");
             try { _ = await smu.ReadResponseAsync(4096); } catch { }
 
             await smu.SendCommandAsync(FormattableString.Invariant($"WV {s.WriteChannel},1,0,{s.ResetSweepMinimum},0,{resetPoints},{s.Compliance}"));
+            await smu.SendCommandAsync($"RI {s.ReadingChannel},0");
+            await smu.SendCommandAsync($"MM 2,{s.ReadingChannel}");
+            await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
+
+            var secondSweepSetupError = await smu.CheckErrorAsync();
+            if (secondSweepSetupError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected reset sweep setup minimum→0: {secondSweepSetupError}");
+            }
+
             await smu.SendCommandAsync("TSR");
             await smu.SendCommandAsync("XE");
             await smu.SendCommandAsync("TSQ");
             try { _ = await smu.ReadResponseAsync(4096); } catch { }
 
-            await ForceVoltageAsync(smu, s.WriteChannel, 0.0, s.Compliance);
+            await ConfigurePointMeasurementModeAsync(smu, s);
+            await smu.SendCommandAsync($"DZ {s.WriteChannel}");
+
+            var pointModeError = await smu.CheckErrorAsync();
+            if (pointModeError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected point-mode reconfiguration after reset sweep: {pointModeError}");
+            }
         }
 
         private static string NormalizeSingleChannel(string rawChannel, string parameterName)
@@ -535,12 +577,13 @@ namespace SMU_Revamp.MeasurementPlans
 
         private static async Task ForceVoltageAsync(E5263_SMU smu, string channel, double voltage, double compliance)
         {
-            // Clear the channel before forcing a new voltage. This matches the existing
-            // pulse-based plans and avoids stale WV/MM state after reset sweeps.
-            await smu.SendCommandAsync($"DZ {channel}");
-
-            if (Math.Abs(voltage) > 1e-15)
+            if (Math.Abs(voltage) <= 1e-15)
             {
+                await smu.SendCommandAsync($"DZ {channel}");
+            }
+            else
+            {
+                await smu.SendCommandAsync($"DZ {channel}");
                 await smu.SendCommandAsync(FormattableString.Invariant($"DV {channel},0,{voltage},{compliance}"));
             }
 
