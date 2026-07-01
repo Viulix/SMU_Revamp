@@ -395,10 +395,11 @@ namespace SMU_Revamp.MeasurementPlans
 
         private FrequencyMemorySettings ReadAndValidateSettings()
         {
-            string writeChannel = GetParamValueString("WriteChannel").Trim();
-            string readingChannel = GetParamValueString("ReadingChannel").Trim();
-            if (string.IsNullOrWhiteSpace(writeChannel)) throw new InvalidOperationException("Write Channel must not be empty.");
-            if (string.IsNullOrWhiteSpace(readingChannel)) readingChannel = writeChannel;
+            string writeChannel = NormalizeSingleChannel(GetParamValueString("WriteChannel"), "Write Channel");
+            string readingChannelRaw = GetParamValueString("ReadingChannel");
+            string readingChannel = string.IsNullOrWhiteSpace(readingChannelRaw)
+                ? writeChannel
+                : NormalizeSingleChannel(readingChannelRaw, "Reading Channel");
 
             var settings = new FrequencyMemorySettings
             {
@@ -449,7 +450,7 @@ namespace SMU_Revamp.MeasurementPlans
         private async Task InitializeSmuAsync(E5263_SMU smu, FrequencyMemorySettings s)
         {
             await smu.SendCommandAsync("*RST");
-            await smu.SendCommandAsync("FMT 1");
+            await smu.SendCommandAsync("FMT 1,0");
             await smu.SendCommandAsync("TSC 1");
 
             if (s.ReadingChannel != s.WriteChannel)
@@ -462,7 +463,24 @@ namespace SMU_Revamp.MeasurementPlans
             }
 
             await smu.SendCommandAsync("AV -1,0");
-            await smu.CheckErrorAsync();
+            await ConfigurePointMeasurementModeAsync(smu, s);
+
+            var error = await smu.CheckErrorAsync();
+            if (error != null)
+            {
+                throw new InvalidOperationException($"SMU rejected initialization command: {error}");
+            }
+        }
+
+        private static async Task ConfigurePointMeasurementModeAsync(E5263_SMU smu, FrequencyMemorySettings s)
+        {
+            // The SMU keeps its last measurement mode. After a WV reset sweep the mode is
+            // staircase sweep (MM 2). DV commands for spike/read pulses must be issued in
+            // spot/point measurement mode again, matching the existing pulse plans.
+            await smu.SendCommandAsync($"MM 1,{s.ReadingChannel}");
+            await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
+            await smu.SendCommandAsync($"RV {s.WriteChannel},0");
+            await smu.SendCommandAsync($"RI {s.WriteChannel},0");
         }
 
         private async Task ApplyInputSpikeTrainAsync(E5263_SMU smu, FrequencyMemorySettings s, double interSpikeIntervalMs, Action<double>? progress = null)
@@ -484,15 +502,18 @@ namespace SMU_Revamp.MeasurementPlans
 
         private async Task<double> ReadCurrentPulseAsync(E5263_SMU smu, FrequencyMemorySettings s, double voltage, double durationMs)
         {
+            await ConfigurePointMeasurementModeAsync(smu, s);
             await ForceVoltageAsync(smu, s.WriteChannel, voltage, s.Compliance);
             await Task.Delay(ToDelayMilliseconds(durationMs));
 
-            await smu.SendCommandAsync($"MM 1,{s.ReadingChannel}");
-            await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
             await smu.SendCommandAsync("TSR");
             await smu.SendCommandAsync("XE");
             await smu.SendCommandAsync("TSQ");
+
+            // The first response block contains the measurement data. A second, short
+            // read clears the TSQ status response from the output queue.
             string response = await smu.ReadResponseAsync(512);
+            try { _ = await smu.ReadResponseAsync(50); } catch { }
 
             await ForceVoltageAsync(smu, s.WriteChannel, 0.0, s.Compliance);
             return ParseCurrent(response, s.InvertCurrent);
@@ -502,29 +523,83 @@ namespace SMU_Revamp.MeasurementPlans
         {
             const int resetPoints = 51;
 
-            await smu.SendCommandAsync("MM 2");
             await smu.SendCommandAsync(FormattableString.Invariant($"WV {s.WriteChannel},1,0,0,{s.ResetSweepMinimum},{resetPoints},{s.Compliance}"));
+            await smu.SendCommandAsync($"RI {s.ReadingChannel},0");
+            await smu.SendCommandAsync($"MM 2,{s.ReadingChannel}");
+            await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
+
+            var firstSweepSetupError = await smu.CheckErrorAsync();
+            if (firstSweepSetupError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected reset sweep setup 0→minimum: {firstSweepSetupError}");
+            }
+
             await smu.SendCommandAsync("TSR");
             await smu.SendCommandAsync("XE");
             await smu.SendCommandAsync("TSQ");
             try { _ = await smu.ReadResponseAsync(4096); } catch { }
+            try { _ = await smu.ReadResponseAsync(50); } catch { }
 
             await smu.SendCommandAsync(FormattableString.Invariant($"WV {s.WriteChannel},1,0,{s.ResetSweepMinimum},0,{resetPoints},{s.Compliance}"));
+            await smu.SendCommandAsync($"RI {s.ReadingChannel},0");
+            await smu.SendCommandAsync($"MM 2,{s.ReadingChannel}");
+            await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
+
+            var secondSweepSetupError = await smu.CheckErrorAsync();
+            if (secondSweepSetupError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected reset sweep setup minimum→0: {secondSweepSetupError}");
+            }
+
             await smu.SendCommandAsync("TSR");
             await smu.SendCommandAsync("XE");
             await smu.SendCommandAsync("TSQ");
             try { _ = await smu.ReadResponseAsync(4096); } catch { }
+            try { _ = await smu.ReadResponseAsync(50); } catch { }
 
-            await ForceVoltageAsync(smu, s.WriteChannel, 0.0, s.Compliance);
+            await ConfigurePointMeasurementModeAsync(smu, s);
+            await smu.SendCommandAsync($"DZ {s.WriteChannel}");
+
+            var pointModeError = await smu.CheckErrorAsync();
+            if (pointModeError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected point-mode reconfiguration after reset sweep: {pointModeError}");
+            }
+        }
+
+        private static string NormalizeSingleChannel(string rawChannel, string parameterName)
+        {
+            string channel = (rawChannel ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(channel))
+            {
+                throw new InvalidOperationException($"{parameterName} must not be empty.");
+            }
+
+            if (!Regex.IsMatch(channel, @"^\d+$"))
+            {
+                throw new InvalidOperationException($"{parameterName} must be one single SMU channel number, for example 1 or 2. Current value: '{rawChannel}'. Do not enter comma-separated channel lists here.");
+            }
+
+            return channel;
         }
 
         private static async Task ForceVoltageAsync(E5263_SMU smu, string channel, double voltage, double compliance)
         {
-            await smu.SendCommandAsync(FormattableString.Invariant($"DV {channel},0,{voltage},{compliance}"));
+            if (Math.Abs(voltage) <= 1e-15)
+            {
+                await smu.SendCommandAsync($"DZ {channel}");
+            }
+            else
+            {
+                await smu.SendCommandAsync($"DZ {channel}");
+                await smu.SendCommandAsync(FormattableString.Invariant($"DV {channel},0,{voltage},{compliance}"));
+            }
+
             var error = await smu.CheckErrorAsync();
             if (error != null)
             {
-                throw new InvalidOperationException($"SMU rejected DV command: {error}");
+                throw new InvalidOperationException($"SMU rejected voltage command on channel {channel}: {error}");
             }
         }
 
@@ -570,16 +645,41 @@ namespace SMU_Revamp.MeasurementPlans
                 throw new InvalidOperationException("The SMU returned an empty current response.");
             }
 
-            var matches = Regex.Matches(rawData, @"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?");
-            foreach (Match match in matches)
+            // E5263 measurement data usually contain coded values such as
+            // N1V+3.000E-01 and N1I-1.234E-06. The generic numeric parser used
+            // before can accidentally return the voltage value instead of the current,
+            // which explains apparent currents in the 10^-1...10^-3 range.
+            // Therefore, explicitly select the current token first.
+            var items = rawData.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var item in items)
             {
-                if (double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+                var token = item.Trim();
+                if (token.Length >= 4 && char.ToUpperInvariant(token[2]) == 'I')
                 {
-                    return invertCurrent ? -value : value;
+                    string numberText = token.Substring(3);
+                    if (double.TryParse(numberText, NumberStyles.Float, CultureInfo.InvariantCulture, out double current))
+                    {
+                        return invertCurrent ? -current : current;
+                    }
                 }
             }
 
-            throw new InvalidOperationException($"Could not parse current from SMU response: {rawData}");
+            // Only fall back to a bare numeric response if the response does not
+            // contain coded channel/value letters. This prevents voltage tokens from
+            // being silently interpreted as currents.
+            if (!rawData.Any(char.IsLetter))
+            {
+                var matches = Regex.Matches(rawData, @"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?");
+                foreach (Match match in matches)
+                {
+                    if (double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+                    {
+                        return invertCurrent ? -value : value;
+                    }
+                }
+            }
+
+            throw new InvalidOperationException($"Could not parse a current token from SMU response: {rawData}");
         }
 
         private sealed record FrequencyMemorySettings
