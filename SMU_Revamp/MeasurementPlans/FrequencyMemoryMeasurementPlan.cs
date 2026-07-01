@@ -52,12 +52,15 @@ namespace SMU_Revamp.MeasurementPlans
 
         public FrequencyMemoryMeasurementPlan()
         {
+            var spikeVolt = new MeasurementParameter { Name = "InputSpikeVoltage", DisplayName = "Input Spike Voltage (V):", Type = ParameterType.Number, Tooltip = "Voltage amplitude of each input spike.", Section = "Input Spike Train" };
+            var resetVolt = new MeasurementParameter { Name = "ResetSweepMinimum", DisplayName = "Reset I-V Sweep Minimum (V):", Type = ParameterType.Number, Tooltip = "Most negative voltage reached by the reset sweep. The reset sweep goes 0 → minimum → 0.", Section = "Reset", IsLinkable = true, LinkedParameter = spikeVolt, LinkedMultiplier = -1.0 };
+
             Parameters = new List<MeasurementParameter>
             {
                 new() { Name = "WriteChannel", DisplayName = "Write Channel:", Type = ParameterType.Text, Tooltip = "SMU channel used to force the input/read/reset voltages.", Section = "Channel Settings" },
                 new() { Name = "ReadingChannel", DisplayName = "Reading Channel:", Type = ParameterType.Text, Tooltip = "SMU channel used for current readout. Leave equal to write channel for same-channel readout.", Section = "Channel Settings" },
 
-                new() { Name = "InputSpikeVoltage", DisplayName = "Input Spike Voltage (V):", Type = ParameterType.Number, Tooltip = "Voltage amplitude of each input spike.", Section = "Input Spike Train" },
+                spikeVolt,
                 new() { Name = "InputSpikeLengthMs", DisplayName = "Input Spike Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of each input spike.", Section = "Input Spike Train" },
                 new() { Name = "InputSpikeCount", DisplayName = "Number of Input Spikes:", Type = ParameterType.Number, Tooltip = "Number of identical input spikes in each train.", Section = "Input Spike Train" },
                 new() { Name = "MinInterSpikeIntervalMs", DisplayName = "Min. Inter-spike Interval (ms):", Type = ParameterType.Number, Tooltip = "Shortest pause between end of one input spike and start of the next.", Section = "Input Spike Train" },
@@ -69,7 +72,7 @@ namespace SMU_Revamp.MeasurementPlans
                 new() { Name = "ReadoutLengthMs", DisplayName = "Readout Spike Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of the readout pulse before measuring current.", Section = "Readout" },
                 new() { Name = "BaselineReadEnabled", DisplayName = "Baseline Read Enabled:", Type = ParameterType.Checkbox, Tooltip = "If enabled, measure a baseline current after reset and before the input spike train.", Section = "Readout" },
 
-                new() { Name = "ResetSweepMinimum", DisplayName = "Reset I-V Sweep Minimum (V):", Type = ParameterType.Number, Tooltip = "Most negative voltage reached by the reset sweep. The reset sweep goes 0 → minimum → 0.", Section = "Reset" },
+                resetVolt,
 
                 new() { Name = "RepetitionsPerInterval", DisplayName = "Repetitions per Interval:", Type = ParameterType.Number, Tooltip = "Number of repetitions for every inter-spike-interval value.", Section = "Repetition" },
 

@@ -43,6 +43,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (SetProperty(ref _plotSeries, value))
             {
                 OnPropertyChanged(nameof(HasCurvePoints));
+                InitializeSeriesSettings();
             }
         }
     }
@@ -108,6 +109,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 OnPropertyChanged(nameof(YAxisTitle));
                 OnPropertyChanged(nameof(ShowLogPlot));
                 OnPropertyChanged(nameof(IsLogPlotVisible));
+                OnPropertyChanged(nameof(IsTwoPlotsVisible));
                 OnPropertyChanged(nameof(PlotAspectRatio));
                 OnPropertyChanged(nameof(PlotBaseWidth));
                 OnPropertyChanged(nameof(PlotBaseHeight));
@@ -115,16 +117,97 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private void InitializeSeriesSettings()
+    {
+        var currentSettings = SeriesSettings.ToList();
+        SeriesSettings.Clear();
+        
+        var seriesCount = PlotSeries?.Count ?? 1;
+        var defaultColors = new[] { "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf" };
+
+        for (int i = 0; i < seriesCount; i++)
+        {
+            var seriesName = PlotSeries != null && PlotSeries.Count > i ? PlotSeries[i].Name : $"Series {i + 1}";
+            var defaultColor = defaultColors[i % defaultColors.Length];
+            
+            // Preserve existing custom color for this series name if possible, otherwise use default
+            var existing = currentSettings.FirstOrDefault(s => s.SeriesName == seriesName);
+            var colorToUse = existing != null ? existing.ColorHex : defaultColor;
+
+            SeriesSettings.Add(new SeriesSetting(seriesName, colorToUse));
+        }
+    }
+
     public bool IsPlottedPlanLoaded => PlottedPlan != null;
 
-    public string PlotTitle => PlottedPlan?.PlotTitle ?? "Measurement Data";
-    public string LinearPlotTitle => $"{PlotTitle} - Linear";
-    public string LogPlotTitle => $"{PlotTitle} - Logarithmic Y";
-    public string XAxisTitle => PlottedPlan?.XAxisLabel ?? "X";
-    public string YAxisTitle => PlottedPlan?.YAxisLabel ?? "Y";
+    public string PlotTitle => !string.IsNullOrWhiteSpace(CustomPlotTitle) ? CustomPlotTitle : (PlottedPlan?.PlotTitle ?? "Measurement Data");
+    public string LinearPlotTitle => !string.IsNullOrWhiteSpace(CustomPlotTitle) ? CustomPlotTitle : $"{PlotTitle} - Linear";
+    public string LogPlotTitle => !string.IsNullOrWhiteSpace(CustomPlotTitle) ? CustomPlotTitle : $"{PlotTitle} - Logarithmic Y";
+    public string XAxisTitle => !string.IsNullOrWhiteSpace(CustomXAxisTitle) ? CustomXAxisTitle : (PlottedPlan?.XAxisLabel ?? "X");
+    public string YAxisTitle => !string.IsNullOrWhiteSpace(CustomYAxisTitle) ? CustomYAxisTitle : (PlottedPlan?.YAxisLabel ?? "Y");
     public bool ShowLogPlot => PlottedPlan?.ShowLogPlot ?? true;
 
-    public double PlotAspectRatio => PlottedPlan?.PlotAspectRatio ?? 1.333;
+    private string? _customPlotTitle;
+    public string? CustomPlotTitle { get => _customPlotTitle; set { if (SetProperty(ref _customPlotTitle, value)) { OnPropertyChanged(nameof(PlotTitle)); OnPropertyChanged(nameof(LinearPlotTitle)); OnPropertyChanged(nameof(LogPlotTitle)); } } }
+
+    private string? _customXAxisTitle;
+    public string? CustomXAxisTitle { get => _customXAxisTitle; set { if (SetProperty(ref _customXAxisTitle, value)) OnPropertyChanged(nameof(XAxisTitle)); } }
+
+    private string? _customYAxisTitle;
+    public string? CustomYAxisTitle { get => _customYAxisTitle; set { if (SetProperty(ref _customYAxisTitle, value)) OnPropertyChanged(nameof(YAxisTitle)); } }
+
+    private double? _customXMin;
+    public double? CustomXMin { get => _customXMin; set => SetProperty(ref _customXMin, value); }
+    
+    private double? _customXMax;
+    public double? CustomXMax { get => _customXMax; set => SetProperty(ref _customXMax, value); }
+    
+    private double? _customYMin;
+    public double? CustomYMin { get => _customYMin; set => SetProperty(ref _customYMin, value); }
+    
+    private double? _customYMax;
+    public double? CustomYMax { get => _customYMax; set => SetProperty(ref _customYMax, value); }
+
+    private bool _autoFitData;
+    public bool AutoFitData { get => _autoFitData; set => SetProperty(ref _autoFitData, value); }
+
+    private string? _customAspectRatioString;
+    public string? CustomAspectRatioString 
+    { 
+        get => _customAspectRatioString; 
+        set 
+        { 
+            if (SetProperty(ref _customAspectRatioString, value))
+            {
+                OnPropertyChanged(nameof(PlotAspectRatio));
+                OnPropertyChanged(nameof(PlotBaseHeight));
+            }
+        } 
+    }
+
+    public ObservableCollection<SeriesSetting> SeriesSettings { get; } = new();
+
+    public ICommand ResetAdvancedSettingsCommand { get; }
+
+    public double PlotAspectRatio
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(CustomAspectRatioString))
+            {
+                var parts = CustomAspectRatioString.Split(new[] { ':', '/' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 2 && double.TryParse(parts[0], out double w) && double.TryParse(parts[1], out double h) && h > 0)
+                {
+                    return w / h;
+                }
+                if (double.TryParse(CustomAspectRatioString, out double val) && val > 0)
+                {
+                    return val;
+                }
+            }
+            return PlottedPlan?.PlotAspectRatio ?? 1.333;
+        }
+    }
     public double PlotBaseWidth => 800.0;
     public double PlotBaseHeight => PlotBaseWidth / PlotAspectRatio;
 
@@ -140,6 +223,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(IsLinearPlotVisible));
                 OnPropertyChanged(nameof(IsLogPlotVisible));
+                OnPropertyChanged(nameof(IsTwoPlotsVisible));
             }
         }
     }
@@ -183,6 +267,8 @@ public partial class MainWindowViewModel : ViewModelBase
     public bool IsLinearPlotVisible => SelectedPlotView == "Both" || SelectedPlotView == "Linear Only";
 
     public bool IsLogPlotVisible => (SelectedPlotView == "Both" || SelectedPlotView == "Logarithmic Only") && ShowLogPlot;
+
+    public bool IsTwoPlotsVisible => IsLinearPlotVisible && IsLogPlotVisible;
 
     private bool _isMeasurementLogarithmic = false;
     public bool IsMeasurementLogarithmic
@@ -490,8 +576,28 @@ public partial class MainWindowViewModel : ViewModelBase
     private int _totalExpectedSubCells = 0;
     private string _currentWaferScanFolderName = string.Empty;
 
+    private void ResetAdvancedSettings()
+    {
+        CustomPlotTitle = null;
+        CustomXAxisTitle = null;
+        CustomYAxisTitle = null;
+        CustomXMin = null;
+        CustomXMax = null;
+        CustomYMin = null;
+        CustomYMax = null;
+        AutoFitData = false;
+        CustomAspectRatioString = null;
+        
+        var defaultColors = new[] { "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf" };
+        for (int i = 0; i < SeriesSettings.Count; i++)
+        {
+            SeriesSettings[i].ColorHex = defaultColors[i % defaultColors.Length];
+        }
+    }
+
     public MainWindowViewModel()
     {
+        ResetAdvancedSettingsCommand = new RelayCommand(ResetAdvancedSettings);
         CurvePoints = Array.Empty<CurvePoint>();
         Settings = new SettingsViewModel();
 

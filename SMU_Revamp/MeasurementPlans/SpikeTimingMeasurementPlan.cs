@@ -71,6 +71,9 @@ namespace SMU_Revamp.MeasurementPlans
 
         public SpikeTimingMeasurementPlan()
         {
+            var spikeVolt = new MeasurementParameter { Name = "SpikeVoltage", DisplayName = "Spike Voltage (V):", Type = ParameterType.Number, Tooltip = "Voltage amplitude of each timing spike.", Section = "Spike Settings" };
+            var resetVolt = new MeasurementParameter { Name = "ResetVoltage", DisplayName = "Reset Voltage (V):", Type = ParameterType.Number, Tooltip = "Reset pulse voltage.", Section = "Reset Settings", IsLinkable = true, LinkedParameter = spikeVolt, LinkedMultiplier = -1.0 };
+
             Parameters = new List<MeasurementParameter>
             {
                 new() { Name = "WriteChannel", DisplayName = "Write Channel:", Type = ParameterType.Text, Tooltip = "The SMU source channel number (e.g. 2).", Section = "Channel Settings" },
@@ -82,7 +85,7 @@ namespace SMU_Revamp.MeasurementPlans
                 new() { Name = "RepetitionsPerPattern", DisplayName = "Repetitions per Pattern:", Type = ParameterType.Number, Tooltip = "How many times every A/B/C permutation is measured. The device is reset before each trial.", Section = "Time Constants" },
                 new() { Name = "ShuffleExecutionOrder", DisplayName = "Shuffle Execution Order:", Type = ParameterType.Checkbox, Tooltip = "Measure the repeated pattern list in pseudo-random order instead of grouped order. The shuffle is reproducible through the seed.", Section = "Time Constants" },
 
-                new() { Name = "SpikeVoltage", DisplayName = "Spike Voltage (V):", Type = ParameterType.Number, Tooltip = "Voltage amplitude of each timing spike.", Section = "Spike Settings" },
+                spikeVolt,
                 new() { Name = "SpikeLengthMs", DisplayName = "Spike Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of each spike in milliseconds. The plan always uses four spikes.", Section = "Spike Settings" },
 
                 new() { Name = "ReadVoltage", DisplayName = "Read Voltage (V):", Type = ParameterType.Number, Tooltip = "Small non-switching readout voltage.", Section = "Readout Settings" },
@@ -94,7 +97,7 @@ namespace SMU_Revamp.MeasurementPlans
                 new() { Name = "BaselineReadEnabled", DisplayName = "Baseline Read Before Pattern:", Type = ParameterType.Checkbox, Tooltip = "Measure baseline current after reset and before the spike train.", Section = "Advanced / Safety" },
 
                 new() { Name = "ResetEnabled", DisplayName = "Reset Before Each Trial:", Type = ParameterType.Checkbox, Tooltip = "Apply reset pulse(s) before every pattern repetition.", Section = "Reset Settings" },
-                new() { Name = "ResetVoltage", DisplayName = "Reset Voltage (V):", Type = ParameterType.Number, Tooltip = "Reset pulse voltage.", Section = "Reset Settings" },
+                resetVolt,
                 new() { Name = "ResetPulseLengthMs", DisplayName = "Reset Pulse Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of one reset pulse.", Section = "Reset Settings" },
                 new() { Name = "ResetRepetitions", DisplayName = "Reset Repetitions:", Type = ParameterType.Number, Tooltip = "Number of reset pulses before each trial.", Section = "Reset Settings" },
                 new() { Name = "ResetRecoveryMs", DisplayName = "Reset Recovery Time (ms):", Type = ParameterType.Number, Tooltip = "Wait time after the reset sequence before baseline/spike train.", Section = "Reset Settings", ScrollStep = 10.0 }

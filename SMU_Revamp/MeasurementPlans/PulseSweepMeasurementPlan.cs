@@ -21,13 +21,16 @@ namespace SMU_Revamp.MeasurementPlans
 
         public PulseSweepMeasurementPlan()
         {
+            var startVolt = new MeasurementParameter { Name = "StartVoltage", DisplayName = "Start Voltage (V):", Type = ParameterType.Number, Tooltip = "The starting voltage of the pulsed sweep", Section = "Voltage Settings" };
+            var stopVolt = new MeasurementParameter { Name = "StopVoltage", DisplayName = "Stop Voltage (V):", Type = ParameterType.Number, Tooltip = "The ending voltage of the pulsed sweep", Section = "Voltage Settings", IsLinkable = true, LinkedParameter = startVolt, LinkedMultiplier = -1.0 };
+
             Parameters = new List<MeasurementParameter>
             {
                 new() { Name = "WriteChannel", DisplayName = "Write Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel number (e.g. 2)", Section = "Channel Settings" },
                 new() { Name = "ReadingChannel", DisplayName = "Reading Channel:", Type = ParameterType.Text, Tooltip = "The SMU channel to measure (e.g. 1 or 2)", Section = "Channel Settings" },
                 new() { Name = "BaseVoltage", DisplayName = "Base Voltage (V):", Type = ParameterType.Number, Tooltip = "The base DC voltage before the pulse (in Volts)", Section = "Voltage Settings" },
-                new() { Name = "StartVoltage", DisplayName = "Start Voltage (V):", Type = ParameterType.Number, Tooltip = "The starting voltage of the pulsed sweep", Section = "Voltage Settings" },
-                new() { Name = "StopVoltage", DisplayName = "Stop Voltage (V):", Type = ParameterType.Number, Tooltip = "The ending voltage of the pulsed sweep", Section = "Voltage Settings" },
+                startVolt,
+                stopVolt,
                 new() { Name = "Points", DisplayName = "Points:", Type = ParameterType.Number, Tooltip = "The number of sweep measurement points", Section = "Sweep Settings" },
                 new() { Name = "HoldTime", DisplayName = "Hold Time (s):", Type = ParameterType.Number, Tooltip = "Hold time before pulse sweep starts (in seconds)", Section = "Pulse Settings" },
                 new() { Name = "PulseWidth", DisplayName = "Pulse Width (s):", Type = ParameterType.Number, Tooltip = "Width of the pulse (in seconds)", Section = "Pulse Settings" },

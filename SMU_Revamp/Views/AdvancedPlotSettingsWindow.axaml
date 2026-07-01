@@ -1,0 +1,84 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SMU_Revamp.ViewModels"
+        x:Class="SMU_Revamp.Views.AdvancedPlotSettingsWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Advanced Plot Settings"
+        Width="500" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#F9FAFB">
+        
+    <Border Padding="20">
+        <StackPanel Spacing="15">
+            
+            <TextBlock Text="Plot Titles" FontWeight="SemiBold" FontSize="16" Foreground="#1F2937" />
+            <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto, Auto, Auto" Margin="0,0,0,10">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Plot Title:" VerticalAlignment="Center" Margin="0,0,15,8" Foreground="#4B5563"/>
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding CustomPlotTitle}" PlaceholderText="Default" Margin="0,0,0,8" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="X-Axis Title:" VerticalAlignment="Center" Margin="0,0,15,8" Foreground="#4B5563"/>
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding CustomXAxisTitle}" PlaceholderText="Default" Margin="0,0,0,8" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Y-Axis Title:" VerticalAlignment="Center" Margin="0,0,15,0" Foreground="#4B5563"/>
+                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding CustomYAxisTitle}" PlaceholderText="Default" />
+            </Grid>
+
+            <Separator Background="#E5E7EB" Margin="0,5" />
+
+            <Grid ColumnDefinitions="*, Auto">
+                <TextBlock Grid.Column="0" Text="Axis Limits &amp; Sizing" FontWeight="SemiBold" FontSize="16" Foreground="#1F2937" VerticalAlignment="Center"/>
+                <CheckBox Grid.Column="1" Content="Auto-Fit Data (No Margins)" IsChecked="{Binding AutoFitData}" FontWeight="SemiBold" Foreground="#1F2937" />
+            </Grid>
+            
+            <Grid ColumnDefinitions="*, *" RowDefinitions="Auto, Auto" Margin="0,5">
+                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,10">
+                    <TextBlock Text="X Min" FontSize="12" Foreground="#4B5563" Margin="0,0,0,4"/>
+                    <NumericUpDown Value="{Binding CustomXMin}" ShowButtonSpinner="False" PlaceholderText="Auto" />
+                </StackPanel>
+                <StackPanel Grid.Row="0" Grid.Column="1" Margin="10,0,0,10">
+                    <TextBlock Text="X Max" FontSize="12" Foreground="#4B5563" Margin="0,0,0,4"/>
+                    <NumericUpDown Value="{Binding CustomXMax}" ShowButtonSpinner="False" PlaceholderText="Auto" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,10,0">
+                    <TextBlock Text="Y Min" FontSize="12" Foreground="#4B5563" Margin="0,0,0,4"/>
+                    <NumericUpDown Value="{Binding CustomYMin}" ShowButtonSpinner="False" PlaceholderText="Auto" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="10,0,0,0">
+                    <TextBlock Text="Y Max" FontSize="12" Foreground="#4B5563" Margin="0,0,0,4"/>
+                    <NumericUpDown Value="{Binding CustomYMax}" ShowButtonSpinner="False" PlaceholderText="Auto" />
+                </StackPanel>
+            </Grid>
+
+            <StackPanel Margin="0,5,0,10">
+                <TextBlock Text="Custom Aspect Ratio (e.g. 4:3 or 1.33)" FontSize="12" Foreground="#4B5563" Margin="0,0,0,4"/>
+                <TextBox Text="{Binding CustomAspectRatioString}" PlaceholderText="Default" />
+            </StackPanel>
+
+            <Separator Background="#E5E7EB" Margin="0,5" />
+
+            <TextBlock Text="Series Colors" FontWeight="SemiBold" FontSize="16" Foreground="#1F2937" />
+            <ScrollViewer MaxHeight="150" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding SeriesSettings}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                                <TextBlock Grid.Column="0" Text="{Binding SeriesName}" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#4B5563"/>
+                                <ColorPicker Grid.Column="1" Color="{Binding PickerColor, Mode=TwoWay}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <Separator Background="#E5E7EB" Margin="0,5" />
+
+            <Grid ColumnDefinitions="*, Auto">
+                <Button Grid.Column="0" Content="Reset All Settings" Command="{Binding ResetAdvancedSettingsCommand}" Classes="Danger" HorizontalAlignment="Left" />
+                <Button Grid.Column="1" Content="Close" Click="CloseButton_Click" Classes="Primary" HorizontalAlignment="Right" Padding="20,8"/>
+            </Grid>
+
+        </StackPanel>
+    </Border>
+</Window>

@@ -214,4 +214,13 @@ public partial class MainWindow : Window
             }
         }
     }
+
+    private void OpenAdvancedPlotSettingsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var settingsWindow = new AdvancedPlotSettingsWindow
+        {
+            DataContext = this.DataContext
+        };
+        settingsWindow.ShowDialog(this);
+    }
 }

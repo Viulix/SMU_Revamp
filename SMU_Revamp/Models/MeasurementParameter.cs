@@ -218,5 +218,69 @@ namespace SMU_Revamp.Models
         {
             return Value?.ToString() ?? string.Empty;
         }
+
+        private bool _isLinkable = false;
+        public bool IsLinkable
+        {
+            get => _isLinkable;
+            set => SetProperty(ref _isLinkable, value);
+        }
+
+        private bool _isLinked = false;
+        public bool IsLinked
+        {
+            get => _isLinked;
+            set
+            {
+                if (SetProperty(ref _isLinked, value))
+                {
+                    if (value && LinkedParameter != null)
+                    {
+                        UpdateFromLinkedParameter();
+                    }
+                }
+            }
+        }
+
+        private MeasurementParameter? _linkedParameter;
+        public MeasurementParameter? LinkedParameter
+        {
+            get => _linkedParameter;
+            set
+            {
+                if (_linkedParameter != null)
+                {
+                    _linkedParameter.PropertyChanged -= LinkedParameter_PropertyChanged;
+                }
+                if (SetProperty(ref _linkedParameter, value))
+                {
+                    if (_linkedParameter != null)
+                    {
+                        _linkedParameter.PropertyChanged += LinkedParameter_PropertyChanged;
+                    }
+                }
+            }
+        }
+
+        public double LinkedMultiplier { get; set; } = 1.0;
+
+        private void LinkedParameter_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(Value) && IsLinked)
+            {
+                UpdateFromLinkedParameter();
+            }
+        }
+
+        private void UpdateFromLinkedParameter()
+        {
+            if (LinkedParameter == null) return;
+            
+            if (double.TryParse(LinkedParameter.GetValueAsString().Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double numVal))
+            {
+                double linkedVal = numVal * LinkedMultiplier;
+                Value = linkedVal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+        }
     }
 }

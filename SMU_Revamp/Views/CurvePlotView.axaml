@@ -3,6 +3,8 @@
              xmlns:ScottPlot="clr-namespace:ScottPlot.Avalonia;assembly=ScottPlot.Avalonia"
              x:Class="SMU_Revamp.Views.CurvePlotView">
     <Border Background="#FFFFFF" CornerRadius="10" Padding="12" BorderBrush="#E5E7EB" BorderThickness="1">
-        <ScottPlot:AvaPlot Name="AvaPlot" />
+        <Grid Name="ContainerGrid">
+            <ScottPlot:AvaPlot Name="AvaPlot" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Grid>
     </Border>
 </UserControl>
