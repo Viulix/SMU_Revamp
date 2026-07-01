@@ -52,15 +52,12 @@ namespace SMU_Revamp.MeasurementPlans
 
         public FrequencyMemoryMeasurementPlan()
         {
-            var spikeVolt = new MeasurementParameter { Name = "InputSpikeVoltage", DisplayName = "Input Spike Voltage (V):", Type = ParameterType.Number, Tooltip = "Voltage amplitude of each input spike.", Section = "Input Spike Train" };
-            var resetVolt = new MeasurementParameter { Name = "ResetSweepMinimum", DisplayName = "Reset I-V Sweep Minimum (V):", Type = ParameterType.Number, Tooltip = "Most negative voltage reached by the reset sweep. The reset sweep goes 0 → minimum → 0.", Section = "Reset" };
-
             Parameters = new List<MeasurementParameter>
             {
                 new() { Name = "WriteChannel", DisplayName = "Write Channel:", Type = ParameterType.Text, Tooltip = "SMU channel used to force the input/read/reset voltages.", Section = "Channel Settings" },
                 new() { Name = "ReadingChannel", DisplayName = "Reading Channel:", Type = ParameterType.Text, Tooltip = "SMU channel used for current readout. Leave equal to write channel for same-channel readout.", Section = "Channel Settings" },
 
-                spikeVolt,
+                new() { Name = "InputSpikeVoltage", DisplayName = "Input Spike Voltage (V):", Type = ParameterType.Number, Tooltip = "Voltage amplitude of each input spike.", Section = "Input Spike Train" },
                 new() { Name = "InputSpikeLengthMs", DisplayName = "Input Spike Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of each input spike.", Section = "Input Spike Train" },
                 new() { Name = "InputSpikeCount", DisplayName = "Number of Input Spikes:", Type = ParameterType.Number, Tooltip = "Number of identical input spikes in each train.", Section = "Input Spike Train" },
                 new() { Name = "MinInterSpikeIntervalMs", DisplayName = "Min. Inter-spike Interval (ms):", Type = ParameterType.Number, Tooltip = "Shortest pause between end of one input spike and start of the next.", Section = "Input Spike Train" },
@@ -72,7 +69,7 @@ namespace SMU_Revamp.MeasurementPlans
                 new() { Name = "ReadoutLengthMs", DisplayName = "Readout Spike Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of the readout pulse before measuring current.", Section = "Readout" },
                 new() { Name = "BaselineReadEnabled", DisplayName = "Baseline Read Enabled:", Type = ParameterType.Checkbox, Tooltip = "If enabled, measure a baseline current after reset and before the input spike train.", Section = "Readout" },
 
-                resetVolt,
+                new() { Name = "ResetSweepMinimum", DisplayName = "Reset I-V Sweep Minimum (V):", Type = ParameterType.Number, Tooltip = "Most negative voltage reached by the reset sweep. The reset sweep goes 0 → minimum → 0.", Section = "Reset" },
 
                 new() { Name = "RepetitionsPerInterval", DisplayName = "Repetitions per Interval:", Type = ParameterType.Number, Tooltip = "Number of repetitions for every inter-spike-interval value.", Section = "Repetition" },
 
@@ -485,19 +482,82 @@ namespace SMU_Revamp.MeasurementPlans
 
         private async Task ApplyInputSpikeTrainAsync(E5263_SMU smu, FrequencyMemorySettings s, double interSpikeIntervalMs, Action<double>? progress = null)
         {
-            for (int i = 0; i < s.InputSpikeCount; i++)
+            // IMPORTANT: Do not generate the input spike train with a software loop of
+            // DV/DZ + Task.Delay. VISA/SMU command latency is in the millisecond range
+            // and is not deterministic enough for 2 ms pulses or short inter-spike gaps.
+            // Instead, use the E5263 hardware-timed pulse functions, which are already
+            // used by the existing Pulse Spot / Pulse Sweep measurement plans.
+
+            double pulseWidthSeconds = s.InputSpikeLengthMs / 1000.0;
+            double pulsePeriodSeconds = (s.InputSpikeLengthMs + interSpikeIntervalMs) / 1000.0;
+            if (pulsePeriodSeconds < pulseWidthSeconds)
             {
-                await ForceVoltageAsync(smu, s.WriteChannel, s.InputSpikeVoltage, s.Compliance);
-                await Task.Delay(ToDelayMilliseconds(s.InputSpikeLengthMs));
-                await ForceVoltageAsync(smu, s.WriteChannel, 0.0, s.Compliance);
-
-                progress?.Invoke((i + 1) / (double)Math.Max(1, s.InputSpikeCount));
-
-                if (i < s.InputSpikeCount - 1 && interSpikeIntervalMs > 0)
-                {
-                    await Task.Delay(ToDelayMilliseconds(interSpikeIntervalMs));
-                }
+                pulsePeriodSeconds = pulseWidthSeconds;
             }
+
+            await smu.SendCommandAsync(FormattableString.Invariant($"PT 0,{pulseWidthSeconds},{pulsePeriodSeconds}"));
+            var ptError = await smu.CheckErrorAsync();
+            if (ptError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected input spike timing PT command. Pulse width = {pulseWidthSeconds:G9} s, period = {pulsePeriodSeconds:G9} s: {ptError}");
+            }
+
+            if (s.InputSpikeCount <= 1)
+            {
+                // One hardware-timed pulse.
+                await smu.SendCommandAsync(FormattableString.Invariant($"PV {s.WriteChannel},0,0,{s.InputSpikeVoltage},{s.Compliance}"));
+                var pvError = await smu.CheckErrorAsync();
+                if (pvError != null)
+                {
+                    throw new InvalidOperationException($"SMU rejected input spike PV command: {pvError}");
+                }
+
+                await smu.SendCommandAsync($"RI {s.ReadingChannel},0");
+                await smu.SendCommandAsync($"MM 3,{s.ReadingChannel}");
+            }
+            else
+            {
+                // N hardware-timed pulses with equal amplitude. PWV is used as a pulse
+                // sweep with start == stop so that each point has the same spike voltage.
+                await smu.SendCommandAsync(FormattableString.Invariant($"PWV {s.WriteChannel},1,0,0,{s.InputSpikeVoltage},{s.InputSpikeVoltage},{s.InputSpikeCount},{s.Compliance}"));
+                var pwvError = await smu.CheckErrorAsync();
+                if (pwvError != null)
+                {
+                    throw new InvalidOperationException($"SMU rejected input spike train PWV command. This usually means the requested pulse width/period is below the SMU limit or the instrument does not accept start == stop pulse sweeps: {pwvError}");
+                }
+
+                await smu.SendCommandAsync($"RI {s.ReadingChannel},0");
+                await smu.SendCommandAsync($"MM 4,{s.ReadingChannel}");
+            }
+
+            await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
+            var mmError = await smu.CheckErrorAsync();
+            if (mmError != null)
+            {
+                throw new InvalidOperationException($"SMU rejected input spike train measurement mode setup: {mmError}");
+            }
+
+            await smu.SendCommandAsync("TSR");
+            await smu.SendCommandAsync("XE");
+            await smu.SendCommandAsync("TSQ");
+
+            // Read and discard the input-train measurement response. This keeps the SMU
+            // output queue clean so the subsequent delayed readout is parsed correctly.
+            int expectedBufferLength = Math.Max(512, s.InputSpikeCount * 64 + 256);
+            try { _ = await smu.ReadResponseAsync(expectedBufferLength); } catch { }
+            try { _ = await smu.ReadResponseAsync(50); } catch { }
+
+            // Return to point mode and zero/disconnect the forcing channel after the train.
+            await ConfigurePointMeasurementModeAsync(smu, s);
+            await smu.SendCommandAsync($"DZ {s.WriteChannel}");
+
+            var finalError = await smu.CheckErrorAsync();
+            if (finalError != null)
+            {
+                throw new InvalidOperationException($"SMU error after input spike train: {finalError}");
+            }
+
+            progress?.Invoke(1.0);
         }
 
         private async Task<double> ReadCurrentPulseAsync(E5263_SMU smu, FrequencyMemorySettings s, double voltage, double durationMs)
