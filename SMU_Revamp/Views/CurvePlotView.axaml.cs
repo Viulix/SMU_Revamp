@@ -37,6 +37,18 @@ public partial class CurvePlotView : UserControl
     public static readonly StyledProperty<bool> LogarithmicYProperty =
         AvaloniaProperty.Register<CurvePlotView, bool>(nameof(LogarithmicY));
 
+    // Backward-compatible property used by MainWindow.axaml.
+    // For non-positive x values the drawing code clamps to a small positive value.
+    public static readonly StyledProperty<bool> LogarithmicXProperty =
+        AvaloniaProperty.Register<CurvePlotView, bool>(nameof(LogarithmicX));
+
+    // Backward-compatible property used by MainWindow.axaml.
+    // The custom canvas renderer currently supports the most important modes directly.
+    public static readonly StyledProperty<SMU_Revamp.Models.PlotStyle> PlotStyleProperty =
+        AvaloniaProperty.Register<CurvePlotView, SMU_Revamp.Models.PlotStyle>(
+            nameof(PlotStyle),
+            SMU_Revamp.Models.PlotStyle.LineAndScatter);
+
     static CurvePlotView()
     {
         TitleProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.UpdateLabels());
@@ -45,6 +57,8 @@ public partial class CurvePlotView : UserControl
         PointsProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
         SeriesProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
         LogarithmicYProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
+        LogarithmicXProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
+        PlotStyleProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
     }
 
     public string? Title
@@ -81,6 +95,18 @@ public partial class CurvePlotView : UserControl
     {
         get => GetValue(LogarithmicYProperty);
         set => SetValue(LogarithmicYProperty, value);
+    }
+
+    public bool LogarithmicX
+    {
+        get => GetValue(LogarithmicXProperty);
+        set => SetValue(LogarithmicXProperty, value);
+    }
+
+    public SMU_Revamp.Models.PlotStyle PlotStyle
+    {
+        get => GetValue(PlotStyleProperty);
+        set => SetValue(PlotStyleProperty, value);
     }
 
     public CurvePlotView()
@@ -140,8 +166,12 @@ public partial class CurvePlotView : UserControl
         var width = Math.Max(1, PlotCanvas.Bounds.Width - marginLeft - marginRight);
         var height = Math.Max(1, PlotCanvas.Bounds.Height - marginTop - marginBottom);
 
-        var xMin = allPoints.Min(p => p.X);
-        var xMax = allPoints.Max(p => p.X);
+        var xValues = allPoints
+            .Select(p => TransformX(p.X))
+            .ToList();
+
+        var xMin = xValues.Min();
+        var xMax = xValues.Max();
         if (Math.Abs(xMax - xMin) < 1e-12)
         {
             xMax = xMin + 1;
@@ -260,11 +290,11 @@ public partial class CurvePlotView : UserControl
                 StrokeThickness = 0.75
             });
 
-            var xValue = xMin + ratio * (xMax - xMin);
+            var xValue = InverseTransformX(xMin + ratio * (xMax - xMin));
             var yValue = LogarithmicY ? Math.Pow(10, yMax - ratio * (yMax - yMin)) : yMax - ratio * (yMax - yMin);
             var xLabel = new TextBlock
             {
-                Text = xValue.ToString("0.###", CultureInfo.InvariantCulture),
+                Text = FormatAxisValue(xValue),
                 FontSize = 11,
                 Foreground = tickBrush
             };
@@ -291,7 +321,7 @@ public partial class CurvePlotView : UserControl
     {
         var orderedPoints = points.OrderBy(p => p.X).ToList();
 
-        if (orderedPoints.Count >= 2)
+        if (ShouldDrawLine() && orderedPoints.Count >= 2)
         {
             var polyline = new Polyline
             {
@@ -316,10 +346,34 @@ public partial class CurvePlotView : UserControl
 
     private Point ToCanvasPoint(double xValue, double yValue, double width, double height, double marginLeft, double marginTop, double xMin, double xMax, double yMin, double yMax)
     {
-        var x = marginLeft + ((xValue - xMin) / (xMax - xMin)) * width;
+        var rawX = TransformX(xValue);
+        var x = marginLeft + ((rawX - xMin) / (xMax - xMin)) * width;
         var rawY = LogarithmicY ? Math.Log10(Math.Max(Math.Abs(yValue), 1e-12)) : yValue;
         var y = marginTop + height - ((rawY - yMin) / (yMax - yMin)) * height;
         return new Point(x, y);
+    }
+
+    private double TransformX(double value)
+    {
+        return LogarithmicX ? Math.Log10(Math.Max(value, 1e-12)) : value;
+    }
+
+    private double InverseTransformX(double value)
+    {
+        return LogarithmicX ? Math.Pow(10, value) : value;
+    }
+
+    private static string FormatAxisValue(double value)
+    {
+        var abs = Math.Abs(value);
+        return abs >= 10000 || (abs > 0 && abs < 0.001)
+            ? value.ToString("0.###E0", CultureInfo.InvariantCulture)
+            : value.ToString("0.###", CultureInfo.InvariantCulture);
+    }
+
+    private bool ShouldDrawLine()
+    {
+        return PlotStyle != SMU_Revamp.Models.PlotStyle.Scatter;
     }
 
     private void DrawErrorBar(CurvePoint point, double width, double height, double marginLeft, double marginTop, double xMin, double xMax, double yMin, double yMax, IBrush brush)
