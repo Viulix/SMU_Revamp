@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SMU_Revamp.ViewModels"
+        x:Class="SMU_Revamp.Views.ParameterLinkDialog"
+        x:DataType="vm:ParameterLinkViewModel"
+        Title="Parameter Link Settings"
+        Width="400" Height="300"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Icon="/Assets/tf_logo_rgb_en.ico">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="20">
+        <TextBlock Grid.Row="0" Text="{Binding SourceParameter.DisplayName, StringFormat='Link Settings for {0}'}" 
+                   FontSize="16" FontWeight="Bold" Margin="0,0,0,20"/>
+        
+        <StackPanel Grid.Row="1" Spacing="15">
+            <StackPanel Spacing="5">
+                <TextBlock Text="Target Parameter:" FontWeight="SemiBold"/>
+                <ComboBox ItemsSource="{Binding AvailableParameters}" 
+                          SelectedItem="{Binding SelectedTargetParameter}"
+                          HorizontalAlignment="Stretch">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding DisplayName}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+
+            <StackPanel Spacing="5">
+                <TextBlock Text="Multiplier (Value = Target × Multiplier):" FontWeight="SemiBold"/>
+                <TextBox Text="{Binding Multiplier}" HorizontalAlignment="Stretch"/>
+            </StackPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,20,0,0">
+            <Button Content="Remove Link" Click="RemoveLinkButton_Click" Classes="Danger" IsVisible="{Binding SourceParameter.IsLinked}" />
+            <Button Content="Cancel" Click="CancelButton_Click" Classes="Secondary" />
+            <Button Content="Save" Click="SaveButton_Click" Classes="Primary" />
+        </StackPanel>
+    </Grid>
+</Window>

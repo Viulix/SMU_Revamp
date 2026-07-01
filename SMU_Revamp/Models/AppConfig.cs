@@ -99,4 +99,19 @@ public class AppConfig
     /// Flag to automatically save measurement results to a Profile-named folder.
     /// </summary>
     public bool AutoSaveMeasurements { get; set; } = true;
+
+    /// <summary>
+    /// Dynamic parameter links, keyed by Plan Name -> Parameter Name -> Link Config.
+    /// </summary>
+    public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ParameterLinkConfig>> ParameterLinks { get; set; } = new();
+}
+
+/// <summary>
+/// Configuration for a dynamic parameter link.
+/// </summary>
+public class ParameterLinkConfig
+{
+    public string LinkedParameterName { get; set; } = string.Empty;
+    public double Multiplier { get; set; } = 1.0;
+    public bool IsActive { get; set; } = true;
 }

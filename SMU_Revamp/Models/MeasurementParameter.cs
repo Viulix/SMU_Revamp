@@ -61,6 +61,7 @@ namespace SMU_Revamp.Models
                     OnPropertyChanged(nameof(IsTextOrNumber));
                     OnPropertyChanged(nameof(IsCheckbox));
                     OnPropertyChanged(nameof(IsDropdown));
+                    OnPropertyChanged(nameof(IsLinkable));
                 }
             }
         }
@@ -219,12 +220,7 @@ namespace SMU_Revamp.Models
             return Value?.ToString() ?? string.Empty;
         }
 
-        private bool _isLinkable = false;
-        public bool IsLinkable
-        {
-            get => _isLinkable;
-            set => SetProperty(ref _isLinkable, value);
-        }
+        public bool IsLinkable => Type == ParameterType.Number;
 
         private bool _isLinked = false;
         public bool IsLinked

@@ -72,7 +72,7 @@ namespace SMU_Revamp.MeasurementPlans
         public SpikeTimingMeasurementPlan()
         {
             var spikeVolt = new MeasurementParameter { Name = "SpikeVoltage", DisplayName = "Spike Voltage (V):", Type = ParameterType.Number, Tooltip = "Voltage amplitude of each timing spike.", Section = "Spike Settings" };
-            var resetVolt = new MeasurementParameter { Name = "ResetVoltage", DisplayName = "Reset Voltage (V):", Type = ParameterType.Number, Tooltip = "Reset pulse voltage.", Section = "Reset Settings", IsLinkable = true, LinkedParameter = spikeVolt, LinkedMultiplier = -1.0 };
+            var resetVolt = new MeasurementParameter { Name = "ResetVoltage", DisplayName = "Reset Voltage (V):", Type = ParameterType.Number, Tooltip = "Reset pulse voltage.", Section = "Reset Settings" };
 
             Parameters = new List<MeasurementParameter>
             {

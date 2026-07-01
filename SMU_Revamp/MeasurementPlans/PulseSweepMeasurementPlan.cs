@@ -22,7 +22,7 @@ namespace SMU_Revamp.MeasurementPlans
         public PulseSweepMeasurementPlan()
         {
             var startVolt = new MeasurementParameter { Name = "StartVoltage", DisplayName = "Start Voltage (V):", Type = ParameterType.Number, Tooltip = "The starting voltage of the pulsed sweep", Section = "Voltage Settings" };
-            var stopVolt = new MeasurementParameter { Name = "StopVoltage", DisplayName = "Stop Voltage (V):", Type = ParameterType.Number, Tooltip = "The ending voltage of the pulsed sweep", Section = "Voltage Settings", IsLinkable = true, LinkedParameter = startVolt, LinkedMultiplier = -1.0 };
+            var stopVolt = new MeasurementParameter { Name = "StopVoltage", DisplayName = "Stop Voltage (V):", Type = ParameterType.Number, Tooltip = "The ending voltage of the pulsed sweep", Section = "Voltage Settings" };
 
             Parameters = new List<MeasurementParameter>
             {

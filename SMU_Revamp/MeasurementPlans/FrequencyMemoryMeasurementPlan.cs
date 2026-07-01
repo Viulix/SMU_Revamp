@@ -53,7 +53,7 @@ namespace SMU_Revamp.MeasurementPlans
         public FrequencyMemoryMeasurementPlan()
         {
             var spikeVolt = new MeasurementParameter { Name = "InputSpikeVoltage", DisplayName = "Input Spike Voltage (V):", Type = ParameterType.Number, Tooltip = "Voltage amplitude of each input spike.", Section = "Input Spike Train" };
-            var resetVolt = new MeasurementParameter { Name = "ResetSweepMinimum", DisplayName = "Reset I-V Sweep Minimum (V):", Type = ParameterType.Number, Tooltip = "Most negative voltage reached by the reset sweep. The reset sweep goes 0 → minimum → 0.", Section = "Reset", IsLinkable = true, LinkedParameter = spikeVolt, LinkedMultiplier = -1.0 };
+            var resetVolt = new MeasurementParameter { Name = "ResetSweepMinimum", DisplayName = "Reset I-V Sweep Minimum (V):", Type = ParameterType.Number, Tooltip = "Most negative voltage reached by the reset sweep. The reset sweep goes 0 → minimum → 0.", Section = "Reset" };
 
             Parameters = new List<MeasurementParameter>
             {

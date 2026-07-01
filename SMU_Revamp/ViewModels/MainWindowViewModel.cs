@@ -1782,6 +1782,42 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        var config = ConfigurationService.Instance.GetConfig();
+        if (config.ParameterLinks != null && config.ParameterLinks.TryGetValue(SelectedPlan.Name, out var planLinks))
+        {
+            foreach (var param in SelectedPlan.Parameters)
+            {
+                if (planLinks.TryGetValue(param.Name, out var linkConfig) && linkConfig.IsActive)
+                {
+                    var targetParam = SelectedPlan.Parameters.FirstOrDefault(p => p.Name == linkConfig.LinkedParameterName);
+                    if (targetParam != null)
+                    {
+                        param.LinkedParameter = targetParam;
+                        param.LinkedMultiplier = linkConfig.Multiplier;
+                        param.IsLinked = true;
+                    }
+                    else
+                    {
+                        param.IsLinked = false;
+                        param.LinkedParameter = null;
+                    }
+                }
+                else
+                {
+                    param.IsLinked = false;
+                    param.LinkedParameter = null;
+                }
+            }
+        }
+        else
+        {
+            foreach (var param in SelectedPlan.Parameters)
+            {
+                param.IsLinked = false;
+                param.LinkedParameter = null;
+            }
+        }
+
         var sections = new List<ParameterSection>();
         var grouped = new Dictionary<string, List<MeasurementParameter>>();
         var sectionOrder = new List<string>();
