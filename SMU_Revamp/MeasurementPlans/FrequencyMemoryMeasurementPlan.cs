@@ -487,24 +487,30 @@ namespace SMU_Revamp.MeasurementPlans
             // and is not deterministic enough for 2 ms pulses or short inter-spike gaps.
             // Instead, use the E5263 hardware-timed pulse functions, which are already
             // used by the existing Pulse Spot / Pulse Sweep measurement plans.
+            //
+            // The E5263 PT command rejects pulsePeriod <= pulseWidth. Therefore an
+            // inter-spike interval of exactly 0 ms cannot be represented as a pulse
+            // train that returns to 0 V between spikes. Electrically, N identical
+            // spikes with 0 ms pause are equivalent to one continuous pulse with
+            // duration N * spikeLength. This branch implements exactly that limit case.
 
             double pulseWidthSeconds = s.InputSpikeLengthMs / 1000.0;
-            double pulsePeriodSeconds = (s.InputSpikeLengthMs + interSpikeIntervalMs) / 1000.0;
-            if (pulsePeriodSeconds < pulseWidthSeconds)
-            {
-                pulsePeriodSeconds = pulseWidthSeconds;
-            }
 
-            await smu.SendCommandAsync(FormattableString.Invariant($"PT 0,{pulseWidthSeconds},{pulsePeriodSeconds}"));
-            var ptError = await smu.CheckErrorAsync();
-            if (ptError != null)
+            if (s.InputSpikeCount <= 1 || interSpikeIntervalMs <= 1e-12)
             {
-                throw new InvalidOperationException($"SMU rejected input spike timing PT command. Pulse width = {pulseWidthSeconds:G9} s, period = {pulsePeriodSeconds:G9} s: {ptError}");
-            }
+                double effectivePulseWidthSeconds = pulseWidthSeconds * Math.Max(1, s.InputSpikeCount);
+                double effectivePulsePeriodSeconds = MakeValidSinglePulsePeriod(effectivePulseWidthSeconds);
 
-            if (s.InputSpikeCount <= 1)
-            {
-                // One hardware-timed pulse.
+                await smu.SendCommandAsync(FormattableString.Invariant($"PT 0,{effectivePulseWidthSeconds},{effectivePulsePeriodSeconds}"));
+                var ptError = await smu.CheckErrorAsync();
+                if (ptError != null)
+                {
+                    string modeDescription = interSpikeIntervalMs <= 1e-12 && s.InputSpikeCount > 1
+                        ? "0 ms interval was converted to one continuous equivalent pulse"
+                        : "single input pulse";
+                    throw new InvalidOperationException($"SMU rejected input spike timing PT command for {modeDescription}. Pulse width = {effectivePulseWidthSeconds:G9} s, period = {effectivePulsePeriodSeconds:G9} s: {ptError}");
+                }
+
                 await smu.SendCommandAsync(FormattableString.Invariant($"PV {s.WriteChannel},0,0,{s.InputSpikeVoltage},{s.Compliance}"));
                 var pvError = await smu.CheckErrorAsync();
                 if (pvError != null)
@@ -517,6 +523,19 @@ namespace SMU_Revamp.MeasurementPlans
             }
             else
             {
+                double pulsePeriodSeconds = (s.InputSpikeLengthMs + interSpikeIntervalMs) / 1000.0;
+                if (pulsePeriodSeconds <= pulseWidthSeconds)
+                {
+                    throw new InvalidOperationException($"Invalid hardware pulse train timing: pulse period must be larger than pulse width. Pulse width = {pulseWidthSeconds:G9} s, period = {pulsePeriodSeconds:G9} s. Increase the inter-spike interval above 0 ms, or use the 0 ms condition which is handled as one continuous equivalent pulse.");
+                }
+
+                await smu.SendCommandAsync(FormattableString.Invariant($"PT 0,{pulseWidthSeconds},{pulsePeriodSeconds}"));
+                var ptError = await smu.CheckErrorAsync();
+                if (ptError != null)
+                {
+                    throw new InvalidOperationException($"SMU rejected input spike timing PT command. Pulse width = {pulseWidthSeconds:G9} s, period = {pulsePeriodSeconds:G9} s, inter-spike pause = {interSpikeIntervalMs:G9} ms: {ptError}. The requested pulse width or off-time may be below the E5263 hardware pulse limit.");
+                }
+
                 // N hardware-timed pulses with equal amplitude. PWV is used as a pulse
                 // sweep with start == stop so that each point has the same spike voltage.
                 await smu.SendCommandAsync(FormattableString.Invariant($"PWV {s.WriteChannel},1,0,0,{s.InputSpikeVoltage},{s.InputSpikeVoltage},{s.InputSpikeCount},{s.Compliance}"));
@@ -558,6 +577,15 @@ namespace SMU_Revamp.MeasurementPlans
             }
 
             progress?.Invoke(1.0);
+        }
+
+        private static double MakeValidSinglePulsePeriod(double pulseWidthSeconds)
+        {
+            // PT requires period > width. For a single pulse, the exact period is not
+            // scientifically relevant; it only has to satisfy the instrument parser.
+            // Use at least 1 ms off-time after the pulse, or 1% of width for long pulses.
+            double extraSeconds = Math.Max(0.001, Math.Abs(pulseWidthSeconds) * 0.01);
+            return pulseWidthSeconds + extraSeconds;
         }
 
         private async Task<double> ReadCurrentPulseAsync(E5263_SMU smu, FrequencyMemorySettings s, double voltage, double durationMs)
