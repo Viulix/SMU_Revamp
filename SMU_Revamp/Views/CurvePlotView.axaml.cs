@@ -319,7 +319,12 @@ public partial class CurvePlotView : UserControl
 
     private void DrawCurve(IReadOnlyList<CurvePoint> points, double width, double height, double marginLeft, double marginTop, double xMin, double xMax, double yMin, double yMax, IBrush brush)
     {
-        var orderedPoints = points.OrderBy(p => p.X).ToList();
+        // IMPORTANT: preserve acquisition order for hysteretic sweeps.
+        // Do not sort by X here: I/V sweeps and memristor hysteresis curves can visit
+        // the same voltage multiple times in different device states. The measurement plan
+        // is responsible for supplying already-sorted points if sorted plotting is desired
+        // (for example, FrequencyMemoryMeasurementPlan supplies mean points ordered by interval).
+        var orderedPoints = points.ToList();
 
         if (ShouldDrawLine() && orderedPoints.Count >= 2)
         {
