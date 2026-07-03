@@ -19,19 +19,18 @@ namespace SMU_Revamp.MeasurementPlans
     ///     spike 1 -> gap 1 -> spike 2 -> gap 2 -> spike 3 -> gap 3 -> spike 4
     ///
     /// For every trial:
-    ///     reset -> baseline read -> four-spike pattern -> read after A/B/C from the last spike end.
+    ///     reset -> baseline read -> four-spike pattern -> user-defined readout pulses after the last spike end.
     ///
-    /// CSV export writes one row per trial. The three readouts after the same pattern are stored
-    /// as Readout1/Readout2/Readout3 columns in that same row.
+    /// CSV export writes one row per readout pulse. Readout pulse start time, voltage, pulse length, and measured current are exported explicitly.
     ///
-    /// The normal ResultPoints list contains one point per trial:
-    ///     x = trial index, y = readout 3 current.
+    /// The normal ResultPoints list contains the latest completed trial as I(t):
+    ///     x = actual readout pulse start after last spike end, y = measured current.
     /// Detailed metadata is exported through GetCsvLines().
     /// </summary>
     public sealed class SpikeTimingMeasurementPlan : IMeasurementPlan
     {
         public string Name => "Spike Timing";
-        public string Description => "Applies four-spike patterns generated from the six permutations of three device time constants, resets between trials, and records three readout currents after each pattern.";
+        public string Description => "Applies four-spike patterns generated from the six permutations of three device time constants, resets between trials, and records user-defined pulsed readouts after each pattern.";
 
         public string PlotTitle => "Time-Constant Spike Response";
         public string XAxisLabel => "Delay after Last Spike End (ms)";
@@ -50,7 +49,7 @@ namespace SMU_Revamp.MeasurementPlans
 
         /// <summary>
         /// Six averaged I(t) curves, one per gap-order pattern.
-        /// Each curve has three points: readout after A/B/C from the last spike end.
+        /// Each curve has one point per user-defined readout pulse. Points contain optional YError values for standard deviation across repetitions.
         /// </summary>
         public IReadOnlyList<PlotSeries> PlotSeries => BuildAveragePlotSeries();
 
@@ -88,9 +87,10 @@ namespace SMU_Revamp.MeasurementPlans
                 spikeVolt,
                 new() { Name = "SpikeLengthMs", DisplayName = "Spike Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of each spike in milliseconds. The plan always uses four spikes.", Section = "Spike Settings" },
 
-                new() { Name = "ReadVoltage", DisplayName = "Read Voltage (V):", Type = ParameterType.Number, Tooltip = "Small non-switching readout voltage.", Section = "Readout Settings" },
-                new() { Name = "ReadoutDurationMs", DisplayName = "Readout Duration (ms):", Type = ParameterType.Number, Tooltip = "Total duration of the continuous sampling measurement after the last spike.", Section = "Readout Settings" },
-                new() { Name = "ReadoutIntervalMs", DisplayName = "Readout Interval (ms):", Type = ParameterType.Number, Tooltip = "Time interval between measurement points.", Section = "Readout Settings" },
+                new() { Name = "NumberOfReadoutPulses", DisplayName = "Number of Readout Pulses:", Type = ParameterType.Number, Tooltip = "How many readout pulses are applied after the last input spike.", Section = "Readout Settings" },
+                new() { Name = "ReadoutStartTimesMs", DisplayName = "Readout Start Times after Last Spike (ms):", Type = ParameterType.Text, Tooltip = "Semicolon separated list. Each value is the start time of one readout pulse after the last spike end, e.g. 50;100;200.", Section = "Readout Settings" },
+                new() { Name = "ReadoutVoltages", DisplayName = "Readout Voltages (V):", Type = ParameterType.Text, Tooltip = "Semicolon separated list of readout voltages. Use one value to apply the same voltage to all readout pulses, e.g. 0.3.", Section = "Readout Settings" },
+                new() { Name = "ReadoutPulseLengthsMs", DisplayName = "Readout Pulse Lengths (ms):", Type = ParameterType.Text, Tooltip = "Semicolon separated list of readout pulse lengths. Use one value to apply the same pulse length to all readout pulses, e.g. 20.", Section = "Readout Settings" },
 
                 new() { Name = "Compliance", DisplayName = "Compliance (A):", Type = ParameterType.Number, Tooltip = "Current compliance used for spike, reset, baseline, and read pulses.", Section = "Advanced / Safety" },
                 new() { Name = "ShuffleSeed", DisplayName = "Shuffle Seed:", Type = ParameterType.Number, Tooltip = "Integer seed for reproducible pseudo-random execution order when shuffling is enabled.", Section = "Advanced / Safety" },
@@ -125,9 +125,10 @@ namespace SMU_Revamp.MeasurementPlans
                     case "SpikeVoltage": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "SpikeVoltage", 1.0); break;
                     case "SpikeLengthMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "SpikeLengthMs", 30.0); break;
 
-                    case "ReadVoltage": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadVoltage", 0.3); break;
-                    case "ReadoutDurationMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadoutDurationMs", 3000.0); break;
-                    case "ReadoutIntervalMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadoutIntervalMs", 1.0); break;
+                    case "NumberOfReadoutPulses": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "NumberOfReadoutPulses", 3); break;
+                    case "ReadoutStartTimesMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadoutStartTimesMs", "100;500;1000"); break;
+                    case "ReadoutVoltages": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadoutVoltages", "0.3"); break;
+                    case "ReadoutPulseLengthsMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadoutPulseLengthsMs", "20"); break;
 
                     case "Compliance": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Compliance", config.SweepCompliance); break;
                     case "ShuffleSeed": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ShuffleSeed", 12345); break;
@@ -195,23 +196,9 @@ namespace SMU_Revamp.MeasurementPlans
                     double baselineCurrent = double.NaN;
                     if (settings.BaselineReadEnabled)
                     {
-                        baselineCurrent = await ReadCurrentPulseAsync(smu, settings, cts.Token);
+                        baselineCurrent = await ReadCurrentPulseAsync(smu, settings, settings.ReadoutPulses[0].Voltage, settings.ReadoutPulses[0].PulseLengthMs, cts.Token);
                     }
                     ReportTrialProgress(0.22);
-
-                    double effectiveIntervalMs = settings.ReadoutIntervalMs;
-                    int pointsCount = (int)Math.Round(settings.ReadoutDurationMs / effectiveIntervalMs);
-                    
-                    // The E5263 hardware limits sweep points to 1001.
-                    // If the user requests more, we must increase the interval to cover the duration.
-                    if (pointsCount > 1001)
-                    {
-                        pointsCount = 1001;
-                        effectiveIntervalMs = settings.ReadoutDurationMs / 1000.0;
-                    }
-                    if (pointsCount < 2) pointsCount = 2; // Sweep needs at least 2 points
-
-                    await ConfigureSweepReadoutAsync(smu, settings, pointsCount, effectiveIntervalMs);
 
                     var trialStopwatch = Stopwatch.StartNew();
                     await RunSpikePatternAsync(smu, settings, item.Pattern, trialStopwatch, cts.Token, patternFraction =>
@@ -220,8 +207,10 @@ namespace SMU_Revamp.MeasurementPlans
                     });
                     ReportTrialProgress(0.60);
 
-                    // Start and read sweep readout
-                    var sampledPoints = await StartAndReadSweepReadoutAsync(smu, settings, pointsCount, effectiveIntervalMs, cts.Token);
+                    var sampledPoints = await MeasureReadoutPulsesAsync(smu, settings, item.Pattern, trialStopwatch, cts.Token, readoutFraction =>
+                    {
+                        ReportTrialProgress(0.60 + 0.35 * readoutFraction);
+                    });
                     ReportTrialProgress(0.95);
 
                     ResultPoints.Clear();
@@ -335,7 +324,8 @@ namespace SMU_Revamp.MeasurementPlans
             int idxLastSpikeStart = GetIndex("LastSpikeStart_ms");
             int idxLastSpikeEnd = GetIndex("LastSpikeEnd_ms");
             int idxBaselineCurrent = GetIndex("BaselineCurrent_A");
-            int idxTime = GetIndex("TimeAfterLastSpike_ms");
+            int idxTime = GetIndex("ReadoutActualStartAfterLastSpike_ms");
+            if (idxTime == -1) idxTime = GetIndex("TimeAfterLastSpike_ms");
             int idxCurrent = GetIndex("MeasuredCurrent_A");
 
             if (idxTrial == -1 || idxTime == -1 || idxCurrent == -1)
@@ -430,11 +420,19 @@ namespace SMU_Revamp.MeasurementPlans
                     {
                         double avgX = pointsAtIndex.Average(p => p.X);
                         double avgY = pointsAtIndex.Average(p => p.Y);
-                        avgPoints.Add(new CurvePoint(avgX, avgY));
+                        double? yError = null;
+
+                        if (pointsAtIndex.Count > 1)
+                        {
+                            double variance = pointsAtIndex.Sum(p => Math.Pow(p.Y - avgY, 2.0)) / (pointsAtIndex.Count - 1);
+                            yError = Math.Sqrt(variance);
+                        }
+
+                        avgPoints.Add(new CurvePoint(avgX, avgY, yError));
                     }
                 }
 
-                if (avgPoints.Count >= 2)
+                if (avgPoints.Count >= 1)
                 {
                     series.Add(new PlotSeries(group.Key.GapOrder, avgPoints));
                 }
@@ -445,7 +443,7 @@ namespace SMU_Revamp.MeasurementPlans
                 return series;
             }
 
-            return ResultPoints.Count >= 2
+            return ResultPoints.Count >= 1
                 ? new List<PlotSeries> { new PlotSeries("Latest trial", ResultPoints.ToList()) }
                 : new List<PlotSeries>();
         }
@@ -459,14 +457,18 @@ namespace SMU_Revamp.MeasurementPlans
             var lines = new List<string>
             {
                 "sep=\t",
-                "TrialIndex\tRepetitionIndex\tPatternIndex\tGapOrder\tGap1_ms\tGap2_ms\tGap3_ms\tSpikeTimes_ms\tSpikeEndTimes_ms\tLastSpikeStart_ms\tLastSpikeEnd_ms\tBaselineCurrent_A\tTimeAfterLastSpike_ms\tMeasuredCurrent_A\tTimeConstantA_ms\tTimeConstantB_ms\tTimeConstantC_ms\tSpikeVoltage_V\tSpikeLength_ms\tReadVoltage_V\tReadoutDuration_ms\tReadoutInterval_ms\tCompliance_A\tShuffleExecutionOrder\tShuffleSeed\tResetEnabled\tResetVoltage_V\tResetPulseLength_ms\tResetRepetitions\tResetRecovery_ms"
+                "TrialIndex\tRepetitionIndex\tPatternIndex\tGapOrder\tGap1_ms\tGap2_ms\tGap3_ms\tSpikeTimes_ms\tSpikeEndTimes_ms\tLastSpikeStart_ms\tLastSpikeEnd_ms\tBaselineCurrent_A\tReadoutNumber\tReadoutTargetStartAfterLastSpike_ms\tReadoutActualStartAfterLastSpike_ms\tReadoutVoltage_V\tReadoutPulseLength_ms\tMeasuredCurrent_A\tDeltaCurrent_A\tTimeConstantA_ms\tTimeConstantB_ms\tTimeConstantC_ms\tSpikeVoltage_V\tSpikeLength_ms\tCompliance_A\tShuffleExecutionOrder\tShuffleSeed\tResetEnabled\tResetVoltage_V\tResetPulseLength_ms\tResetRepetitions\tResetRecovery_ms"
             };
 
             var settings = ReadAndValidateSettings();
             foreach (var r in TrialResults)
             {
-                foreach (var pt in r.SampledPoints)
+                for (int k = 0; k < r.SampledPoints.Count; k++)
                 {
+                    var pt = r.SampledPoints[k];
+                    var ro = k < settings.ReadoutPulses.Count ? settings.ReadoutPulses[k] : new ReadoutPulseSetting(k + 1, double.NaN, double.NaN, double.NaN);
+                    double deltaCurrent = double.IsNaN(r.BaselineCurrentA) ? double.NaN : pt.Y - r.BaselineCurrentA;
+
                     lines.Add(string.Join("\t", new[]
                     {
                         r.TrialIndex.ToString(CultureInfo.InvariantCulture),
@@ -481,17 +483,19 @@ namespace SMU_Revamp.MeasurementPlans
                         r.LastSpikeStartMs.ToString("G9", CultureInfo.InvariantCulture),
                         r.LastSpikeEndMs.ToString("G9", CultureInfo.InvariantCulture),
                         r.BaselineCurrentA.ToString("E9", CultureInfo.InvariantCulture),
-                        pt.X.ToString("G9", CultureInfo.InvariantCulture), // TimeAfterLastSpike_ms
-                        pt.Y.ToString("E9", CultureInfo.InvariantCulture), // MeasuredCurrent_A
+                        ro.ReadoutNumber.ToString(CultureInfo.InvariantCulture),
+                        ro.StartAfterLastSpikeMs.ToString("G9", CultureInfo.InvariantCulture),
+                        pt.X.ToString("G9", CultureInfo.InvariantCulture),
+                        ro.Voltage.ToString("G9", CultureInfo.InvariantCulture),
+                        ro.PulseLengthMs.ToString("G9", CultureInfo.InvariantCulture),
+                        pt.Y.ToString("E9", CultureInfo.InvariantCulture),
+                        deltaCurrent.ToString("E9", CultureInfo.InvariantCulture),
 
                         settings.TimeConstantA_Ms.ToString("G9", CultureInfo.InvariantCulture),
                         settings.TimeConstantB_Ms.ToString("G9", CultureInfo.InvariantCulture),
                         settings.TimeConstantC_Ms.ToString("G9", CultureInfo.InvariantCulture),
                         settings.SpikeVoltage.ToString("G9", CultureInfo.InvariantCulture),
                         settings.SpikeLengthMs.ToString("G9", CultureInfo.InvariantCulture),
-                        settings.ReadVoltage.ToString("G9", CultureInfo.InvariantCulture),
-                        settings.ReadoutDurationMs.ToString("G9", CultureInfo.InvariantCulture),
-                        settings.ReadoutIntervalMs.ToString("G9", CultureInfo.InvariantCulture),
                         settings.Compliance.ToString("G9", CultureInfo.InvariantCulture),
                         settings.ShuffleExecutionOrder ? "true" : "false",
                         settings.ShuffleSeed.ToString(CultureInfo.InvariantCulture),
@@ -529,9 +533,10 @@ namespace SMU_Revamp.MeasurementPlans
                 SpikeVoltage = GetParamValueDouble("SpikeVoltage"),
                 SpikeLengthMs = GetParamValueDouble("SpikeLengthMs"),
 
-                ReadVoltage = GetParamValueDouble("ReadVoltage"),
-                ReadoutDurationMs = GetParamValueDouble("ReadoutDurationMs"),
-                ReadoutIntervalMs = GetParamValueDouble("ReadoutIntervalMs"),
+                NumberOfReadoutPulses = GetParamValueInt("NumberOfReadoutPulses"),
+                ReadoutStartTimesRaw = GetParamValueString("ReadoutStartTimesMs"),
+                ReadoutVoltagesRaw = GetParamValueString("ReadoutVoltages"),
+                ReadoutPulseLengthsRaw = GetParamValueString("ReadoutPulseLengthsMs"),
 
                 Compliance = GetParamValueDouble("Compliance"),
                 ShuffleSeed = GetParamValueInt("ShuffleSeed"),
@@ -544,13 +549,14 @@ namespace SMU_Revamp.MeasurementPlans
                 ResetRecoveryMs = GetParamValueDouble("ResetRecoveryMs")
             };
 
+            settings.ReadoutPulses = BuildReadoutPulseSettings(settings);
+
             if (settings.TimeConstantA_Ms <= 0) throw new InvalidOperationException("Time Constant A must be > 0 ms.");
             if (settings.TimeConstantB_Ms <= 0) throw new InvalidOperationException("Time Constant B must be > 0 ms.");
             if (settings.TimeConstantC_Ms <= 0) throw new InvalidOperationException("Time Constant C must be > 0 ms.");
             if (settings.RepetitionsPerPattern < 1) throw new InvalidOperationException("Repetitions per pattern must be at least 1.");
             if (settings.SpikeLengthMs <= 0) throw new InvalidOperationException("Spike length must be > 0 ms.");
-            if (settings.ReadoutDurationMs <= 0) throw new InvalidOperationException("Readout duration must be > 0 ms.");
-            if (settings.ReadoutIntervalMs <= 0) throw new InvalidOperationException("Readout interval must be > 0 ms.");
+            if (settings.NumberOfReadoutPulses < 1) throw new InvalidOperationException("Number of readout pulses must be at least 1.");
             if (settings.Compliance <= 0) throw new InvalidOperationException("Compliance must be > 0 A.");
 
             if (settings.ResetEnabled)
@@ -609,10 +615,7 @@ namespace SMU_Revamp.MeasurementPlans
                 double targetStartMs = pattern.SpikeStartTimesMs[i];
                 await WaitUntilElapsedAsync(trialStopwatch, targetStartMs, ct, progressCallback, Math.Max(pattern.LastSpikeEndMs, 1.0));
 
-                bool isLastSpike = (i == pattern.SpikeStartTimesMs.Length - 1);
-                double endingVoltage = isLastSpike ? s.ReadVoltage : 0.0;
-
-                await ApplyVoltagePulseAsync(smu, s.WriteChannel, s.SpikeVoltage, s.SpikeLengthMs, s.Compliance, ct, endingVoltage);
+                await ApplyVoltagePulseAsync(smu, s.WriteChannel, s.SpikeVoltage, s.SpikeLengthMs, s.Compliance, ct, 0.0);
                 progressCallback?.Invoke(Math.Clamp(trialStopwatch.Elapsed.TotalMilliseconds / Math.Max(pattern.LastSpikeEndMs, 1.0), 0.0, 1.0));
             }
 
@@ -636,124 +639,57 @@ namespace SMU_Revamp.MeasurementPlans
             }
         }
 
-        private async Task<double> ReadCurrentPulseAsync(E5263_SMU smu, SpikeTimingSettings s, CancellationToken ct)
-        {
-            ct.ThrowIfCancellationRequested();
-            await smu.SendCommandAsync($"DZ {s.WriteChannel}");
-            await smu.SendCommandAsync(FormattableString.Invariant($"DV {s.WriteChannel},0,{s.ReadVoltage},{s.Compliance}"));
-            await WaitMillisecondsAccurateAsync(5, ct);
-            await smu.SendCommandAsync("XE");
-            await WaitMillisecondsAccurateAsync(30.0, ct); // Fixed 30ms pulse for baseline read
-            await WaitMillisecondsAccurateAsync(10, ct);
-
-            string response = await smu.ReadResponseAsync(100);
-            await smu.SendCommandAsync($"DZ {s.WriteChannel}");
-
-            return ParseCurrent(response, s.InvertCurrent);
-        }
-
-        private async Task ConfigureSweepReadoutAsync(E5263_SMU smu, SpikeTimingSettings s, int pointsCount, double effectiveIntervalMs)
-        {
-            double intervalSec = effectiveIntervalMs / 1000.0;
-
-            await smu.SendCommandAsync("AV 1,0");
-
-            // Hardware Sweep requires start != stop for some firmware versions. Add 0.1 mV difference.
-            double readStart = s.ReadVoltage;
-            double readStop = s.ReadVoltage + 0.0001; 
-
-            var wvCommand = System.FormattableString.Invariant($"WV {s.WriteChannel},1,0,{readStart},{readStop},{pointsCount},{s.Compliance}");
-            await smu.SendCommandAsync(wvCommand);
-
-            var wvError = await smu.CheckErrorAsync();
-            if (wvError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected WV command in Sweep Readout: {wvError}");
-            }
-
-            var wtCommand = System.FormattableString.Invariant($"WT 0,{intervalSec:F5},{intervalSec:F5}");
-            await smu.SendCommandAsync(wtCommand);
-            var wtError = await smu.CheckErrorAsync();
-            if (wtError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected WT command: {wtError}");
-            }
-
-            await smu.SendCommandAsync($"RI {s.ReadingChannel},0");
-            
-            await smu.SendCommandAsync($"MM 2,{s.ReadingChannel}");
-            var mmError = await smu.CheckErrorAsync();
-            if (mmError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected MM 2 in Sweep Readout: {mmError}");
-            }
-
-            await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
-            var cmmError = await smu.CheckErrorAsync();
-            if (cmmError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected CMM in Sweep Readout: {cmmError}");
-            }
-
-            await smu.SendCommandAsync("TSR");
-            var tsrError = await smu.CheckErrorAsync();
-            if (tsrError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected TSR in Sweep Readout: {tsrError}");
-            }
-        }
-
-        private async Task<List<CurvePoint>> StartAndReadSweepReadoutAsync(E5263_SMU smu, SpikeTimingSettings s, int pointsCount, double effectiveIntervalMs, CancellationToken ct)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            await smu.SendCommandAsync("XE");
-
-            double totalDurationMs = s.ReadoutDurationMs + 200.0;
-            await WaitMillisecondsAccurateAsync(totalDurationMs, ct);
-
-            await smu.SendCommandAsync("TSQ");
-
-            string response = await smu.ReadResponseAsync(60000);
-            string tsqResponse = await smu.ReadResponseAsync(100);
-
-            await smu.SendCommandAsync($"MM 1,{s.ReadingChannel}");
-            var config = ConfigurationService.Instance.GetConfig();
-            await smu.SendCommandAsync($"AV -{config.SweepAdcSamples},0");
-            await smu.SendCommandAsync($"DZ {s.WriteChannel}");
-
-            return ParseSweepReadoutResponse(response, effectiveIntervalMs, s.InvertCurrent);
-        }
-
-        private List<CurvePoint> ParseSweepReadoutResponse(string rawData, double intervalMs, bool invertCurrent)
+        private async Task<List<CurvePoint>> MeasureReadoutPulsesAsync(E5263_SMU smu, SpikeTimingSettings s, SpikePattern pattern, Stopwatch trialStopwatch, CancellationToken ct, Action<double>? progressCallback = null)
         {
             var points = new List<CurvePoint>();
-            if (string.IsNullOrWhiteSpace(rawData)) return points;
+            if (s.ReadoutPulses.Count == 0) return points;
 
-            var items = rawData.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            int index = 0;
+            await ConfigurePointMeasurementModeAsync(smu, s);
 
-            foreach (var item in items)
+            for (int i = 0; i < s.ReadoutPulses.Count; i++)
             {
-                var trimmed = item.Trim();
-                if (trimmed.Length < 4) continue;
+                ct.ThrowIfCancellationRequested();
+                var readout = s.ReadoutPulses[i];
+                double targetElapsedMs = pattern.LastSpikeEndMs + readout.StartAfterLastSpikeMs;
 
-                char thirdChar = trimmed[2];
-                string numStr = trimmed.Substring(3);
+                await WaitUntilElapsedAsync(trialStopwatch, targetElapsedMs, ct, null, 0.0);
+                double actualStartAfterLastSpikeMs = Math.Max(0.0, trialStopwatch.Elapsed.TotalMilliseconds - pattern.LastSpikeEndMs);
 
-                if (thirdChar == 'I')
-                {
-                    if (double.TryParse(numStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double iVal))
-                    {
-                        double current = invertCurrent ? -iVal : iVal;
-                        double timeMs = (index + 1) * intervalMs;
-                        points.Add(new CurvePoint(timeMs, current));
-                        index++;
-                    }
-                }
+                double current = await ReadCurrentPulseAsync(smu, s, readout.Voltage, readout.PulseLengthMs, ct);
+                points.Add(new CurvePoint(actualStartAfterLastSpikeMs, current));
+
+                progressCallback?.Invoke((i + 1.0) / s.ReadoutPulses.Count);
             }
 
+            await smu.SendCommandAsync($"DZ {s.WriteChannel}");
             return points;
+        }
+
+        private async Task ConfigurePointMeasurementModeAsync(E5263_SMU smu, SpikeTimingSettings s)
+        {
+            await smu.SendCommandAsync($"MM 1,{s.ReadingChannel}");
+            await smu.SendCommandAsync($"CMM {s.ReadingChannel},1");
+            await smu.SendCommandAsync($"RI {s.ReadingChannel},0");
+        }
+
+        private async Task<double> ReadCurrentPulseAsync(E5263_SMU smu, SpikeTimingSettings s, double voltage, double pulseLengthMs, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            await ConfigurePointMeasurementModeAsync(smu, s);
+            await smu.SendCommandAsync($"DZ {s.WriteChannel}");
+            await smu.SendCommandAsync(FormattableString.Invariant($"DV {s.WriteChannel},0,{voltage},{s.Compliance}"));
+
+            await smu.SendCommandAsync("TSR");
+            await smu.SendCommandAsync("XE");
+            await WaitMillisecondsAccurateAsync(pulseLengthMs, ct);
+            await smu.SendCommandAsync("TSQ");
+
+            string response = await smu.ReadResponseAsync(512);
+            try { _ = await smu.ReadResponseAsync(50); } catch { }
+
+            await smu.SendCommandAsync($"DZ {s.WriteChannel}");
+            return ParseCurrent(response, s.InvertCurrent);
         }
 
         private static double ParseCurrent(string rawData, bool invertCurrent)
@@ -810,6 +746,73 @@ namespace SMU_Revamp.MeasurementPlans
             {
                 progressCallback(Math.Clamp(targetElapsedMs / totalDurationMs, 0.0, 1.0));
             }
+        }
+
+        private static List<ReadoutPulseSetting> BuildReadoutPulseSettings(SpikeTimingSettings s)
+        {
+            int count = s.NumberOfReadoutPulses;
+            if (count < 1) throw new InvalidOperationException("Number of readout pulses must be at least 1.");
+
+            var starts = ExpandList(ParseDoubleList(s.ReadoutStartTimesRaw, "Readout start times"), count, "Readout start times");
+            var voltages = ExpandList(ParseDoubleList(s.ReadoutVoltagesRaw, "Readout voltages"), count, "Readout voltages");
+            var lengths = ExpandList(ParseDoubleList(s.ReadoutPulseLengthsRaw, "Readout pulse lengths"), count, "Readout pulse lengths");
+
+            var readouts = new List<ReadoutPulseSetting>();
+            for (int i = 0; i < count; i++)
+            {
+                if (starts[i] < 0) throw new InvalidOperationException($"Readout pulse {i + 1}: start time must be >= 0 ms.");
+                if (lengths[i] <= 0) throw new InvalidOperationException($"Readout pulse {i + 1}: pulse length must be > 0 ms.");
+
+                if (i > 0)
+                {
+                    double previousEnd = starts[i - 1] + lengths[i - 1];
+                    if (starts[i] < previousEnd)
+                    {
+                        throw new InvalidOperationException($"Readout pulse {i + 1} starts before readout pulse {i} has ended. Use non-overlapping readout pulses.");
+                    }
+                }
+
+                readouts.Add(new ReadoutPulseSetting(i + 1, starts[i], voltages[i], lengths[i]));
+            }
+
+            return readouts;
+        }
+
+        private static List<double> ParseDoubleList(string raw, string name)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                throw new InvalidOperationException($"{name} list must not be empty.");
+            }
+
+            var parts = raw.Split(new[] { ';', '\n', '\r', '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            var values = new List<double>();
+
+            foreach (var part in parts)
+            {
+                var cleaned = part.Trim().Trim(',');
+                if (cleaned.Length == 0) continue;
+
+                if (!ParameterConfigHelper.TryParseDoubleRobust(cleaned, out double value))
+                {
+                    throw new InvalidOperationException($"Could not parse value '{part}' in {name} list.");
+                }
+                values.Add(value);
+            }
+
+            if (values.Count == 0)
+            {
+                throw new InvalidOperationException($"{name} list must contain at least one value.");
+            }
+
+            return values;
+        }
+
+        private static List<double> ExpandList(List<double> values, int count, string name)
+        {
+            if (values.Count == count) return values;
+            if (values.Count == 1) return Enumerable.Repeat(values[0], count).ToList();
+            throw new InvalidOperationException($"{name} must contain either one value or exactly {count} values.");
         }
 
         private static List<SpikePattern> GenerateTimeConstantPatterns(SpikeTimingSettings s)
@@ -901,9 +904,11 @@ namespace SMU_Revamp.MeasurementPlans
             public double SpikeVoltage { get; init; }
             public double SpikeLengthMs { get; init; }
 
-            public double ReadVoltage { get; init; }
-            public double ReadoutDurationMs { get; init; }
-            public double ReadoutIntervalMs { get; init; }
+            public int NumberOfReadoutPulses { get; init; }
+            public string ReadoutStartTimesRaw { get; init; } = string.Empty;
+            public string ReadoutVoltagesRaw { get; init; } = string.Empty;
+            public string ReadoutPulseLengthsRaw { get; init; } = string.Empty;
+            public List<ReadoutPulseSetting> ReadoutPulses { get; set; } = new();
 
             public double Compliance { get; init; }
             public bool BaselineReadEnabled { get; init; }
@@ -915,14 +920,11 @@ namespace SMU_Revamp.MeasurementPlans
             public double ResetRecoveryMs { get; init; }
         }
 
-        public sealed record ReadoutMeasurement(
+        public sealed record ReadoutPulseSetting(
             int ReadoutNumber,
-            string ReadoutLabel,
-            double TargetDelayAfterLastSpikeEndMs,
-            double ActualDelayAfterLastSpikeEndMs,
-            double ReadCurrentA,
-            double DeltaCurrentA,
-            double ConductanceS);
+            double StartAfterLastSpikeMs,
+            double Voltage,
+            double PulseLengthMs);
 
         private sealed record SpikePattern(
             int PatternIndex,
