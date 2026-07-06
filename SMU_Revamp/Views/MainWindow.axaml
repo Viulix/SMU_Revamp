@@ -470,7 +470,8 @@
                                                      PlotStyle="{Binding SelectedPlotStyle}"
                                                      LogarithmicY="{Binding IsMeasurementLogarithmic}"
                                                      LogarithmicX="{Binding IsMeasurementLogarithmicX}"
-                                                     PlotAspectRatio="{Binding PlotAspectRatio}" />
+                                                     PlotAspectRatio="{Binding PlotAspectRatio}"
+                                                     SeriesSettings="{Binding SeriesSettings}" />
                             </Border>
                         </StackPanel>
                             </Grid>
