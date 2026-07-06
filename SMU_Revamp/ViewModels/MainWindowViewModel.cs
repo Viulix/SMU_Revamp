@@ -1351,6 +1351,20 @@ public partial class MainWindowViewModel : ViewModelBase
                         
                         MeasurementStatus = $"Finished. Data autosaved to {System.IO.Path.Combine(profile, fileName)}.";
 
+                        if (ConfigurationService.Instance.GetConfig().SaveToDatabase)
+                        {
+                            try
+                            {
+                                int dbId = await DatabaseService.Instance.SaveMeasurementAsync(PlottedPlan, sampleName, DateTime.Now, fileName);
+                                MeasurementStatus += $" (DB ID: {dbId})";
+                            }
+                            catch (Exception dbEx)
+                            {
+                                WarningMessage = $"CSV saved, but database save failed: {dbEx.Message}";
+                                System.Diagnostics.Debug.WriteLine($"DB Save Error: {dbEx}");
+                            }
+                        }
+
                         NotificationRequested?.Invoke(
                             "Measurement Saved",
                             $"File saved to {fileName}.\nClick to open in Explorer.",
@@ -1434,6 +1448,87 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ErrorMessage = $"Failed to export CSV: {ex.Message}";
             Console.WriteLine($"Error exporting CSV: {ex.Message}");
+        }
+    }
+
+    public async Task LoadMeasurementFromDatabaseAsync(int measurementId)
+    {
+        try
+        {
+            var (parameters, points) = await Services.DatabaseService.Instance.LoadMeasurementDataAsync(measurementId);
+            
+            // Assume the first available plan is used for visualization, or we could find one that matches.
+            // For simplicity, we create a generic visualization if we don't know the exact plan type,
+            // but we can also look for a matching plan type in MeasurementPlans.
+            // Let's use the first available plan and load data into it.
+            var plan = MeasurementPlans.FirstOrDefault();
+            if (plan == null) return;
+
+            plan.ResultPoints.Clear();
+            plan.ResultPoints.AddRange(points);
+            
+            foreach (var p in plan.Parameters)
+            {
+                if (parameters.TryGetValue(p.Name, out string? val) && val != null)
+                {
+                    p.Value = val;
+                }
+            }
+
+            PlottedPlan = plan;
+            CurvePoints = new System.Collections.ObjectModel.ObservableCollection<Models.CurvePoint>(plan.ResultPoints);
+            PlotSeries = new System.Collections.ObjectModel.ObservableCollection<Models.PlotSeries>(plan.PlotSeries);
+            
+            CustomXAxisTitle = null;
+            CustomYAxisTitle = null;
+            OnPropertyChanged(nameof(XAxisTitle));
+            OnPropertyChanged(nameof(YAxisTitle));
+            
+            IsMeasurementLogarithmicX = false;
+            IsMeasurementLogarithmic = plan.ShowLogPlot;
+
+            MeasurementStatus = $"Finished. Data loaded from database (ID: {measurementId}).";
+            
+            NotificationRequested?.Invoke(
+                "Load Successful",
+                $"Successfully loaded measurement {measurementId} from database.",
+                null
+            );
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to load from database: {ex.Message}";
+        }
+    }
+
+    public async Task UploadCurrentMeasurementToDatabaseAsync()
+    {
+        if (PlottedPlan == null || PlottedPlan.ResultPoints.Count == 0)
+        {
+            ErrorMessage = "No measurement data to upload.";
+            return;
+        }
+
+        try
+        {
+            // For duplicate checking, use a dummy filename if none exists, or empty
+            string dummyFilename = $"{Settings.SampleName}_{PlottedPlan.Name}_{DateTime.Now:yyyyMMdd_HHmmss}";
+            bool isUploaded = await Services.DatabaseService.Instance.IsMeasurementUploadedAsync(dummyFilename);
+            
+            if (isUploaded)
+            {
+                NotificationRequested?.Invoke("Upload Skipped", "This measurement appears to have already been uploaded.", null);
+                return;
+            }
+
+            int dbId = await Services.DatabaseService.Instance.SaveMeasurementAsync(PlottedPlan, Settings.SampleName, DateTime.Now, dummyFilename);
+            
+            MeasurementStatus = $"Finished. Data uploaded to database (ID: {dbId}).";
+            NotificationRequested?.Invoke("Upload Successful", $"Successfully uploaded to database. ID: {dbId}", null);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to upload to database: {ex.Message}";
         }
     }
 

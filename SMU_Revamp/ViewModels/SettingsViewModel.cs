@@ -28,6 +28,13 @@ namespace SMU_Revamp.ViewModels
         private string _sampleName = string.Empty;
         private bool _showAlignmentWarning = true;
 
+        // Database Configuration
+        private string _dbAddress = "134.245.242.39";
+        private string _dbUser = "root";
+        private string _dbPassword = string.Empty;
+        private string _dbName = "smu_measurements";
+        private bool _saveToDatabase = false;
+
         public bool ProberQuietMode
         {
             get => _proberQuietMode;
@@ -94,6 +101,36 @@ namespace SMU_Revamp.ViewModels
             set => SetProperty(ref _showAlignmentWarning, value);
         }
 
+        public string DbAddress
+        {
+            get => _dbAddress;
+            set => SetProperty(ref _dbAddress, value ?? string.Empty);
+        }
+
+        public string DbUser
+        {
+            get => _dbUser;
+            set => SetProperty(ref _dbUser, value ?? string.Empty);
+        }
+
+        public string DbPassword
+        {
+            get => _dbPassword;
+            set => SetProperty(ref _dbPassword, value ?? string.Empty);
+        }
+
+        public string DbName
+        {
+            get => _dbName;
+            set => SetProperty(ref _dbName, value ?? string.Empty);
+        }
+
+        public bool SaveToDatabase
+        {
+            get => _saveToDatabase;
+            set => SetProperty(ref _saveToDatabase, value);
+        }
+
         public SettingsViewModel()
         {
             // Get singleton instances
@@ -115,6 +152,12 @@ namespace SMU_Revamp.ViewModels
             Profile = string.Empty;
             SampleName = string.Empty;
             ShowAlignmentWarning = config.ShowAlignmentWarning;
+
+            DbAddress = config.DbAddress;
+            DbUser = config.DbUser;
+            DbPassword = config.DbPassword;
+            DbName = config.DbName;
+            SaveToDatabase = config.SaveToDatabase;
         }
 
         /// <summary>
@@ -140,6 +183,12 @@ namespace SMU_Revamp.ViewModels
             config.SMUTimeoutMs = SMUTimeoutMs;
             config.ShowAlignmentWarning = ShowAlignmentWarning;
 
+            config.DbAddress = DbAddress;
+            config.DbUser = DbUser;
+            config.DbPassword = DbPassword;
+            config.DbName = DbName;
+            config.SaveToDatabase = SaveToDatabase;
+
             await _configService.SaveAsync(config);
             ApplyStatusMessage = "Settings saved.";
         }
@@ -160,6 +209,26 @@ namespace SMU_Revamp.ViewModels
             Profile = string.Empty;
             SampleName = string.Empty;
             ShowAlignmentWarning = config.ShowAlignmentWarning;
+
+            DbAddress = config.DbAddress;
+            DbUser = config.DbUser;
+            DbPassword = config.DbPassword;
+            DbName = config.DbName;
+            SaveToDatabase = config.SaveToDatabase;
+        }
+
+        public async Task TestDbConnectionAsync()
+        {
+            ApplyStatusMessage = "Testing connection...";
+            bool success = await DatabaseService.Instance.TestConnectionAsync(DbAddress, DbUser, DbPassword, DbName);
+            if (success)
+            {
+                ApplyStatusMessage = "Database connection successful. Tables initialized.";
+            }
+            else
+            {
+                ApplyStatusMessage = "Database connection failed. Check credentials.";
+            }
         }
     }
 }
