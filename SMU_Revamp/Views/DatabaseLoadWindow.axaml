@@ -30,8 +30,6 @@
                 <TreeView.ItemTemplate>
                     <TreeDataTemplate ItemsSource="{Binding Children}">
                         <StackPanel Orientation="Horizontal" Spacing="5" Margin="2">
-                            <TextBlock Text="📁" IsVisible="{Binding !IsMeasurement}" Foreground="#F6C23E" />
-                            <TextBlock Text="📄" IsVisible="{Binding IsMeasurement}" Foreground="#4E73DF" />
                             <TextBlock Text="{Binding Header}" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding Measurement.SourceFilename}" IsVisible="{Binding IsMeasurement}" FontSize="10" Foreground="Gray" Margin="10,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>

@@ -605,9 +605,7 @@
                                             <TextBlock Text="Scan Presets:" FontSize="14" FontWeight="SemiBold" />
                                             <Grid ColumnDefinitions="*,Auto">
                                                 <ComboBox Grid.Column="0" ItemsSource="{Binding WaferScanPresetNames}" SelectedItem="{Binding SelectedWaferScanPreset}" HorizontalAlignment="Stretch" Margin="0,0,10,0" PlaceholderText="Select a preset..." />
-                                                <Button Grid.Column="1" Command="{Binding DeleteWaferScanPresetCommand}" Classes="Danger" Width="36" Height="36" Padding="0" ToolTip.Tip="Delete Preset">
-                                                    <TextBlock Text="🗑" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                </Button>
+                                                <Button Grid.Column="1" Content="Delete" Command="{Binding DeleteWaferScanPresetCommand}" Classes="Danger" Width="80" Height="36" />
                                             </Grid>
                                             <Grid ColumnDefinitions="*,Auto">
                                                 <TextBox Grid.Column="0" Text="{Binding NewWaferScanPresetName}" Watermark="Preset Name" HorizontalAlignment="Stretch" Margin="0,0,10,0" Height="36" VerticalContentAlignment="Center" />

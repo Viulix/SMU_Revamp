@@ -93,6 +93,15 @@ namespace SMU_Revamp.Services
                         await alterCmd.ExecuteNonQueryAsync();
                     }
                     catch { /* Ignore if it already exists */ }
+
+                    // Fill missing ProfileNames with a default value
+                    try
+                    {
+                        using var updateCmd = connection.CreateCommand();
+                        updateCmd.CommandText = "UPDATE Measurements SET ProfileName = 'Default' WHERE ProfileName IS NULL OR ProfileName = '';";
+                        await updateCmd.ExecuteNonQueryAsync();
+                    }
+                    catch { /* Ignore */ }
                 }
 
                 return true;
