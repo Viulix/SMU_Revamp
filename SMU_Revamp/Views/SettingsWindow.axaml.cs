@@ -35,5 +35,13 @@ namespace SMU_Revamp.Views
         {
             Close();
         }
+
+        private async void TestDbConnectionButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            if (DataContext is SettingsViewModel vm)
+            {
+                await vm.TestDbConnectionAsync();
+            }
+        }
     }
 }

@@ -177,6 +177,29 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void LoadFromDatabaseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            var dbViewModel = new ViewModels.DatabaseLoadViewModel();
+            dbViewModel.RequestLoadMeasurement = async (id) => 
+            {
+                await vm.LoadMeasurementFromDatabaseAsync(id);
+            };
+
+            var dbWindow = new DatabaseLoadWindow(dbViewModel);
+            await dbWindow.ShowDialog(this);
+        }
+    }
+
+    private async void UploadToDatabaseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            await vm.UploadCurrentMeasurementToDatabaseAsync();
+        }
+    }
+
     private async void LoadResultFolderButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is ViewModels.MainWindowViewModel vm)

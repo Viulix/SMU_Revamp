@@ -106,6 +106,31 @@ public class AppConfig
     public bool AutoSaveMeasurements { get; set; } = true;
 
     /// <summary>
+    /// Flag to save measurement results to the MySQL database.
+    /// </summary>
+    public bool SaveToDatabase { get; set; } = false;
+
+    /// <summary>
+    /// MySQL Database IP/Address.
+    /// </summary>
+    public string DbAddress { get; set; } = "134.245.242.39";
+
+    /// <summary>
+    /// MySQL Database Username.
+    /// </summary>
+    public string DbUser { get; set; } = "root";
+
+    /// <summary>
+    /// MySQL Database Password.
+    /// </summary>
+    public string DbPassword { get; set; } = "";
+
+    /// <summary>
+    /// MySQL Database Name.
+    /// </summary>
+    public string DbName { get; set; } = "smu_measurements";
+
+    /// <summary>
     /// Dynamic parameter links, keyed by Plan Name -> Parameter Name -> Link Config.
     /// </summary>
     public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ParameterLinkConfig>> ParameterLinks { get; set; } = new();
