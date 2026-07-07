@@ -79,6 +79,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 if (_selectedPlan != null)
                 {
                     _selectedPlan.LoadDefaults();
+                    LoadLastConfig();
+                    LoadAvailablePresets();
                     SubscribeToParameterChanges();
                 }
                 UpdateSelectedPlanSections();
@@ -571,6 +573,90 @@ public partial class MainWindowViewModel : ViewModelBase
     public ICommand ProceedWithScanCommand { get; }
     public ICommand CancelAlignmentWarningCommand { get; }
 
+    // Preset properties and commands
+    private ObservableCollection<MeasurementPreset> _availablePresets = new();
+    public ObservableCollection<MeasurementPreset> AvailablePresets
+    {
+        get => _availablePresets;
+        set => SetProperty(ref _availablePresets, value);
+    }
+
+    private bool _isLoadingPreset;
+    private MeasurementPreset? _selectedPreset;
+    public MeasurementPreset? SelectedPreset
+    {
+        get => _selectedPreset;
+        set
+        {
+            if (SetProperty(ref _selectedPreset, value) && value != null && SelectedPlan != null)
+            {
+                _isLoadingPreset = true;
+                foreach (var param in SelectedPlan.Parameters)
+                {
+                    if (value.Parameters.TryGetValue(param.Name, out var stringVal))
+                    {
+                        if (param.Type == ParameterType.Number)
+                        {
+                            if (ParameterConfigHelper.TryParseDoubleRobust(stringVal, out double d))
+                                param.Value = d;
+                        }
+                        else if (param.Type == ParameterType.Checkbox)
+                        {
+                            if (bool.TryParse(stringVal, out bool b))
+                                param.Value = b;
+                        }
+                        else
+                        {
+                            param.Value = stringVal;
+                        }
+                    }
+                }
+                // Save immediately when preset is loaded so the new config becomes the "last" config
+                _ = SaveSettingsAndConfigurationAsync();
+                _isLoadingPreset = false;
+            }
+        }
+    }
+
+    private string _newPresetName = string.Empty;
+    public string NewPresetName
+    {
+        get => _newPresetName;
+        set 
+        {
+            if (SetProperty(ref _newPresetName, value))
+            {
+                IsPresetNameInvalid = false;
+            }
+        }
+    }
+
+    private bool _isPresetNameInvalid;
+    public bool IsPresetNameInvalid
+    {
+        get => _isPresetNameInvalid;
+        set => SetProperty(ref _isPresetNameInvalid, value);
+    }
+
+    private string _presetNameErrorMessage = string.Empty;
+    public string PresetNameErrorMessage
+    {
+        get => _presetNameErrorMessage;
+        set => SetProperty(ref _presetNameErrorMessage, value);
+    }
+
+    private bool _isOverwriteWarningVisible;
+    public bool IsOverwriteWarningVisible
+    {
+        get => _isOverwriteWarningVisible;
+        set => SetProperty(ref _isOverwriteWarningVisible, value);
+    }
+
+    public ICommand SavePresetCommand { get; }
+    public ICommand ConfirmSavePresetCommand { get; }
+    public ICommand CancelSavePresetCommand { get; }
+    public ICommand DeletePresetCommand { get; }
+
     private List<int> _parsedScanContacts = new();
     private int _totalExpectedCells = 0;
     private int _totalExpectedSubCells = 0;
@@ -597,6 +683,51 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel()
     {
+        SavePresetCommand = new RelayCommand(() =>
+        {
+            if (string.IsNullOrWhiteSpace(NewPresetName))
+            {
+                IsPresetNameInvalid = true;
+                PresetNameErrorMessage = "Bitte geben Sie einen Preset-Namen ein.";
+                return;
+            }
+            
+            IsPresetNameInvalid = false;
+            var name = NewPresetName.Trim();
+            
+            if (AvailablePresets.Any(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+            {
+                IsOverwriteWarningVisible = true;
+            }
+            else
+            {
+                ExecuteSavePreset(name);
+            }
+        });
+
+        ConfirmSavePresetCommand = new RelayCommand(() =>
+        {
+            IsOverwriteWarningVisible = false;
+            if (!string.IsNullOrWhiteSpace(NewPresetName))
+            {
+                ExecuteSavePreset(NewPresetName.Trim());
+            }
+        });
+
+        CancelSavePresetCommand = new RelayCommand(() => IsOverwriteWarningVisible = false);
+
+        DeletePresetCommand = new AsyncRelayCommand(async () =>
+        {
+            if (SelectedPreset == null || SelectedPlan == null) return;
+            var config = ConfigurationService.Instance.GetConfig();
+            if (config.PlanPresets.TryGetValue(SelectedPlan.Name, out var presets))
+            {
+                presets.RemoveAll(p => p.Name == SelectedPreset.Name);
+                await ConfigurationService.Instance.SaveAsync(config);
+                LoadAvailablePresets();
+            }
+        });
+
         ResetAdvancedSettingsCommand = new RelayCommand(ResetAdvancedSettings);
         CurvePoints = Array.Empty<CurvePoint>();
         Settings = new SettingsViewModel();
@@ -1638,16 +1769,23 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var config = ConfigurationService.Instance.GetConfig();
 
-            if (config.DefaultPlanParameters == null)
+            if (config.LastPlanParameters == null)
             {
-                config.DefaultPlanParameters = new();
+                config.LastPlanParameters = new();
             }
 
             // Save top-level app config parameters from active plans
             foreach (var plan in MeasurementPlans)
             {
+                if (!config.LastPlanParameters.ContainsKey(plan.Name))
+                {
+                    config.LastPlanParameters[plan.Name] = new Dictionary<string, string>();
+                }
+
                 foreach (var param in plan.Parameters)
                 {
+                    config.LastPlanParameters[plan.Name][param.Name] = param.GetValueAsString() ?? string.Empty;
+
                     switch (param.Name)
                     {
                         case "WriteChannel":
@@ -1714,6 +1852,84 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedPlan = MeasurementPlans.Find(p => p.Name == prevPlanName) ?? (MeasurementPlans.Count > 0 ? MeasurementPlans[0] : null!);
     }
 
+    private void LoadAvailablePresets()
+    {
+        if (SelectedPlan == null) return;
+        var config = ConfigurationService.Instance.GetConfig();
+        if (config.PlanPresets != null && config.PlanPresets.TryGetValue(SelectedPlan.Name, out var presets))
+        {
+            AvailablePresets = new ObservableCollection<MeasurementPreset>(presets);
+        }
+        else
+        {
+            AvailablePresets = new ObservableCollection<MeasurementPreset>();
+        }
+    }
+
+    private void LoadLastConfig()
+    {
+        if (SelectedPlan == null) return;
+        var config = ConfigurationService.Instance.GetConfig();
+        if (config.LastPlanParameters != null && config.LastPlanParameters.TryGetValue(SelectedPlan.Name, out var lastParams))
+        {
+            foreach (var param in SelectedPlan.Parameters)
+            {
+                if (lastParams.TryGetValue(param.Name, out var stringVal))
+                {
+                    try
+                    {
+                        if (param.Type == ParameterType.Number)
+                        {
+                            if (ParameterConfigHelper.TryParseDoubleRobust(stringVal, out double d))
+                                param.Value = d;
+                        }
+                        else if (param.Type == ParameterType.Checkbox)
+                        {
+                            if (bool.TryParse(stringVal, out bool b))
+                                param.Value = b;
+                        }
+                        else
+                        {
+                            param.Value = stringVal;
+                        }
+                    }
+                    catch { }
+                }
+            }
+        }
+    }
+
+    private async void ExecuteSavePreset(string name)
+    {
+        if (SelectedPlan == null) return;
+
+        var config = ConfigurationService.Instance.GetConfig();
+        if (!config.PlanPresets.TryGetValue(SelectedPlan.Name, out var presets))
+        {
+            presets = new List<MeasurementPreset>();
+            config.PlanPresets[SelectedPlan.Name] = presets;
+        }
+
+        var existing = presets.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            presets.Remove(existing);
+        }
+
+        var newPreset = new MeasurementPreset { Name = name };
+        foreach (var param in SelectedPlan.Parameters)
+        {
+            newPreset.Parameters[param.Name] = param.GetValueAsString() ?? string.Empty;
+        }
+
+        presets.Add(newPreset);
+        await ConfigurationService.Instance.SaveAsync(config);
+        
+        LoadAvailablePresets();
+        SelectedPreset = AvailablePresets.FirstOrDefault(p => p.Name == name);
+        NewPresetName = string.Empty;
+    }
+
     private void SubscribeToParameterChanges()
     {
         if (_selectedPlan?.Parameters == null) return;
@@ -1728,6 +1944,10 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (e.PropertyName == nameof(MeasurementParameter.Value))
         {
+            if (!_isLoadingPreset && SelectedPreset != null)
+            {
+                SelectedPreset = null;
+            }
             UpdateWarningMessage();
             await SaveSettingsAndConfigurationAsync();
         }

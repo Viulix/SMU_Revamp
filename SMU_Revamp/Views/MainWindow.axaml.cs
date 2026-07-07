@@ -125,12 +125,6 @@ public partial class MainWindow : Window
         await settingsWindow.ShowDialog(this);
     }
 
-    private async void DefaultsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        var defaultsWindow = new DefaultsWindow();
-        await defaultsWindow.ShowDialog(this);
-    }
-
     private async void ExportCsvButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is ViewModels.MainWindowViewModel vm)
@@ -227,6 +221,19 @@ public partial class MainWindow : Window
         await settingsWindow.ShowDialog(this);
     }
 
+    private void ParameterGrid_PointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        if (sender is Control control)
+        {
+            var point = e.GetCurrentPoint(control);
+            if (point.Properties.IsRightButtonPressed)
+            {
+                ManageParameterLink_Click(sender, e);
+                e.Handled = true;
+            }
+        }
+    }
+
     private async void ManageParameterLink_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (sender is Control control && control.DataContext is Models.MeasurementParameter parameter)
@@ -313,6 +320,11 @@ public partial class MainWindow : Window
                     }
 
                     await ConfigurationService.Instance.SaveAsync(config);
+                }
+                else
+                {
+                    // No link configured, open the dialog instead
+                    ManageParameterLink_Click(sender, e);
                 }
             }
         }

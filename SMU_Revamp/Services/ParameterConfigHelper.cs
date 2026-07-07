@@ -15,8 +15,8 @@ namespace SMU_Revamp.Services
         public static object GetDefaultValue(string planName, string paramName, object fallbackValue)
         {
             var config = ConfigurationService.Instance.GetConfig();
-            if (config.DefaultPlanParameters != null &&
-                config.DefaultPlanParameters.TryGetValue(planName, out var planParams) &&
+            if (config.LastPlanParameters != null &&
+                config.LastPlanParameters.TryGetValue(planName, out var planParams) &&
                 planParams.TryGetValue(paramName, out var stringVal))
             {
                 try

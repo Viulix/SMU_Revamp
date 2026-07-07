@@ -91,9 +91,14 @@ public class AppConfig
     public string SelectedSweepMode { get; set; } = "Double Staircase (3)";
 
     /// <summary>
-    /// Default values for plan parameters, keyed by Plan Name -> Parameter Name -> Parameter Value.
+    /// Last used values for plan parameters, keyed by Plan Name -> Parameter Name -> Parameter Value.
     /// </summary>
-    public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, string>> DefaultPlanParameters { get; set; } = new();
+    public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, string>> LastPlanParameters { get; set; } = new();
+
+    /// <summary>
+    /// Presets for measurement plans, keyed by Plan Name -> List of Presets.
+    /// </summary>
+    public System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<MeasurementPreset>> PlanPresets { get; set; } = new();
 
     /// <summary>
     /// Flag to automatically save measurement results to a Profile-named folder.
@@ -104,6 +109,15 @@ public class AppConfig
     /// Dynamic parameter links, keyed by Plan Name -> Parameter Name -> Link Config.
     /// </summary>
     public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ParameterLinkConfig>> ParameterLinks { get; set; } = new();
+}
+
+/// <summary>
+/// Preset containing saved parameters for a measurement plan.
+/// </summary>
+public class MeasurementPreset
+{
+    public string Name { get; set; } = string.Empty;
+    public System.Collections.Generic.Dictionary<string, string> Parameters { get; set; } = new();
 }
 
 /// <summary>

@@ -230,6 +230,7 @@ namespace SMU_Revamp.Models
             {
                 if (SetProperty(ref _isLinked, value))
                 {
+                    OnPropertyChanged(nameof(LinkTooltip));
                     if (value && LinkedParameter != null)
                     {
                         UpdateFromLinkedParameter();
@@ -250,6 +251,7 @@ namespace SMU_Revamp.Models
                 }
                 if (SetProperty(ref _linkedParameter, value))
                 {
+                    OnPropertyChanged(nameof(LinkTooltip));
                     if (_linkedParameter != null)
                     {
                         _linkedParameter.PropertyChanged += LinkedParameter_PropertyChanged;
@@ -258,7 +260,31 @@ namespace SMU_Revamp.Models
             }
         }
 
-        public double LinkedMultiplier { get; set; } = 1.0;
+        private double _linkedMultiplier = 1.0;
+        public double LinkedMultiplier
+        {
+            get => _linkedMultiplier;
+            set
+            {
+                if (SetProperty(ref _linkedMultiplier, value))
+                {
+                    OnPropertyChanged(nameof(LinkTooltip));
+                }
+            }
+        }
+
+        public string LinkTooltip
+        {
+            get
+            {
+                if (IsLinked && LinkedParameter != null)
+                {
+                    string multiplierStr = LinkedMultiplier == 1.0 ? "" : $" (x {LinkedMultiplier})";
+                    return $"Linked to {LinkedParameter.DisplayName}{multiplierStr}";
+                }
+                return Tooltip ?? "Click to toggle or right-click to manage parameter link";
+            }
+        }
 
         private void LinkedParameter_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
