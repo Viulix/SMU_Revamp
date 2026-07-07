@@ -495,11 +495,22 @@ public partial class MainWindowViewModel : ViewModelBase
     public ICommand SelectAllSubCellsCommand { get; }
     public ICommand DeselectAllSubCellsCommand { get; }
 
+    private bool _isLoadingWaferScanPreset;
+    
     private int _waferScanDelayMs = 500;
     public int WaferScanDelayMs
     {
         get => _waferScanDelayMs;
-        set => SetProperty(ref _waferScanDelayMs, value);
+        set
+        {
+            if (SetProperty(ref _waferScanDelayMs, value))
+            {
+                if (!_isLoadingWaferScanPreset && !string.IsNullOrEmpty(SelectedWaferScanPreset))
+                {
+                    SelectedWaferScanPreset = string.Empty;
+                }
+            }
+        }
     }
 
     private System.Collections.ObjectModel.ObservableCollection<string> _waferScanPresetNames = new();
@@ -869,8 +880,27 @@ public partial class MainWindowViewModel : ViewModelBase
 
         InitializeWaferCells();
         InitializeSubCells();
+        SubscribeToWaferMapChanges();
 
         ScanWaferCommand = new AsyncRelayCommand(StartWaferScanAsync, () => !IsScanningWafer);
+    }
+
+    private void SubscribeToWaferMapChanges()
+    {
+        foreach (var c in WaferCells) c.PropertyChanged += OnWaferMapPropertyChanged;
+        foreach (var c in SubCells) c.PropertyChanged += OnWaferMapPropertyChanged;
+        foreach (var c in Contacts) c.PropertyChanged += OnWaferMapPropertyChanged;
+    }
+
+    private void OnWaferMapPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == "IsSelected")
+        {
+            if (!_isLoadingWaferScanPreset && !string.IsNullOrEmpty(SelectedWaferScanPreset))
+            {
+                SelectedWaferScanPreset = string.Empty;
+            }
+        }
     }
 
     private void InitializeWaferCells()
@@ -899,15 +929,18 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async Task LoadWaferScanPresetAsync(string presetName)
     {
-        var config = ConfigurationService.Instance.GetConfig();
-        var preset = config.WaferScanPresets?.FirstOrDefault(p => p.Name == presetName);
-        if (preset == null) return;
-
-        if (int.TryParse(preset.DelayMs, out int delay))
-            WaferScanDelayMs = delay;
-
-        foreach (var c in SubCells)
+        _isLoadingWaferScanPreset = true;
+        try
         {
+            var config = ConfigurationService.Instance.GetConfig();
+            var preset = config.WaferScanPresets?.FirstOrDefault(p => p.Name == presetName);
+            if (preset == null) return;
+
+            if (int.TryParse(preset.DelayMs, out int delay))
+                WaferScanDelayMs = delay;
+
+            foreach (var c in SubCells)
+            {
             if (!c.IsValid) continue;
             c.IsSelected = preset.SelectedSubCells.Contains(c.Id);
         }
@@ -928,6 +961,11 @@ public partial class MainWindowViewModel : ViewModelBase
         
         NewWaferScanPresetName = presetName;
         NotificationRequested?.Invoke("Preset Loaded", $"Wafer scan preset '{presetName}' loaded.", null);
+        }
+        finally
+        {
+            _isLoadingWaferScanPreset = false;
+        }
     }
 
     [RelayCommand]
@@ -1631,7 +1669,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         {
                             try
                             {
-                                int dbId = await DatabaseService.Instance.SaveMeasurementAsync(PlottedPlan, sampleName, DateTime.Now, fileName);
+                                int dbId = await DatabaseService.Instance.SaveMeasurementAsync(PlottedPlan, Settings.Profile, sampleName, DateTime.Now, fileName);
                                 MeasurementStatus += $" (DB ID: {dbId})";
                             }
                             catch (Exception dbEx)
@@ -1797,7 +1835,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 return;
             }
 
-            int dbId = await Services.DatabaseService.Instance.SaveMeasurementAsync(PlottedPlan, Settings.SampleName, DateTime.Now, dummyFilename);
+            int dbId = await Services.DatabaseService.Instance.SaveMeasurementAsync(PlottedPlan, Settings.Profile, Settings.SampleName, DateTime.Now, dummyFilename);
             
             MeasurementStatus = $"Finished. Data uploaded to database (ID: {dbId}).";
             NotificationRequested?.Invoke("Upload Successful", $"Successfully uploaded to database. ID: {dbId}", null);
@@ -2381,7 +2419,7 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _selectedResultContact, value);
     }
 
-    private List<string> _availableResultMetrics = new() { "Average Resistance", "Max Current", "Max Voltage" };
+    private List<string> _availableResultMetrics = new() { "Average Resistance", "Max Current", "Max Voltage", "Gap At Voltage" };
     public List<string> AvailableResultMetrics
     {
         get => _availableResultMetrics;
@@ -2397,6 +2435,25 @@ public partial class MainWindowViewModel : ViewModelBase
             if (SetProperty(ref _selectedResultMetric, value))
             {
                 RecalculateResultMetrics();
+                OnPropertyChanged(nameof(IsGapMetricSelected));
+            }
+        }
+    }
+
+    public bool IsGapMetricSelected => SelectedResultMetric == "Gap At Voltage";
+
+    private double _gapTargetVoltage = 0.6;
+    public double GapTargetVoltage
+    {
+        get => _gapTargetVoltage;
+        set
+        {
+            if (SetProperty(ref _gapTargetVoltage, value))
+            {
+                if (IsGapMetricSelected)
+                {
+                    RecalculateResultMetrics();
+                }
             }
         }
     }
@@ -2639,6 +2696,49 @@ public partial class MainWindowViewModel : ViewModelBase
         else if (metric == "Max Voltage")
         {
             return points.Max(p => Math.Abs(p.Voltage));
+        }
+        else if (metric == "Gap At Voltage")
+        {
+            // Calculate absolute difference in Current at GapTargetVoltage for ascending and descending sweeps
+            var targetV = GapTargetVoltage;
+            
+            // Collect crossings (interpolate I at V = targetV)
+            List<double> crossedCurrents = new List<double>();
+            
+            for (int i = 0; i < points.Count - 1; i++)
+            {
+                var p1 = points[i];
+                var p2 = points[i + 1];
+                
+                // Check if targetV is between p1.Voltage and p2.Voltage
+                if ((p1.Voltage <= targetV && p2.Voltage >= targetV) ||
+                    (p1.Voltage >= targetV && p2.Voltage <= targetV))
+                {
+                    // Avoid division by zero
+                    if (Math.Abs(p2.Voltage - p1.Voltage) < 1e-12)
+                    {
+                        crossedCurrents.Add(p1.Current);
+                    }
+                    else
+                    {
+                        // Interpolate current
+                        double fraction = (targetV - p1.Voltage) / (p2.Voltage - p1.Voltage);
+                        double iInterp = p1.Current + fraction * (p2.Current - p1.Current);
+                        crossedCurrents.Add(iInterp);
+                    }
+                }
+            }
+            
+            if (crossedCurrents.Count >= 2)
+            {
+                // Typically we want the max difference if there are multiple crossings (e.g. multi-cycle)
+                // Or just the difference between the first two crossings. Let's return the max difference among all crossings.
+                double minI = crossedCurrents.Min();
+                double maxI = crossedCurrents.Max();
+                return maxI - minI;
+            }
+            
+            return double.NaN;
         }
 
         return double.NaN;

@@ -864,6 +864,15 @@
                                         <ComboBox ItemsSource="{Binding AvailableResultMetrics}"
                                                   SelectedItem="{Binding SelectedResultMetric}"
                                                   Width="200" />
+                                                  
+                                        <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding IsGapMetricSelected}">
+                                            <TextBlock Text="Target V:" VerticalAlignment="Center" />
+                                            <NumericUpDown Value="{Binding GapTargetVoltage}" 
+                                                           FormatString="0.00" 
+                                                           Increment="0.1" 
+                                                           Width="90" 
+                                                           Height="32" />
+                                        </StackPanel>
                                     </StackPanel>
 
                                     <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
@@ -886,7 +895,7 @@
                             <Border Grid.Column="0" Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8" Padding="20" Margin="0,0,20,0" VerticalAlignment="Top">
                                 <StackPanel Spacing="10">
                                 <TextBlock Text="Wafer Cells (16x16)" FontSize="16" FontWeight="SemiBold" />
-                                <Viewbox Stretch="Uniform" HorizontalAlignment="Left" StretchDirection="DownOnly" MaxWidth="500">
+                                <Viewbox Stretch="Uniform" HorizontalAlignment="Left" StretchDirection="DownOnly" MaxWidth="700">
                                     <Border Background="#F3F4F6" Padding="15" CornerRadius="8">
                                         <ItemsControl ItemsSource="{Binding ResultCells}">
                                             <ItemsControl.ItemsPanel>
@@ -896,7 +905,7 @@
                                             </ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:ResultCellViewModel">
-                                                    <Border Width="38" Height="38" Margin="1" Background="{Binding Color}" CornerRadius="4" IsVisible="{Binding IsValid}" Classes.selected="{Binding IsSelected}">
+                                                    <Border Width="42" Height="42" Margin="1" Background="{Binding Color}" CornerRadius="4" IsVisible="{Binding IsValid}" Classes.selected="{Binding IsSelected}">
                                                         <Border.Styles>
                                                             <Style Selector="Border.selected">
                                                                 <Setter Property="BorderBrush" Value="#1F2937" />
@@ -934,7 +943,7 @@
                                     <TextBlock Text="Sub-Cells (5x5)" FontSize="16" FontWeight="SemiBold" />
                                     <TextBlock Text="Select a cell on the left first." IsVisible="{Binding SelectedResultCell, Converter={x:Static ObjectConverters.IsNull}}" FontStyle="Italic" Foreground="Gray" />
                                     
-                                    <Viewbox Stretch="Uniform" HorizontalAlignment="Left" StretchDirection="DownOnly" MaxWidth="250" IsVisible="{Binding SelectedResultCell, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                    <Viewbox Stretch="Uniform" HorizontalAlignment="Left" StretchDirection="DownOnly" MaxWidth="350" IsVisible="{Binding SelectedResultCell, Converter={x:Static ObjectConverters.IsNotNull}}">
                                         <Border Background="#F3F4F6" Padding="10" CornerRadius="8">
                                             <ItemsControl ItemsSource="{Binding SelectedResultCell.SubCells}">
                                                 <ItemsControl.ItemsPanel>
@@ -944,7 +953,7 @@
                                                 </ItemsControl.ItemsPanel>
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:ResultSubCellViewModel">
-                                                        <Border Width="44" Height="44" Margin="3" Background="{Binding Color}" CornerRadius="4" IsVisible="{Binding IsValid}" Classes.selected="{Binding IsSelected}">
+                                                        <Border Width="65" Height="65" Margin="3" Background="{Binding Color}" CornerRadius="4" IsVisible="{Binding IsValid}" Classes.selected="{Binding IsSelected}">
                                                             <Border.Styles>
                                                                 <Style Selector="Border.selected">
                                                                     <Setter Property="BorderBrush" Value="#1F2937" />
@@ -963,7 +972,7 @@
                                                                              CommandParameter="{Binding}"
                                                                              Opacity="0"
                                                                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                                                                <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+                                                                <TextBlock Text="{Binding Id}" FontSize="14" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
                                                             </Grid>
                                                         </Border>
                                                     </DataTemplate>
@@ -1026,14 +1035,14 @@
                                                              XAxisLabel="Voltage (V)"
                                                              YAxisLabel="Current (A)"
                                                              Points="{Binding SelectedResultContact.CurveData}"
-                                                             Height="300" />
+                                                             Height="400" />
 
                                         <views:CurvePlotView Title="I/U Curve - Logarithmic"
                                                              XAxisLabel="Voltage (V)"
                                                              YAxisLabel="Current (A)"
                                                              Points="{Binding SelectedResultContact.CurveData}"
                                                              LogarithmicY="True"
-                                                             Height="300" />
+                                                             Height="400" />
                                     </StackPanel>
                                 </ScrollViewer>
                                 </StackPanel>

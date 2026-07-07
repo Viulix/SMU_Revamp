@@ -59,6 +59,7 @@ namespace SMU_Revamp.Services
                     cmd.CommandText = @"
                         CREATE TABLE IF NOT EXISTS Measurements (
                             Id INT AUTO_INCREMENT PRIMARY KEY,
+                            ProfileName VARCHAR(255) NULL,
                             PlanName VARCHAR(255),
                             SampleName VARCHAR(255),
                             Timestamp DATETIME,
@@ -83,6 +84,15 @@ namespace SMU_Revamp.Services
                         );
                     ";
                     await cmd.ExecuteNonQueryAsync();
+
+                    // Try to add ProfileName column if it's missing (for older DB versions)
+                    try
+                    {
+                        using var alterCmd = connection.CreateCommand();
+                        alterCmd.CommandText = "ALTER TABLE Measurements ADD COLUMN ProfileName VARCHAR(255) NULL;";
+                        await alterCmd.ExecuteNonQueryAsync();
+                    }
+                    catch { /* Ignore if it already exists */ }
                 }
 
                 return true;
@@ -117,7 +127,7 @@ namespace SMU_Revamp.Services
             }
         }
 
-        public async Task<int> SaveMeasurementAsync(IMeasurementPlan plan, string sampleName, DateTime timestamp, string? sourceFilename = null)
+        public async Task<int> SaveMeasurementAsync(IMeasurementPlan plan, string profileName, string sampleName, DateTime timestamp, string? sourceFilename = null)
         {
             using var connection = new MySqlConnection(GetCurrentConnectionString());
             await connection.OpenAsync();
@@ -129,9 +139,10 @@ namespace SMU_Revamp.Services
                 using var cmd = connection.CreateCommand();
                 cmd.Transaction = transaction;
                 cmd.CommandText = @"
-                    INSERT INTO Measurements (PlanName, SampleName, Timestamp, SourceFilename)
-                    VALUES (@planName, @sampleName, @timestamp, @sourceFilename);
+                    INSERT INTO Measurements (ProfileName, PlanName, SampleName, Timestamp, SourceFilename)
+                    VALUES (@profileName, @planName, @sampleName, @timestamp, @sourceFilename);
                     SELECT LAST_INSERT_ID();";
+                cmd.Parameters.AddWithValue("@profileName", profileName);
                 cmd.Parameters.AddWithValue("@planName", plan.Name);
                 cmd.Parameters.AddWithValue("@sampleName", sampleName);
                 cmd.Parameters.AddWithValue("@timestamp", timestamp);
@@ -196,6 +207,7 @@ namespace SMU_Revamp.Services
         public class MeasurementSummary
         {
             public int Id { get; set; }
+            public string ProfileName { get; set; } = string.Empty;
             public string PlanName { get; set; } = string.Empty;
             public string SampleName { get; set; } = string.Empty;
             public DateTime Timestamp { get; set; }
@@ -208,7 +220,7 @@ namespace SMU_Revamp.Services
             using var connection = new MySqlConnection(GetCurrentConnectionString());
             await connection.OpenAsync();
             using var cmd = connection.CreateCommand();
-            cmd.CommandText = "SELECT Id, PlanName, SampleName, Timestamp, SourceFilename FROM Measurements ORDER BY Timestamp DESC LIMIT @limit";
+            cmd.CommandText = "SELECT Id, ProfileName, PlanName, SampleName, Timestamp, SourceFilename FROM Measurements ORDER BY Timestamp DESC LIMIT @limit";
             cmd.Parameters.AddWithValue("@limit", limit);
 
             using var reader = await cmd.ExecuteReaderAsync();
@@ -217,10 +229,11 @@ namespace SMU_Revamp.Services
                 list.Add(new MeasurementSummary
                 {
                     Id = reader.GetInt32(0),
-                    PlanName = reader.IsDBNull(1) ? "" : reader.GetString(1),
-                    SampleName = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                    Timestamp = reader.GetDateTime(3),
-                    SourceFilename = reader.IsDBNull(4) ? "" : reader.GetString(4)
+                    ProfileName = reader.IsDBNull(1) ? "" : reader.GetString(1),
+                    PlanName = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                    SampleName = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                    Timestamp = reader.GetDateTime(4),
+                    SourceFilename = reader.IsDBNull(5) ? "" : reader.GetString(5)
                 });
             }
             return list;

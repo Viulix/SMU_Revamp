@@ -87,22 +87,29 @@ namespace SMU_Revamp.ViewModels
                         var monthName = System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(monthGroup.Key);
                         var monthNode = new DbNode { Header = $"{monthGroup.Key:D2} - {monthName}" };
                         
-                        var byPlan = monthGroup.GroupBy(m => m.PlanName).OrderBy(g => g.Key);
-                        foreach (var planGroup in byPlan)
+                        var byProfile = monthGroup.GroupBy(m => m.ProfileName).OrderBy(g => g.Key);
+                        foreach (var profileGroup in byProfile)
                         {
-                            var planNode = new DbNode { Header = string.IsNullOrEmpty(planGroup.Key) ? "Unknown Plan" : planGroup.Key };
-                            
-                            foreach (var meas in planGroup.OrderByDescending(m => m.Timestamp))
+                            var profileNode = new DbNode { Header = string.IsNullOrEmpty(profileGroup.Key) ? "Unknown Profile" : profileGroup.Key };
+
+                            var byPlan = profileGroup.GroupBy(m => m.PlanName).OrderBy(g => g.Key);
+                            foreach (var planGroup in byPlan)
                             {
-                                var sampleDisplay = string.IsNullOrEmpty(meas.SampleName) ? "Unknown Sample" : meas.SampleName;
-                                var measNode = new DbNode 
-                                { 
-                                    Header = $"{meas.Timestamp:dd.MM. yyyy HH:mm:ss} | {sampleDisplay}",
-                                    Measurement = meas
-                                };
-                                planNode.Children.Add(measNode);
+                                var planNode = new DbNode { Header = string.IsNullOrEmpty(planGroup.Key) ? "Unknown Plan" : planGroup.Key };
+                                
+                                foreach (var meas in planGroup.OrderByDescending(m => m.Timestamp))
+                                {
+                                    var sampleDisplay = string.IsNullOrEmpty(meas.SampleName) ? "Unknown Sample" : meas.SampleName;
+                                    var measNode = new DbNode 
+                                    { 
+                                        Header = $"{meas.Timestamp:dd.MM.yyyy HH:mm:ss} | {sampleDisplay}",
+                                        Measurement = meas
+                                    };
+                                    planNode.Children.Add(measNode);
+                                }
+                                profileNode.Children.Add(planNode);
                             }
-                            monthNode.Children.Add(planNode);
+                            monthNode.Children.Add(profileNode);
                         }
                         yearNode.Children.Add(monthNode);
                     }
