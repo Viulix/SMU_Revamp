@@ -42,6 +42,9 @@ public partial class ResultSubCellViewModel : ObservableObject
     public bool IsValid => !(Row == 2 && Col == 2) && !(Row == 5 && Col == 5);
 
     [ObservableProperty]
+    private bool _isSelected;
+
+    [ObservableProperty]
     private ObservableCollection<ResultContactViewModel> _contacts = new();
 
     [ObservableProperty]
@@ -77,6 +80,9 @@ public partial class ResultCellViewModel : ObservableObject
     public bool IsValid => WaferCellViewModel.IsValidCell(Id);
 
     [ObservableProperty]
+    private bool _isSelected;
+
+    [ObservableProperty]
     private ObservableCollection<ResultSubCellViewModel> _subCells = new();
 
     [ObservableProperty]
@@ -104,7 +110,7 @@ public partial class ResultCellViewModel : ObservableObject
 
 public static class HeatmapHelper
 {
-    public static IBrush GetColorForValue(double value, double min, double max)
+    public static IBrush GetColorForValue(double value, double min, double max, double hueLow = 220.0, double hueHigh = 0.0)
     {
         if (double.IsNaN(value) || double.IsInfinity(value))
         {
@@ -113,19 +119,24 @@ public static class HeatmapHelper
 
         if (max == min)
         {
-            return new SolidColorBrush(Avalonia.Media.Color.Parse("#3B82F6")); // Blue-500 fallback
+            return new SolidColorBrush(HslToRgb(hueLow, 0.8, 0.6)); // Fallback color based on hueLow
         }
 
         // Normalize value between 0 and 1
         double ratio = (value - min) / (max - min);
         ratio = Math.Clamp(ratio, 0.0, 1.0);
 
-        // HSL Interpolation from Dark Blue (ratio 0) to Light Blue (ratio 1)
-        // Hue = 220, Sat = 0.8
-        // Lightness goes from 0.3 (dark) to 0.9 (light)
-        double h = 220.0;
+        // HSL Interpolation from hueLow (ratio 0) to hueHigh (ratio 1)
+        double diff = hueHigh - hueLow;
+        if (diff > 180) diff -= 360;
+        else if (diff < -180) diff += 360;
+        
+        double h = hueLow + (diff * ratio);
+        if (h < 0) h += 360;
+        if (h >= 360) h -= 360;
+
         double s = 0.8;
-        double l = 0.3 + (ratio * 0.6);
+        double l = 0.5 + (0.1 * ratio); // slight lightness change if desired, or keep constant
 
         return new SolidColorBrush(HslToRgb(h, s, l));
     }

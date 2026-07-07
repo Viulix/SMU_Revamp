@@ -24,22 +24,20 @@
 
         <!-- List -->
         <Border Grid.Row="1" BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="4">
-            <ListBox ItemsSource="{Binding Measurements}" 
-                     SelectedItem="{Binding SelectedMeasurement}"
-                     Background="White">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Grid ColumnDefinitions="*, 150, 200" Margin="5">
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="{Binding PlanName}" FontWeight="Bold" />
-                                <TextBlock Text="{Binding SampleName}" Foreground="#555555" FontSize="12" />
-                            </StackPanel>
-                            <TextBlock Grid.Column="1" Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="2" Text="{Binding SourceFilename}" FontSize="10" Foreground="#888888" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+            <TreeView ItemsSource="{Binding RootNodes}" 
+                      SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
+                      Background="White">
+                <TreeView.ItemTemplate>
+                    <TreeDataTemplate ItemsSource="{Binding Children}">
+                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="2">
+                            <TextBlock Text="📁" IsVisible="{Binding !IsMeasurement}" Foreground="#F6C23E" />
+                            <TextBlock Text="📄" IsVisible="{Binding IsMeasurement}" Foreground="#4E73DF" />
+                            <TextBlock Text="{Binding Header}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Measurement.SourceFilename}" IsVisible="{Binding IsMeasurement}" FontSize="10" Foreground="Gray" Margin="10,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </TreeDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
         </Border>
 
         <!-- Footer -->

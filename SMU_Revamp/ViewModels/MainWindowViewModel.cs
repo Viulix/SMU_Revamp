@@ -712,6 +712,16 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel()
     {
+        var config = ConfigurationService.Instance.GetConfig();
+        if (!string.IsNullOrEmpty(config.VisualizationHeatmapColorLow))
+        {
+            _selectedHeatmapColorLow = config.VisualizationHeatmapColorLow;
+        }
+        if (!string.IsNullOrEmpty(config.VisualizationHeatmapColorHigh))
+        {
+            _selectedHeatmapColorHigh = config.VisualizationHeatmapColorHigh;
+        }
+
         for (int i = 1; i <= 6; i++)
         {
             Contacts.Add(new ContactViewModel(i.ToString(), true));
@@ -2339,14 +2349,29 @@ public partial class MainWindowViewModel : ViewModelBase
     public ResultCellViewModel? SelectedResultCell
     {
         get => _selectedResultCell;
-        set => SetProperty(ref _selectedResultCell, value);
+        set
+        {
+            if (_selectedResultCell != null) _selectedResultCell.IsSelected = false;
+            if (SetProperty(ref _selectedResultCell, value))
+            {
+                if (_selectedResultCell != null) _selectedResultCell.IsSelected = true;
+                SelectedResultSubCell = null;
+            }
+        }
     }
 
     private ResultSubCellViewModel? _selectedResultSubCell;
     public ResultSubCellViewModel? SelectedResultSubCell
     {
         get => _selectedResultSubCell;
-        set => SetProperty(ref _selectedResultSubCell, value);
+        set
+        {
+            if (_selectedResultSubCell != null) _selectedResultSubCell.IsSelected = false;
+            if (SetProperty(ref _selectedResultSubCell, value))
+            {
+                if (_selectedResultSubCell != null) _selectedResultSubCell.IsSelected = true;
+            }
+        }
     }
 
     private ResultContactViewModel? _selectedResultContact;
@@ -2374,6 +2399,58 @@ public partial class MainWindowViewModel : ViewModelBase
                 RecalculateResultMetrics();
             }
         }
+    }
+
+    private List<string> _availableHeatmapColors = new() { "Blue", "Red", "Green", "Purple", "Orange" };
+    public List<string> AvailableHeatmapColors
+    {
+        get => _availableHeatmapColors;
+        set => SetProperty(ref _availableHeatmapColors, value);
+    }
+
+    private string _selectedHeatmapColorLow = "Blue";
+    public string SelectedHeatmapColorLow
+    {
+        get => _selectedHeatmapColorLow;
+        set
+        {
+            if (SetProperty(ref _selectedHeatmapColorLow, value))
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                config.VisualizationHeatmapColorLow = value;
+                _ = ConfigurationService.Instance.SaveAsync(config);
+                RecalculateResultMetrics();
+            }
+        }
+    }
+
+    private string _selectedHeatmapColorHigh = "Red";
+    public string SelectedHeatmapColorHigh
+    {
+        get => _selectedHeatmapColorHigh;
+        set
+        {
+            if (SetProperty(ref _selectedHeatmapColorHigh, value))
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                config.VisualizationHeatmapColorHigh = value;
+                _ = ConfigurationService.Instance.SaveAsync(config);
+                RecalculateResultMetrics();
+            }
+        }
+    }
+
+    private double GetHueForColor(string colorName)
+    {
+        return colorName switch
+        {
+            "Red" => 0.0,
+            "Orange" => 30.0,
+            "Green" => 120.0,
+            "Purple" => 280.0,
+            "Blue" => 220.0,
+            _ => 220.0,
+        };
     }
 
     public ICommand LoadScanFolderCommand { get; }
@@ -2513,6 +2590,9 @@ public partial class MainWindowViewModel : ViewModelBase
         double minVal = validCells.Min(c => c.AggregatedValue);
         double maxVal = validCells.Max(c => c.AggregatedValue);
 
+        double hueLow = GetHueForColor(SelectedHeatmapColorLow);
+        double hueHigh = GetHueForColor(SelectedHeatmapColorHigh);
+
         // Apply colors to Cells
         foreach (var cell in ResultCells)
         {
@@ -2522,7 +2602,7 @@ public partial class MainWindowViewModel : ViewModelBase
             }
             else
             {
-                cell.Color = HeatmapHelper.GetColorForValue(cell.AggregatedValue, minVal, maxVal);
+                cell.Color = HeatmapHelper.GetColorForValue(cell.AggregatedValue, minVal, maxVal, hueLow, hueHigh);
             }
         }
 
@@ -2536,7 +2616,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 foreach (var sub in cell.SubCells)
                 {
-                    sub.Color = HeatmapHelper.GetColorForValue(sub.AggregatedValue, minSub, maxSub);
+                    sub.Color = HeatmapHelper.GetColorForValue(sub.AggregatedValue, minSub, maxSub, hueLow, hueHigh);
                 }
             }
         }

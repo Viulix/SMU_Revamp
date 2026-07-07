@@ -3,28 +3,38 @@ using CommunityToolkit.Mvvm.Input;
 using SMU_Revamp.Services;
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace SMU_Revamp.ViewModels
 {
+    public class DbNode : ObservableObject
+    {
+        public string Header { get; set; } = string.Empty;
+        public ObservableCollection<DbNode> Children { get; set; } = new();
+        public DatabaseService.MeasurementSummary? Measurement { get; set; }
+        
+        public bool IsMeasurement => Measurement != null;
+    }
+
     public class DatabaseLoadViewModel : ViewModelBase
     {
         private readonly DatabaseService _dbService;
 
-        private ObservableCollection<DatabaseService.MeasurementSummary> _measurements = new();
-        public ObservableCollection<DatabaseService.MeasurementSummary> Measurements
+        private ObservableCollection<DbNode> _rootNodes = new();
+        public ObservableCollection<DbNode> RootNodes
         {
-            get => _measurements;
-            set => SetProperty(ref _measurements, value);
+            get => _rootNodes;
+            set => SetProperty(ref _rootNodes, value);
         }
 
-        private DatabaseService.MeasurementSummary? _selectedMeasurement;
-        public DatabaseService.MeasurementSummary? SelectedMeasurement
+        private DbNode? _selectedNode;
+        public DbNode? SelectedNode
         {
-            get => _selectedMeasurement;
+            get => _selectedNode;
             set
             {
-                if (SetProperty(ref _selectedMeasurement, value))
+                if (SetProperty(ref _selectedNode, value))
                 {
                     LoadCommand.NotifyCanExecuteChanged();
                 }
@@ -53,19 +63,54 @@ namespace SMU_Revamp.ViewModels
         public DatabaseLoadViewModel()
         {
             _dbService = DatabaseService.Instance;
-            LoadCommand = new AsyncRelayCommand(LoadSelectedMeasurementAsync, () => SelectedMeasurement != null);
+            LoadCommand = new AsyncRelayCommand(LoadSelectedMeasurementAsync, () => SelectedNode?.Measurement != null);
             _ = LoadRecentMeasurementsAsync();
         }
 
         public async Task LoadRecentMeasurementsAsync()
         {
             IsLoading = true;
-            StatusMessage = "Loading recent measurements from database...";
+            StatusMessage = "Loading measurements from database...";
             try
             {
-                var list = await _dbService.GetRecentMeasurementsAsync(200);
-                Measurements = new ObservableCollection<DatabaseService.MeasurementSummary>(list);
-                StatusMessage = $"Loaded {Measurements.Count} measurements.";
+                var list = await _dbService.GetRecentMeasurementsAsync(1000);
+                
+                var roots = new ObservableCollection<DbNode>();
+                var byYear = list.GroupBy(m => m.Timestamp.Year).OrderByDescending(g => g.Key);
+                foreach (var yearGroup in byYear)
+                {
+                    var yearNode = new DbNode { Header = yearGroup.Key.ToString() };
+                    
+                    var byMonth = yearGroup.GroupBy(m => m.Timestamp.Month).OrderByDescending(g => g.Key);
+                    foreach (var monthGroup in byMonth)
+                    {
+                        var monthName = System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(monthGroup.Key);
+                        var monthNode = new DbNode { Header = $"{monthGroup.Key:D2} - {monthName}" };
+                        
+                        var byPlan = monthGroup.GroupBy(m => m.PlanName).OrderBy(g => g.Key);
+                        foreach (var planGroup in byPlan)
+                        {
+                            var planNode = new DbNode { Header = string.IsNullOrEmpty(planGroup.Key) ? "Unknown Plan" : planGroup.Key };
+                            
+                            foreach (var meas in planGroup.OrderByDescending(m => m.Timestamp))
+                            {
+                                var sampleDisplay = string.IsNullOrEmpty(meas.SampleName) ? "Unknown Sample" : meas.SampleName;
+                                var measNode = new DbNode 
+                                { 
+                                    Header = $"{meas.Timestamp:dd.MM. yyyy HH:mm:ss} | {sampleDisplay}",
+                                    Measurement = meas
+                                };
+                                planNode.Children.Add(measNode);
+                            }
+                            monthNode.Children.Add(planNode);
+                        }
+                        yearNode.Children.Add(monthNode);
+                    }
+                    roots.Add(yearNode);
+                }
+
+                RootNodes = roots;
+                StatusMessage = $"Loaded {list.Count} measurements.";
             }
             catch (Exception ex)
             {
@@ -80,9 +125,9 @@ namespace SMU_Revamp.ViewModels
 
         private async Task LoadSelectedMeasurementAsync()
         {
-            if (SelectedMeasurement == null) return;
+            if (SelectedNode?.Measurement == null) return;
             
-            RequestLoadMeasurement?.Invoke(SelectedMeasurement.Id);
+            RequestLoadMeasurement?.Invoke(SelectedNode.Measurement.Id);
             RequestClose?.Invoke();
             await Task.CompletedTask;
         }

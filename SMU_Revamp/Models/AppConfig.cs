@@ -136,6 +136,16 @@ public class AppConfig
     public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ParameterLinkConfig>> ParameterLinks { get; set; } = new();
 
     /// <summary>
+    /// Visualization Heatmap Color Low.
+    /// </summary>
+    public string VisualizationHeatmapColorLow { get; set; } = "Blue";
+
+    /// <summary>
+    /// Visualization Heatmap Color High.
+    /// </summary>
+    public string VisualizationHeatmapColorHigh { get; set; } = "Red";
+
+    /// <summary>
     /// Presets for wafer scans.
     /// </summary>
     public System.Collections.Generic.List<WaferScanPreset> WaferScanPresets { get; set; } = new();
