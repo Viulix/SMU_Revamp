@@ -2407,7 +2407,15 @@ public partial class MainWindowViewModel : ViewModelBase
             if (_selectedResultSubCell != null) _selectedResultSubCell.IsSelected = false;
             if (SetProperty(ref _selectedResultSubCell, value))
             {
-                if (_selectedResultSubCell != null) _selectedResultSubCell.IsSelected = true;
+                if (_selectedResultSubCell != null) 
+                {
+                    _selectedResultSubCell.IsSelected = true;
+                    SelectedResultContact = _selectedResultSubCell.Contacts.FirstOrDefault();
+                }
+                else
+                {
+                    SelectedResultContact = null;
+                }
             }
         }
     }

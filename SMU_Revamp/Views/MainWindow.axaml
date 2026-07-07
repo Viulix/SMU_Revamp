@@ -870,7 +870,7 @@
                                             <NumericUpDown Value="{Binding GapTargetVoltage}" 
                                                            FormatString="0.00" 
                                                            Increment="0.1" 
-                                                           Width="90" 
+                                                           Width="130" 
                                                            Height="32" />
                                         </StackPanel>
                                     </StackPanel>
@@ -925,7 +925,7 @@
                                                                          CommandParameter="{Binding}"
                                                                          Opacity="0"
                                                                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                                                            <TextBlock Text="{Binding Id}" FontSize="9" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+                                                            <TextBlock Text="{Binding Id}" FontSize="9" FontWeight="Bold" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
                                                         </Grid>
                                                     </Border>
                                                 </DataTemplate>
@@ -972,7 +972,7 @@
                                                                              CommandParameter="{Binding}"
                                                                              Opacity="0"
                                                                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                                                                <TextBlock Text="{Binding Id}" FontSize="14" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+                                                                <TextBlock Text="{Binding Id}" FontSize="14" FontWeight="Bold" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
                                                             </Grid>
                                                         </Border>
                                                     </DataTemplate>
