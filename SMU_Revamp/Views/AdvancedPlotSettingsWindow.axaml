@@ -26,9 +26,10 @@
 
             <Separator Background="#E5E7EB" Margin="0,5" />
 
-            <Grid ColumnDefinitions="*, Auto">
+            <Grid ColumnDefinitions="*, Auto, Auto">
                 <TextBlock Grid.Column="0" Text="Axis Limits &amp; Sizing" FontWeight="SemiBold" FontSize="16" Foreground="#1F2937" VerticalAlignment="Center"/>
-                <CheckBox Grid.Column="1" Content="Auto-Fit Data (No Margins)" IsChecked="{Binding AutoFitData}" FontWeight="SemiBold" Foreground="#1F2937" />
+                <CheckBox Grid.Column="1" Content="Auto-Fit X" IsChecked="{Binding AutoFitDataX}" FontWeight="SemiBold" Foreground="#1F2937" Margin="0,0,10,0"/>
+                <CheckBox Grid.Column="2" Content="Auto-Fit Y" IsChecked="{Binding AutoFitDataY}" FontWeight="SemiBold" Foreground="#1F2937" />
             </Grid>
             
             <Grid ColumnDefinitions="*, *" RowDefinitions="Auto, Auto" Margin="0,5">
@@ -58,14 +59,16 @@
 
             <Separator Background="#E5E7EB" Margin="0,5" />
 
-            <TextBlock Text="Series Colors" FontWeight="SemiBold" FontSize="16" Foreground="#1F2937" />
+            <TextBlock Text="Series Styles" FontWeight="SemiBold" FontSize="16" Foreground="#1F2937" />
             <ScrollViewer MaxHeight="150" HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl ItemsSource="{Binding SeriesSettings}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                            <Grid ColumnDefinitions="*, Auto, Auto, Auto" Margin="0,0,0,8" VerticalAlignment="Center">
                                 <TextBlock Grid.Column="0" Text="{Binding SeriesName}" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#4B5563"/>
-                                <ColorPicker Grid.Column="1" Color="{Binding PickerColor, Mode=TwoWay}" />
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableLineStyles}" SelectedItem="{Binding LineStyle}" Width="110" Margin="0,0,10,0" Height="28" ToolTip.Tip="Line Style" />
+                                <NumericUpDown Grid.Column="2" Value="{Binding LineWidth}" Width="110" Minimum="0" Increment="0.5" ShowButtonSpinner="True" Margin="0,0,10,0" Height="28" ToolTip.Tip="Line Width" />
+                                <ColorPicker Grid.Column="3" Color="{Binding PickerColor, Mode=TwoWay}" ToolTip.Tip="Series Color" />
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

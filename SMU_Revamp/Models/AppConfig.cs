@@ -134,6 +134,11 @@ public class AppConfig
     /// Dynamic parameter links, keyed by Plan Name -> Parameter Name -> Link Config.
     /// </summary>
     public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ParameterLinkConfig>> ParameterLinks { get; set; } = new();
+
+    /// <summary>
+    /// Presets for wafer scans.
+    /// </summary>
+    public System.Collections.Generic.List<WaferScanPreset> WaferScanPresets { get; set; } = new();
 }
 
 /// <summary>
@@ -153,4 +158,16 @@ public class ParameterLinkConfig
     public string LinkedParameterName { get; set; } = string.Empty;
     public double Multiplier { get; set; } = 1.0;
     public bool IsActive { get; set; } = true;
+}
+
+/// <summary>
+/// Preset containing saved configuration for wafer scans.
+/// </summary>
+public class WaferScanPreset
+{
+    public string Name { get; set; } = string.Empty;
+    public string DelayMs { get; set; } = "500";
+    public System.Collections.Generic.List<string> SelectedSubCells { get; set; } = new();
+    public System.Collections.Generic.List<int> SelectedContacts { get; set; } = new();
+    public System.Collections.Generic.List<string> SelectedWaferCells { get; set; } = new();
 }

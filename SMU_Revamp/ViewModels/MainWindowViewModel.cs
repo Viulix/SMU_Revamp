@@ -170,8 +170,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private double? _customYMax;
     public double? CustomYMax { get => _customYMax; set => SetProperty(ref _customYMax, value); }
 
-    private bool _autoFitData;
-    public bool AutoFitData { get => _autoFitData; set => SetProperty(ref _autoFitData, value); }
+    private bool _autoFitDataX;
+    public bool AutoFitDataX { get => _autoFitDataX; set => SetProperty(ref _autoFitDataX, value); }
+    private bool _autoFitDataY;
+    public bool AutoFitDataY { get => _autoFitDataY; set => SetProperty(ref _autoFitDataY, value); }
 
     private string? _customAspectRatioString;
     public string? CustomAspectRatioString 
@@ -420,21 +422,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private bool _isAllContactsChecked;
-    public bool IsAllContactsChecked
-    {
-        get => _isAllContactsChecked;
-        set
-        {
-            if (SetProperty(ref _isAllContactsChecked, value))
-            {
-                if (value)
-                {
-                    TargetScanContacts = "1, 2, 3, 4, 5, 6";
-                }
-            }
-        }
-    }
+
 
     private double _waferScanProgress;
     public double WaferScanProgress
@@ -457,10 +445,13 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (SetProperty(ref _waferScanLog, value))
             {
+                OnPropertyChanged(nameof(HasWaferScanLog));
                 NotifyGlobalProgressPropertiesChanged();
             }
         }
     }
+
+    public bool HasWaferScanLog => !string.IsNullOrWhiteSpace(WaferScanLog);
 
     private Avalonia.Media.FontWeight _waferScanLogFontWeight = Avalonia.Media.FontWeight.Normal;
     public Avalonia.Media.FontWeight WaferScanLogFontWeight
@@ -511,12 +502,40 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _waferScanDelayMs, value);
     }
 
-    private string _targetScanContacts = "1, 2, 3";
-    public string TargetScanContacts
+    private System.Collections.ObjectModel.ObservableCollection<string> _waferScanPresetNames = new();
+    public System.Collections.ObjectModel.ObservableCollection<string> WaferScanPresetNames
     {
-        get => _targetScanContacts;
-        set => SetProperty(ref _targetScanContacts, value);
+        get => _waferScanPresetNames;
+        set => SetProperty(ref _waferScanPresetNames, value);
     }
+
+    private string _selectedWaferScanPreset = string.Empty;
+    public string SelectedWaferScanPreset
+    {
+        get => _selectedWaferScanPreset;
+        set
+        {
+            if (SetProperty(ref _selectedWaferScanPreset, value))
+            {
+                if (!string.IsNullOrEmpty(value))
+                {
+                    _ = LoadWaferScanPresetAsync(value);
+                }
+            }
+        }
+    }
+
+    private string _newWaferScanPresetName = string.Empty;
+    public string NewWaferScanPresetName
+    {
+        get => _newWaferScanPresetName;
+        set => SetProperty(ref _newWaferScanPresetName, value);
+    }
+
+    public System.Collections.ObjectModel.ObservableCollection<ContactViewModel> Contacts { get; } = new();
+
+    public ICommand SelectAllContactsCommand { get; }
+    public ICommand DeselectAllContactsCommand { get; }
 
     private System.Threading.CancellationTokenSource? _scanCts;
 
@@ -652,10 +671,19 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _isOverwriteWarningVisible, value);
     }
 
+    private bool _isDeleteWarningVisible;
+    public bool IsDeleteWarningVisible
+    {
+        get => _isDeleteWarningVisible;
+        set => SetProperty(ref _isDeleteWarningVisible, value);
+    }
+
     public ICommand SavePresetCommand { get; }
     public ICommand ConfirmSavePresetCommand { get; }
     public ICommand CancelSavePresetCommand { get; }
     public ICommand DeletePresetCommand { get; }
+    public ICommand ConfirmDeletePresetCommand { get; }
+    public ICommand CancelDeletePresetCommand { get; }
 
     private List<int> _parsedScanContacts = new();
     private int _totalExpectedCells = 0;
@@ -671,7 +699,8 @@ public partial class MainWindowViewModel : ViewModelBase
         CustomXMax = null;
         CustomYMin = null;
         CustomYMax = null;
-        AutoFitData = false;
+        AutoFitDataX = false;
+        AutoFitDataY = false;
         CustomAspectRatioString = null;
         
         var defaultColors = new[] { "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf" };
@@ -683,6 +712,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel()
     {
+        for (int i = 1; i <= 6; i++)
+        {
+            Contacts.Add(new ContactViewModel(i.ToString(), true));
+        }
+
+        SelectAllContactsCommand = new RelayCommand(() => { foreach (var c in Contacts) c.IsSelected = true; });
+        DeselectAllContactsCommand = new RelayCommand(() => { foreach (var c in Contacts) c.IsSelected = false; });
+
         SavePresetCommand = new RelayCommand(() =>
         {
             if (string.IsNullOrWhiteSpace(NewPresetName))
@@ -716,7 +753,13 @@ public partial class MainWindowViewModel : ViewModelBase
 
         CancelSavePresetCommand = new RelayCommand(() => IsOverwriteWarningVisible = false);
 
-        DeletePresetCommand = new AsyncRelayCommand(async () =>
+        DeletePresetCommand = new RelayCommand(() =>
+        {
+            if (SelectedPreset == null || SelectedPlan == null) return;
+            IsDeleteWarningVisible = true;
+        });
+
+        ConfirmDeletePresetCommand = new AsyncRelayCommand(async () =>
         {
             if (SelectedPreset == null || SelectedPlan == null) return;
             var config = ConfigurationService.Instance.GetConfig();
@@ -726,7 +769,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 await ConfigurationService.Instance.SaveAsync(config);
                 LoadAvailablePresets();
             }
+            IsDeleteWarningVisible = false;
         });
+
+        CancelDeletePresetCommand = new RelayCommand(() => IsDeleteWarningVisible = false);
 
         ResetAdvancedSettingsCommand = new RelayCommand(ResetAdvancedSettings);
         CurvePoints = Array.Empty<CurvePoint>();
@@ -840,6 +886,96 @@ public partial class MainWindowViewModel : ViewModelBase
             }
         }
     }
+
+    private async Task LoadWaferScanPresetAsync(string presetName)
+    {
+        var config = ConfigurationService.Instance.GetConfig();
+        var preset = config.WaferScanPresets?.FirstOrDefault(p => p.Name == presetName);
+        if (preset == null) return;
+
+        if (int.TryParse(preset.DelayMs, out int delay))
+            WaferScanDelayMs = delay;
+
+        foreach (var c in SubCells)
+        {
+            if (!c.IsValid) continue;
+            c.IsSelected = preset.SelectedSubCells.Contains(c.Id);
+        }
+
+        foreach (var c in Contacts)
+        {
+            if (int.TryParse(c.Id, out int cId))
+            {
+                c.IsSelected = preset.SelectedContacts.Contains(cId);
+            }
+        }
+
+        foreach (var c in WaferCells)
+        {
+            if (!c.IsValid) continue;
+            c.IsSelected = preset.SelectedWaferCells.Contains(c.Id);
+        }
+        
+        NewWaferScanPresetName = presetName;
+        NotificationRequested?.Invoke("Preset Loaded", $"Wafer scan preset '{presetName}' loaded.", null);
+    }
+
+    [RelayCommand]
+    private async Task SaveWaferScanPresetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewWaferScanPresetName))
+        {
+            NotificationRequested?.Invoke("Error", "Please enter a preset name.", null);
+            return;
+        }
+
+        var config = ConfigurationService.Instance.GetConfig();
+        if (config.WaferScanPresets == null) config.WaferScanPresets = new();
+        
+        var preset = config.WaferScanPresets.FirstOrDefault(p => p.Name == NewWaferScanPresetName);
+        if (preset == null)
+        {
+            preset = new Models.WaferScanPreset { Name = NewWaferScanPresetName };
+            config.WaferScanPresets.Add(preset);
+            WaferScanPresetNames.Add(NewWaferScanPresetName);
+        }
+
+        preset.DelayMs = WaferScanDelayMs.ToString();
+        preset.SelectedSubCells = SubCells.Where(c => c.IsSelected).Select(c => c.Id).ToList();
+        preset.SelectedContacts = Contacts.Where(c => c.IsSelected && int.TryParse(c.Id, out _)).Select(c => int.Parse(c.Id)).ToList();
+        preset.SelectedWaferCells = WaferCells.Where(c => c.IsSelected).Select(c => c.Id).ToList();
+
+        await ConfigurationService.Instance.SaveAsync(config);
+        
+        SelectedWaferScanPreset = NewWaferScanPresetName;
+        NotificationRequested?.Invoke("Preset Saved", $"Wafer scan preset '{NewWaferScanPresetName}' saved.", null);
+    }
+
+    [RelayCommand]
+    private async Task DeleteWaferScanPresetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedWaferScanPreset)) return;
+
+        var config = ConfigurationService.Instance.GetConfig();
+        if (config.WaferScanPresets == null) return;
+
+        var preset = config.WaferScanPresets.FirstOrDefault(p => p.Name == SelectedWaferScanPreset);
+        if (preset != null)
+        {
+            var dialog = new Views.SavePromptWindow("Delete Preset", $"Are you sure you want to delete the wafer scan preset '{SelectedWaferScanPreset}'?");
+            var result = await dialog.ShowDialog<bool>((Avalonia.Controls.Window)Avalonia.Application.Current.ApplicationLifetime.GetType().GetProperty("MainWindow").GetValue(Avalonia.Application.Current.ApplicationLifetime));
+            
+            if (result)
+            {
+                config.WaferScanPresets.Remove(preset);
+                WaferScanPresetNames.Remove(SelectedWaferScanPreset);
+                await ConfigurationService.Instance.SaveAsync(config);
+                SelectedWaferScanPreset = string.Empty;
+                NewWaferScanPresetName = string.Empty;
+                NotificationRequested?.Invoke("Preset Deleted", "Wafer scan preset removed.", null);
+            }
+        }
+    }
     
     public ICommand GoToScanStartCommand { get; }
 
@@ -882,12 +1018,11 @@ public partial class MainWindowViewModel : ViewModelBase
         WaferScanProgress = 0;
         
         _parsedScanContacts.Clear();
-        var parts = TargetScanContacts.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-        foreach (var part in parts)
+        foreach (var c in Contacts)
         {
-            if (int.TryParse(part, out int c) && c >= 1 && c <= 6)
+            if (c.IsSelected && int.TryParse(c.Id, out int cId))
             {
-                _parsedScanContacts.Add(c);
+                _parsedScanContacts.Add(cId);
             }
         }
 
@@ -2164,6 +2299,15 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         var config = ConfigurationService.Instance.GetConfig();
         AutoSaveMeasurements = config.AutoSaveMeasurements;
+        
+        if (config.WaferScanPresets != null)
+        {
+            WaferScanPresetNames.Clear();
+            foreach (var preset in config.WaferScanPresets)
+            {
+                WaferScanPresetNames.Add(preset.Name);
+            }
+        }
     }
 
     private async Task SaveAutoSaveSettingAsync(bool value)

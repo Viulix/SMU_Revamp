@@ -52,8 +52,11 @@ public partial class CurvePlotView : UserControl
     public static readonly StyledProperty<IEnumerable<SMU_Revamp.ViewModels.SeriesSetting>?> SeriesSettingsProperty =
         AvaloniaProperty.Register<CurvePlotView, IEnumerable<SMU_Revamp.ViewModels.SeriesSetting>?>(nameof(SeriesSettings));
 
-    public static readonly StyledProperty<bool> AutoFitDataProperty =
-        AvaloniaProperty.Register<CurvePlotView, bool>(nameof(AutoFitData));
+    public static readonly StyledProperty<bool> AutoFitDataXProperty =
+        AvaloniaProperty.Register<CurvePlotView, bool>(nameof(AutoFitDataX));
+
+    public static readonly StyledProperty<bool> AutoFitDataYProperty =
+        AvaloniaProperty.Register<CurvePlotView, bool>(nameof(AutoFitDataY));
 
     static CurvePlotView()
     {
@@ -71,7 +74,8 @@ public partial class CurvePlotView : UserControl
         YMinProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
         YMaxProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
         SeriesSettingsProperty.Changed.AddClassHandler<CurvePlotView>((control, e) => control.OnSeriesSettingsChanged(e));
-        AutoFitDataProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
+        AutoFitDataXProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
+        AutoFitDataYProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
     }
 
     private void OnSeriesSettingsChanged(AvaloniaPropertyChangedEventArgs e)
@@ -127,7 +131,7 @@ public partial class CurvePlotView : UserControl
 
     private void SeriesSetting_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == "PickerColor" || e.PropertyName == "ColorHex")
+        if (e.PropertyName == "PickerColor" || e.PropertyName == "ColorHex" || e.PropertyName == "LineWidth" || e.PropertyName == "LineStyle")
         {
             Redraw();
         }
@@ -147,7 +151,8 @@ public partial class CurvePlotView : UserControl
     public double? YMin { get => GetValue(YMinProperty); set => SetValue(YMinProperty, value); }
     public double? YMax { get => GetValue(YMaxProperty); set => SetValue(YMaxProperty, value); }
     public IEnumerable<SMU_Revamp.ViewModels.SeriesSetting>? SeriesSettings { get => GetValue(SeriesSettingsProperty); set => SetValue(SeriesSettingsProperty, value); }
-    public bool AutoFitData { get => GetValue(AutoFitDataProperty); set => SetValue(AutoFitDataProperty, value); }
+    public bool AutoFitDataX { get => GetValue(AutoFitDataXProperty); set => SetValue(AutoFitDataXProperty, value); }
+    public bool AutoFitDataY { get => GetValue(AutoFitDataYProperty); set => SetValue(AutoFitDataYProperty, value); }
 
     public CurvePlotView()
     {
@@ -242,6 +247,7 @@ public partial class CurvePlotView : UserControl
 
         bool drawLine = PlotStyle == SMU_Revamp.Models.PlotStyle.Line || PlotStyle == SMU_Revamp.Models.PlotStyle.LineAndScatter || PlotStyle == SMU_Revamp.Models.PlotStyle.InterpolatedLine || PlotStyle == SMU_Revamp.Models.PlotStyle.InterpolatedLineAndScatter;
         bool drawScatter = PlotStyle == SMU_Revamp.Models.PlotStyle.Scatter || PlotStyle == SMU_Revamp.Models.PlotStyle.LineAndScatter || PlotStyle == SMU_Revamp.Models.PlotStyle.InterpolatedLineAndScatter;
+        bool isInterpolated = PlotStyle == SMU_Revamp.Models.PlotStyle.InterpolatedLine || PlotStyle == SMU_Revamp.Models.PlotStyle.InterpolatedLineAndScatter;
 
         foreach (var s in series)
         {
@@ -262,30 +268,41 @@ public partial class CurvePlotView : UserControl
 
             var sp = AvaPlot.Plot.Add.Scatter(xs, ys);
             sp.LegendText = s.Name;
+            sp.Smooth = isInterpolated;
             
             var seriesSettingsList = SeriesSettings?.ToList();
             if (seriesSettingsList != null)
             {
                 var setting = seriesSettingsList.FirstOrDefault(set => set.SeriesName == s.Name);
-                if (setting != null && !string.IsNullOrWhiteSpace(setting.ColorHex))
+                if (setting != null)
                 {
-                    try
+                    if (!string.IsNullOrWhiteSpace(setting.ColorHex))
                     {
-                        var color = ScottPlot.Color.FromHex(setting.ColorHex);
-                        sp.Color = color;
+                        try
+                        {
+                            var color = ScottPlot.Color.FromHex(setting.ColorHex);
+                            sp.Color = color;
+                        }
+                        catch { }
                     }
-                    catch { }
+                    
+                    sp.LineWidth = (float)setting.LineWidth;
+                    
+                    switch (setting.LineStyle)
+                    {
+                        case "Dashed": sp.LinePattern = ScottPlot.LinePattern.Dashed; break;
+                        case "Dotted": sp.LinePattern = ScottPlot.LinePattern.Dotted; break;
+                        default: sp.LinePattern = ScottPlot.LinePattern.Solid; break;
+                    }
                 }
             }
             
             if (drawLine && drawScatter)
             {
-                sp.LineWidth = 2;
                 sp.MarkerSize = 5;
             }
             else if (drawLine)
             {
-                sp.LineWidth = 2;
                 sp.MarkerSize = 0;
             }
             else if (drawScatter)
@@ -314,42 +331,51 @@ public partial class CurvePlotView : UserControl
         AvaPlot.Plot.Grid.XAxisStyle.MinorLineStyle.Width = LogarithmicX ? 1 : 0;
         AvaPlot.Plot.Grid.YAxisStyle.MinorLineStyle.Width = LogarithmicY ? 1 : 0;
 
-        if (AutoFitData)
-        {
-            AvaPlot.Plot.Axes.Margins(0, 0);
-            AvaPlot.Plot.Axes.AutoScale();
-        }
-        else
-        {
-            AvaPlot.Plot.Axes.Margins(0.05, 0.05);
-            if (XMin.HasValue || XMax.HasValue || YMin.HasValue || YMax.HasValue)
-            {
-                var currentLimits = AvaPlot.Plot.Axes.GetLimits();
-                double xMin = XMin ?? currentLimits.Left;
-                double xMax = XMax ?? currentLimits.Right;
-                double yMin = YMin ?? currentLimits.Bottom;
-                double yMax = YMax ?? currentLimits.Top;
+        AvaPlot.Plot.Axes.Margins(AutoFitDataX ? 0 : 0.05, AutoFitDataY ? 0 : 0.05);
 
-                if (LogarithmicX)
+        // AutoScale both axes with the configured margins first
+        AvaPlot.Plot.Axes.AutoScale();
+
+        if (XMin.HasValue || XMax.HasValue || YMin.HasValue || YMax.HasValue)
+        {
+            var currentLimits = AvaPlot.Plot.Axes.GetLimits();
+            double xMin = currentLimits.Left;
+            double xMax = currentLimits.Right;
+            double yMin = currentLimits.Bottom;
+            double yMax = currentLimits.Top;
+            bool limitsChanged = false;
+
+            if (!AutoFitDataX)
+            {
+                if (XMin.HasValue) { xMin = XMin.Value; limitsChanged = true; }
+                if (XMax.HasValue) { xMax = XMax.Value; limitsChanged = true; }
+                
+                if (LogarithmicX && limitsChanged)
                 {
                     if (XMin.HasValue) xMin = Math.Log10(Math.Max(Math.Abs(XMin.Value), 1e-12));
                     if (XMax.HasValue) xMax = Math.Log10(Math.Max(Math.Abs(XMax.Value), 1e-12));
                 }
-                if (LogarithmicY)
+            }
+
+            if (!AutoFitDataY)
+            {
+                if (YMin.HasValue) { yMin = YMin.Value; limitsChanged = true; }
+                if (YMax.HasValue) { yMax = YMax.Value; limitsChanged = true; }
+
+                if (LogarithmicY && limitsChanged)
                 {
                     if (YMin.HasValue) yMin = Math.Log10(Math.Max(Math.Abs(YMin.Value), 1e-12));
                     if (YMax.HasValue) yMax = Math.Log10(Math.Max(Math.Abs(YMax.Value), 1e-12));
                 }
+            }
 
+            if (limitsChanged)
+            {
                 // Ensure valid range
                 if (xMin >= xMax) xMax = xMin + 1;
                 if (yMin >= yMax) yMax = yMin + 1;
 
                 AvaPlot.Plot.Axes.SetLimits(xMin, xMax, yMin, yMax);
-            }
-            else
-            {
-                AvaPlot.Plot.Axes.AutoScale();
             }
         }
 

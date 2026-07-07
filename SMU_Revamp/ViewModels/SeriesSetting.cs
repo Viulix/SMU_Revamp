@@ -60,6 +60,22 @@ public class SeriesSetting : ViewModelBase
         }
     }
 
+    private double _lineWidth = 2.0;
+    public double LineWidth
+    {
+        get => _lineWidth;
+        set { _lineWidth = value; OnPropertyChanged(); }
+    }
+
+    private string _lineStyle = "Solid";
+    public string LineStyle
+    {
+        get => _lineStyle;
+        set { _lineStyle = value; OnPropertyChanged(); }
+    }
+
+    public string[] AvailableLineStyles { get; } = new[] { "Solid", "Dashed", "Dotted" };
+
     public SeriesSetting(string seriesName, string defaultColorHex)
     {
         SeriesName = seriesName;
