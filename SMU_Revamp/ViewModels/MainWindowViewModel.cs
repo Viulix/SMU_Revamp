@@ -2746,9 +2746,10 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 // Typically we want the max difference if there are multiple crossings (e.g. multi-cycle)
                 // Or just the difference between the first two crossings. Let's return the max difference among all crossings.
-                double minI = crossedCurrents.Min();
-                double maxI = crossedCurrents.Max();
-                return maxI - minI;
+                double maxAbsI = crossedCurrents.Max(c => Math.Abs(c));
+                double minAbsI = crossedCurrents.Min(c => Math.Abs(c));
+                if (minAbsI < 1e-15) return double.NaN; // Avoid division by zero
+                return maxAbsI / minAbsI;
             }
             
             return double.NaN;
