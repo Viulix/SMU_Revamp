@@ -15,6 +15,7 @@ namespace SMU_Revamp.ViewModels
         public DatabaseService.MeasurementSummary? Measurement { get; set; }
         
         public bool IsMeasurement => Measurement != null;
+        public bool IsFolderNode { get; set; }
     }
 
     public class DatabaseLoadViewModel : ViewModelBase
@@ -37,6 +38,7 @@ namespace SMU_Revamp.ViewModels
                 if (SetProperty(ref _selectedNode, value))
                 {
                     LoadCommand.NotifyCanExecuteChanged();
+                    LoadWafermapCommand?.NotifyCanExecuteChanged();
                 }
             }
         }
@@ -56,15 +58,46 @@ namespace SMU_Revamp.ViewModels
         }
 
         public IAsyncRelayCommand LoadCommand { get; }
+        public IAsyncRelayCommand LoadWafermapCommand { get; }
 
         public Action<int>? RequestLoadMeasurement { get; set; }
+        public Action<System.Collections.Generic.List<DatabaseService.MeasurementSummary>>? RequestLoadWafermap { get; set; }
         public Action? RequestClose { get; set; }
 
         public DatabaseLoadViewModel()
         {
             _dbService = DatabaseService.Instance;
             LoadCommand = new AsyncRelayCommand(LoadSelectedMeasurementAsync, () => SelectedNode?.Measurement != null);
+            LoadWafermapCommand = new AsyncRelayCommand(LoadSelectedWafermapAsync, () => SelectedNode?.IsFolderNode == true);
             _ = LoadRecentMeasurementsAsync();
+        }
+
+        private async Task LoadSelectedWafermapAsync()
+        {
+            if (SelectedNode == null || !SelectedNode.IsFolderNode) return;
+            
+            var measurements = new System.Collections.Generic.List<DatabaseService.MeasurementSummary>();
+            
+            // Collect all measurements under this folder node
+            void CollectMeasurements(DbNode node)
+            {
+                if (node.IsMeasurement && node.Measurement != null)
+                {
+                    measurements.Add(node.Measurement);
+                }
+                else
+                {
+                    foreach (var child in node.Children)
+                        CollectMeasurements(child);
+                }
+            }
+            CollectMeasurements(SelectedNode);
+
+            if (measurements.Count > 0)
+            {
+                RequestLoadWafermap?.Invoke(measurements);
+                RequestClose?.Invoke();
+            }
         }
 
         public async Task LoadRecentMeasurementsAsync()
@@ -97,21 +130,31 @@ namespace SMU_Revamp.ViewModels
                             {
                                 var sampleNode = new DbNode { Header = string.IsNullOrEmpty(sampleGroup.Key) ? "Unknown Sample" : sampleGroup.Key };
 
-                                var byPlan = sampleGroup.GroupBy(m => m.PlanName).OrderBy(g => g.Key);
-                                foreach (var planGroup in byPlan)
+                                var byFolder = sampleGroup.GroupBy(m => m.FolderName).OrderBy(g => g.Key);
+                                foreach (var folderGroup in byFolder)
                                 {
-                                    var planNode = new DbNode { Header = string.IsNullOrEmpty(planGroup.Key) ? "Unknown Plan" : planGroup.Key };
-                                    
-                                    foreach (var meas in planGroup.OrderByDescending(m => m.Timestamp))
+                                    var folderNode = new DbNode { 
+                                        Header = string.IsNullOrEmpty(folderGroup.Key) ? "Unknown Folder" : folderGroup.Key,
+                                        IsFolderNode = true 
+                                    };
+
+                                    var byPlan = folderGroup.GroupBy(m => m.PlanName).OrderBy(g => g.Key);
+                                    foreach (var planGroup in byPlan)
                                     {
-                                        var measNode = new DbNode 
-                                        { 
-                                            Header = $"{meas.Timestamp:dd.MM.yyyy HH:mm:ss}",
-                                            Measurement = meas
-                                        };
-                                        planNode.Children.Add(measNode);
+                                        var planNode = new DbNode { Header = string.IsNullOrEmpty(planGroup.Key) ? "Unknown Plan" : planGroup.Key };
+                                        
+                                        foreach (var meas in planGroup.OrderByDescending(m => m.Timestamp))
+                                        {
+                                            var measNode = new DbNode 
+                                            { 
+                                                Header = $"{meas.Timestamp:dd.MM.yyyy HH:mm:ss}",
+                                                Measurement = meas
+                                            };
+                                            planNode.Children.Add(measNode);
+                                        }
+                                        folderNode.Children.Add(planNode);
                                     }
-                                    sampleNode.Children.Add(planNode);
+                                    sampleNode.Children.Add(folderNode);
                                 }
                                 profileNode.Children.Add(sampleNode);
                             }

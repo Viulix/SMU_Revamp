@@ -102,6 +102,15 @@ namespace SMU_Revamp.Services
                         await updateCmd.ExecuteNonQueryAsync();
                     }
                     catch { /* Ignore */ }
+
+                    // Try to add FolderName column if it's missing
+                    try
+                    {
+                        using var alterCmd2 = connection.CreateCommand();
+                        alterCmd2.CommandText = "ALTER TABLE Measurements ADD COLUMN FolderName VARCHAR(500) NULL;";
+                        await alterCmd2.ExecuteNonQueryAsync();
+                    }
+                    catch { /* Ignore if it already exists */ }
                 }
 
                 return true;
@@ -136,7 +145,7 @@ namespace SMU_Revamp.Services
             }
         }
 
-        public async Task<int> SaveMeasurementAsync(IMeasurementPlan plan, string profileName, string sampleName, DateTime timestamp, string? sourceFilename = null)
+        public async Task<int> SaveMeasurementAsync(IMeasurementPlan plan, string profileName, string sampleName, DateTime timestamp, string folderName, string? sourceFilename = null)
         {
             using var connection = new MySqlConnection(GetCurrentConnectionString());
             await connection.OpenAsync();
@@ -148,13 +157,14 @@ namespace SMU_Revamp.Services
                 using var cmd = connection.CreateCommand();
                 cmd.Transaction = transaction;
                 cmd.CommandText = @"
-                    INSERT INTO Measurements (ProfileName, PlanName, SampleName, Timestamp, SourceFilename)
-                    VALUES (@profileName, @planName, @sampleName, @timestamp, @sourceFilename);
+                    INSERT INTO Measurements (ProfileName, PlanName, SampleName, Timestamp, FolderName, SourceFilename)
+                    VALUES (@profileName, @planName, @sampleName, @timestamp, @folderName, @sourceFilename);
                     SELECT LAST_INSERT_ID();";
                 cmd.Parameters.AddWithValue("@profileName", profileName);
                 cmd.Parameters.AddWithValue("@planName", plan.Name);
                 cmd.Parameters.AddWithValue("@sampleName", sampleName);
                 cmd.Parameters.AddWithValue("@timestamp", timestamp);
+                cmd.Parameters.AddWithValue("@folderName", folderName);
                 cmd.Parameters.AddWithValue("@sourceFilename", sourceFilename);
 
                 int measurementId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
@@ -220,6 +230,7 @@ namespace SMU_Revamp.Services
             public string PlanName { get; set; } = string.Empty;
             public string SampleName { get; set; } = string.Empty;
             public DateTime Timestamp { get; set; }
+            public string FolderName { get; set; } = string.Empty;
             public string SourceFilename { get; set; } = string.Empty;
         }
 
@@ -229,7 +240,7 @@ namespace SMU_Revamp.Services
             using var connection = new MySqlConnection(GetCurrentConnectionString());
             await connection.OpenAsync();
             using var cmd = connection.CreateCommand();
-            cmd.CommandText = "SELECT Id, ProfileName, PlanName, SampleName, Timestamp, SourceFilename FROM Measurements ORDER BY Timestamp DESC LIMIT @limit";
+            cmd.CommandText = "SELECT Id, ProfileName, PlanName, SampleName, Timestamp, FolderName, SourceFilename FROM Measurements ORDER BY Timestamp DESC LIMIT @limit";
             cmd.Parameters.AddWithValue("@limit", limit);
 
             using var reader = await cmd.ExecuteReaderAsync();
@@ -242,7 +253,8 @@ namespace SMU_Revamp.Services
                     PlanName = reader.IsDBNull(2) ? "" : reader.GetString(2),
                     SampleName = reader.IsDBNull(3) ? "" : reader.GetString(3),
                     Timestamp = reader.GetDateTime(4),
-                    SourceFilename = reader.IsDBNull(5) ? "" : reader.GetString(5)
+                    FolderName = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                    SourceFilename = reader.IsDBNull(6) ? "" : reader.GetString(6)
                 });
             }
             return list;

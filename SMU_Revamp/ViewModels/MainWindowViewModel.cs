@@ -1597,30 +1597,33 @@ public partial class MainWindowViewModel : ViewModelBase
                         var profile = Settings.Profile;
                         var sampleName = Settings.SampleName;
                         
+                        string folderName = "";
                         string folderPath;
                         try
                         {
                             var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                             if (IsScanningWafer)
                             {
-                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, "Wafermaps", _currentWaferScanFolderName);
+                                folderName = _currentWaferScanFolderName;
+                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, "Wafermaps", folderName);
                             }
                             else
                             {
-                                string normalFolder = $"{sampleName}_{DateTime.Now:yyyyMMdd}";
-                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, normalFolder);
+                                folderName = $"{sampleName}_{DateTime.Now:yyyyMMdd}";
+                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, folderName);
                             }
                         }
                         catch
                         {
                             if (IsScanningWafer)
                             {
-                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, "Wafermaps", _currentWaferScanFolderName);
+                                folderName = _currentWaferScanFolderName;
+                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, "Wafermaps", folderName);
                             }
                             else
                             {
-                                string normalFolder = $"{sampleName}_{DateTime.Now:yyyyMMdd}";
-                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, normalFolder);
+                                folderName = $"{sampleName}_{DateTime.Now:yyyyMMdd}";
+                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, folderName);
                             }
                         }
                         
@@ -1674,7 +1677,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         {
                             try
                             {
-                                int dbId = await DatabaseService.Instance.SaveMeasurementAsync(PlottedPlan, Settings.Profile, sampleName, DateTime.Now, fileName);
+                                int dbId = await DatabaseService.Instance.SaveMeasurementAsync(PlottedPlan, Settings.Profile, sampleName, DateTime.Now, folderName, fileName);
                                 MeasurementStatus += $" (DB ID: {dbId})";
                             }
                             catch (Exception dbEx)
@@ -2594,14 +2597,74 @@ public partial class MainWindowViewModel : ViewModelBase
             }
             else
             {
-                IsResultFolderLoaded = false;
-                NotificationRequested?.Invoke("No compatible data", "No matching wafer map measurement files were found in the selected folder.", null);
+                NotificationRequested?.Invoke("Error", "No valid contact files found in folder.", null);
             }
         }
         catch (Exception ex)
         {
-            IsResultFolderLoaded = false;
-            NotificationRequested?.Invoke("Error Loading Folder", ex.Message, null);
+            NotificationRequested?.Invoke("Error", $"Failed to load scan folder: {ex.Message}", null);
+        }
+    }
+
+    public async Task LoadWafermapFromDatabaseAsync(List<Services.DatabaseService.MeasurementSummary> measurements)
+    {
+        try
+        {
+            InitializeResultTab();
+
+            var regex = new Regex(@"Cell(?<cR>\d{2})(?<cC>\d{2})_R(?<sR>\d)C(?<sC>\d)_Contact(?<cont>\d)");
+
+            bool filesFound = false;
+            foreach (var meas in measurements)
+            {
+                if (string.IsNullOrEmpty(meas.SourceFilename)) continue;
+
+                var match = regex.Match(meas.SourceFilename);
+                if (!match.Success) continue;
+
+                filesFound = true;
+                int cellRow = int.Parse(match.Groups["cR"].Value);
+                int cellCol = int.Parse(match.Groups["cC"].Value);
+                int subRow = int.Parse(match.Groups["sR"].Value);
+                int subCol = int.Parse(match.Groups["sC"].Value);
+                int contact = int.Parse(match.Groups["cont"].Value);
+
+                var cell = ResultCells.FirstOrDefault(c => c.Row == cellRow && c.Col == cellCol);
+                if (cell == null) continue;
+
+                var subCell = cell.SubCells.FirstOrDefault(s => s.Row == subRow && s.Col == subCol);
+                if (subCell == null)
+                {
+                    subCell = new ResultSubCellViewModel { Row = subRow, Col = subCol };
+                    cell.SubCells.Add(subCell);
+                }
+
+                var contactVm = subCell.Contacts.FirstOrDefault(c => c.ContactNumber == contact);
+                if (contactVm == null)
+                {
+                    contactVm = new ResultContactViewModel { ContactNumber = contact };
+                    subCell.Contacts.Add(contactVm);
+                }
+
+                // Read points from DB
+                var dbData = await Services.DatabaseService.Instance.LoadMeasurementDataAsync(meas.Id);
+                contactVm.CurveData = dbData.Points;
+            }
+
+            if (filesFound)
+            {
+                RecalculateResultMetrics();
+                IsResultFolderLoaded = true;
+                NotificationRequested?.Invoke("Success", $"Loaded {measurements.Count} measurements from database.", null);
+            }
+            else
+            {
+                NotificationRequested?.Invoke("Error", "No valid contact measurements found in selected node.", null);
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationRequested?.Invoke("Error", $"Failed to load wafermap from DB: {ex.Message}", null);
         }
     }
 

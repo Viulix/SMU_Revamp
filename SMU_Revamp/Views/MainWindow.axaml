@@ -856,7 +856,8 @@
                             <StackPanel Spacing="15">
                                 <TextBlock Text="Metric Settings" FontSize="18" FontWeight="SemiBold" />
                                 <WrapPanel Orientation="Horizontal">
-                                    <Button Content="Load Scan Folder" Click="LoadResultFolderButton_Click" Classes="Primary" Padding="10,5" Margin="0,0,20,0" VerticalAlignment="Center" />
+                                    <Button Content="Load Scan Folder" Click="LoadResultFolderButton_Click" Classes="Primary" Padding="10,5" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                    <Button Content="Load from DB" Click="LoadResultFromDatabaseButton_Click" Classes="Secondary" Padding="10,5" Margin="0,0,20,0" VerticalAlignment="Center" />
                                     
                                     <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center" Margin="0,0,20,0">
                                         <TextBlock Text="Visualization Metric:" VerticalAlignment="Center" FontWeight="SemiBold" />

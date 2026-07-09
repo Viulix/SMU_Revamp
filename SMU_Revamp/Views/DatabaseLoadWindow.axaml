@@ -41,6 +41,7 @@
         <!-- Footer -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0" Spacing="10">
             <Button Content="Cancel" Click="CancelButton_Click" Classes="Tertiary" Padding="15,8" />
+            <Button Content="Load as Wafermap" Command="{Binding LoadWafermapCommand}" Classes="Secondary" Padding="15,8" IsVisible="{Binding SelectedNode.IsFolderNode}" />
             <Button Content="Load Selected" Command="{Binding LoadCommand}" Classes="Primary" Padding="15,8" />
         </StackPanel>
     </Grid>

@@ -198,6 +198,21 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void LoadResultFromDatabaseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            var dbViewModel = new ViewModels.DatabaseLoadViewModel();
+            dbViewModel.RequestLoadWafermap = async (measurements) => 
+            {
+                await vm.LoadWafermapFromDatabaseAsync(measurements);
+            };
+
+            var dbWindow = new DatabaseLoadWindow(dbViewModel);
+            await dbWindow.ShowDialog(this);
+        }
+    }
+
     private async void UploadToDatabaseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is ViewModels.MainWindowViewModel vm)
