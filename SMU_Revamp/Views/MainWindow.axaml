@@ -739,7 +739,7 @@
                                 <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="0,0,0,0">
                                     <ProgressBar Grid.Row="0" Value="{Binding WaferScanProgress}" Minimum="0" Maximum="100" Height="20" Foreground="Black" HorizontalAlignment="Stretch" Margin="0,0,0,10" IsVisible="{Binding IsScanningWafer}" />
                                     <TextBlock Grid.Row="1" Text="Status / Log" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                                    <ScrollViewer Grid.Row="2" Background="#F9FAFB" Padding="10" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="4" Margin="0,0,0,10" MinHeight="100" IsVisible="{Binding HasWaferScanLog}">
+                                    <ScrollViewer Grid.Row="2" Background="#F9FAFB" Padding="10" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="4" Margin="0,0,0,10" MinHeight="100" MaxHeight="250" IsVisible="{Binding HasWaferScanLog}">
                                         <TextBlock Text="{Binding WaferScanLog}" FontFamily="Consolas, monospace" FontSize="12" Foreground="#374151" TextWrapping="Wrap" />
                                     </ScrollViewer>
                                     <WrapPanel Grid.Row="3" Orientation="Horizontal">
