@@ -1779,16 +1779,13 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var (parameters, points) = await Services.DatabaseService.Instance.LoadMeasurementDataAsync(measurementId);
             
-            // Assume the first available plan is used for visualization, or we could find one that matches.
-            // For simplicity, we create a generic visualization if we don't know the exact plan type,
-            // but we can also look for a matching plan type in MeasurementPlans.
-            // Let's use the first available plan and load data into it.
-            var plan = MeasurementPlans.FirstOrDefault();
-            if (plan == null) return;
-
+            // Instantiate a new plan so we don't corrupt the shared instances
+            // We use PulseSweepMeasurementPlan as a generic fallback since we don't save the plan name in DB
+            Interfaces.IMeasurementPlan plan = new MeasurementPlans.PulseSweepMeasurementPlan();
             plan.ResultPoints.Clear();
             plan.ResultPoints.AddRange(points);
             
+            // For any matching parameters from the DB, populate them in our new plan
             foreach (var p in plan.Parameters)
             {
                 if (parameters.TryGetValue(p.Name, out string? val) && val != null)

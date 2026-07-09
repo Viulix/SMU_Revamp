@@ -27,6 +27,12 @@
             <TreeView ItemsSource="{Binding RootNodes}" 
                       SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
                       Background="White">
+                <TreeView.Styles>
+                    <Style Selector="TreeViewItem /template/ ToggleButton#PART_ExpandCollapseChevron">
+                        <Setter Property="RenderTransform" Value="scale(1.5)" />
+                        <Setter Property="Margin" Value="5" />
+                    </Style>
+                </TreeView.Styles>
                 <TreeView.ItemTemplate>
                     <TreeDataTemplate ItemsSource="{Binding Children}">
                         <StackPanel Orientation="Horizontal" Spacing="5" Margin="2">
