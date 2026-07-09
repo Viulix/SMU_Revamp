@@ -130,7 +130,7 @@ namespace SMU_Revamp.ViewModels
                             {
                                 var sampleNode = new DbNode { Header = string.IsNullOrEmpty(sampleGroup.Key) ? "Unknown Sample" : sampleGroup.Key };
 
-                                var byFolder = sampleGroup.GroupBy(m => m.FolderName).OrderBy(g => g.Key);
+                                var byFolder = sampleGroup.GroupBy(m => m.FolderName).OrderByDescending(g => g.Max(m => m.Timestamp));
                                 foreach (var folderGroup in byFolder)
                                 {
                                     var folderNode = new DbNode { 
@@ -138,7 +138,7 @@ namespace SMU_Revamp.ViewModels
                                         IsFolderNode = true 
                                     };
 
-                                    var byPlan = folderGroup.GroupBy(m => m.PlanName).OrderBy(g => g.Key);
+                                    var byPlan = folderGroup.GroupBy(m => m.PlanName).OrderByDescending(g => g.Max(m => m.Timestamp));
                                     foreach (var planGroup in byPlan)
                                     {
                                         var planNode = new DbNode { Header = string.IsNullOrEmpty(planGroup.Key) ? "Unknown Plan" : planGroup.Key };
