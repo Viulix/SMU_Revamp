@@ -839,12 +839,17 @@
                                        TextAlignment="Center"
                                        LineHeight="20"/>
                             
-                            <Button Content="Load scan folder" 
-                                    Click="LoadResultFolderButton_Click" 
-                                    Classes="Primary" 
-                                    Padding="20,10" 
-                                    HorizontalAlignment="Center" 
-                                    Margin="0,10,0,0"/>
+                            <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+                                <Button Content="Load scan folder" 
+                                        Click="LoadResultFolderButton_Click" 
+                                        Classes="Primary" 
+                                        Padding="20,10" 
+                                        Margin="0,0,10,0"/>
+                                <Button Content="Load from DB" 
+                                        Click="LoadResultFromDatabaseButton_Click" 
+                                        Classes="Secondary" 
+                                        Padding="20,10"/>
+                            </WrapPanel>
                         </StackPanel>
                     </Border>
 
