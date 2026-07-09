@@ -13,7 +13,22 @@ namespace SMU_Revamp.Services
         private static readonly Lazy<DatabaseService> _instance = new(() => new DatabaseService());
         public static DatabaseService Instance => _instance.Value;
 
+        private bool _schemaUpdated = false;
+
         private DatabaseService() { }
+
+        private async Task EnsureSchemaUpdatedAsync()
+        {
+            if (_schemaUpdated) return;
+            try
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                // TestConnectionAsync also updates the schema if tables/columns are missing
+                await TestConnectionAsync(config.DbAddress, config.DbUser, config.DbPassword, config.DbName);
+                _schemaUpdated = true;
+            }
+            catch { /* Ignore */ }
+        }
 
         private string GetConnectionString(string address, string user, string password, string dbName, bool includeDb = true)
         {
@@ -147,6 +162,7 @@ namespace SMU_Revamp.Services
 
         public async Task<int> SaveMeasurementAsync(IMeasurementPlan plan, string profileName, string sampleName, DateTime timestamp, string folderName, string? sourceFilename = null)
         {
+            await EnsureSchemaUpdatedAsync();
             using var connection = new MySqlConnection(GetCurrentConnectionString());
             await connection.OpenAsync();
             using var transaction = await connection.BeginTransactionAsync();
@@ -236,6 +252,7 @@ namespace SMU_Revamp.Services
 
         public async Task<List<MeasurementSummary>> GetRecentMeasurementsAsync(int limit = 100)
         {
+            await EnsureSchemaUpdatedAsync();
             var list = new List<MeasurementSummary>();
             using var connection = new MySqlConnection(GetCurrentConnectionString());
             await connection.OpenAsync();
