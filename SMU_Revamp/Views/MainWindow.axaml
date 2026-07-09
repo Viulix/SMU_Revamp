@@ -1034,6 +1034,11 @@
                                             </TextBlock.Text>
                                         </TextBlock>
                                     </Border>
+                                    <Button Content="⛶ View Large" 
+                                            Click="EnlargeResultPlotButton_Click" 
+                                            IsVisible="{Binding SelectedResultContact, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                            Classes="Secondary" 
+                                            Padding="10,5" />
                                 </StackPanel>
                                 <TextBlock Text="Select a contact to view its curve." IsVisible="{Binding SelectedResultContact, Converter={x:Static ObjectConverters.IsNull}}" FontStyle="Italic" Foreground="Gray" />
                                 

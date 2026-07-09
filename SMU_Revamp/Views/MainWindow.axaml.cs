@@ -213,6 +213,21 @@ public partial class MainWindow : Window
         }
     }
 
+    private void EnlargeResultPlotButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm && vm.SelectedResultContact != null)
+        {
+            string title = vm.SelectedResultContact.DisplayName ?? "I/V Curve";
+            if (vm.SelectedResultCell != null && vm.SelectedResultSubCell != null)
+            {
+                title = $"Cell: {vm.SelectedResultCell.Id} | Sub: {vm.SelectedResultSubCell.Id} | {title}";
+            }
+            
+            var enlargedWindow = new EnlargedResultPlotWindow(title, vm.SelectedResultContact.CurveData);
+            enlargedWindow.Show(this);
+        }
+    }
+
     private async void UploadToDatabaseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is ViewModels.MainWindowViewModel vm)
