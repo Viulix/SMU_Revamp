@@ -589,10 +589,9 @@
         </TabItem>
 
             <TabItem Header="Wafermap">
-                <Grid x:Name="WafermapRootContainer">
-                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                        <Grid MinWidth="400" MinHeight="650" Height="{Binding #WafermapRootContainer.Bounds.Height}">
-                            <Grid Margin="20" ColumnDefinitions="40*,30,60*">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="20" MinWidth="400" MinHeight="650">
+                        <Grid ColumnDefinitions="40*,30,60*">
                         <!-- Left Container: Settings & Log & Sub-cells -->
                         <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*">
                             <!-- Top: Settings and Buttons -->
@@ -808,7 +807,6 @@
                     </Grid>
                 </Grid>
                 </ScrollViewer>
-                </Grid>
             </TabItem>
             <TabItem Header="Result">
                 <Grid>
