@@ -1011,7 +1011,12 @@ public partial class MainWindowViewModel : ViewModelBase
         if (preset != null)
         {
             var dialog = new Views.SavePromptWindow("Delete Preset", $"Are you sure you want to delete the wafer scan preset '{SelectedWaferScanPreset}'?");
-            var result = await dialog.ShowDialog<bool>((Avalonia.Controls.Window)Avalonia.Application.Current.ApplicationLifetime.GetType().GetProperty("MainWindow").GetValue(Avalonia.Application.Current.ApplicationLifetime));
+            
+            bool result = false;
+            if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            {
+                result = await dialog.ShowDialog<bool>(desktop.MainWindow);
+            }
             
             if (result)
             {

@@ -301,7 +301,7 @@
             <TabItem Header="Measurements">
                 <Grid RowDefinitions="*, Auto" Margin="20">
                     <Grid Grid.Row="0">
-                            <Grid ColumnDefinitions="Auto, *" RowDefinitions="Auto, *" Margin="10">
+                            <Grid ColumnDefinitions="55*, 45*" RowDefinitions="Auto, *" Margin="10">
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Measurement Configuration" FontSize="18" FontWeight="SemiBold" />
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="Measurement Status &amp; Diagnostics" FontSize="18" FontWeight="SemiBold" Margin="20,0,0,0" />
                         
@@ -309,8 +309,8 @@
                         <ScrollViewer Grid.Row="1" Grid.Column="0" x:Name="MeasurementScrollViewer" HorizontalScrollBarVisibility="Disabled" ScrollChanged="MeasurementScrollViewer_ScrollChanged">
                         <Border Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" Margin="10,15,10,20" BoxShadow="0 4 15 0 #15000000">
                         <StackPanel Spacing="10" MaxWidth="800" IsEnabled="{Binding !IsScanningWafer}">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <TextBlock Text="Measurement Plan:" Width="150" VerticalAlignment="Center" />
+                            <WrapPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="Measurement Plan:" Width="150" VerticalAlignment="Center" Margin="0,0,10,10" />
                                 <ComboBox ItemsSource="{Binding MeasurementPlans}"
                                           SelectedItem="{Binding SelectedPlan}"
                                           Width="200">
@@ -320,14 +320,14 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                            </StackPanel>
+                            </WrapPanel>
 
-                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,5,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="Preset:" Width="150" VerticalAlignment="Center" />
+                            <WrapPanel Orientation="Horizontal" Margin="0,5,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Preset:" Width="150" VerticalAlignment="Center" Margin="0,0,10,10" />
                                 <ComboBox ItemsSource="{Binding AvailablePresets}"
                                           SelectedItem="{Binding SelectedPreset}"
                                           PlaceholderText="No presets saved"
-                                          Width="150" Height="32" VerticalAlignment="Center">
+                                          Width="150" Height="32" VerticalAlignment="Center" Margin="0,0,10,10">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
                                             <TextBlock Text="{Binding Name}" />
@@ -335,7 +335,7 @@
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
                                 
-                                <StackPanel Orientation="Vertical" VerticalAlignment="Center">
+                                <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="0,0,10,10">
                                     <TextBox Text="{Binding NewPresetName}" PlaceholderText="Preset Name" Width="120" Height="32" VerticalContentAlignment="Center">
                                         <TextBox.Styles>
                                             <Style Selector="TextBox.invalid /template/ Border#PART_BorderElement">
@@ -350,28 +350,28 @@
                                         </Classes.invalid>
                                     </TextBox>
                                 </StackPanel>
-                                <Button Content="Save" Command="{Binding SavePresetCommand}" Classes="Primary" Height="32" VerticalContentAlignment="Center" VerticalAlignment="Center" />
-                                <Button Content="Delete" Command="{Binding DeletePresetCommand}" Classes="Danger" Height="32" VerticalContentAlignment="Center" IsEnabled="{Binding SelectedPreset, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center" />
-                            </StackPanel>
+                                <Button Content="Save" Command="{Binding SavePresetCommand}" Classes="Primary" Height="32" VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,10" />
+                                <Button Content="Delete" Command="{Binding DeletePresetCommand}" Classes="Danger" Height="32" VerticalContentAlignment="Center" IsEnabled="{Binding SelectedPreset, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center" Margin="0,0,10,10" />
+                            </WrapPanel>
                             
                             <!-- Overwrite Confirmation popup inline -->
                             <Border Background="#FEE2E2" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,5,0,0" IsVisible="{Binding IsOverwriteWarningVisible}">
-                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                    <Path Fill="#EF4444" Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center"/>
-                                    <TextBlock Text="Preset already exists. Overwrite?" Foreground="#B91C1C" VerticalAlignment="Center" FontWeight="SemiBold" />
-                                    <Button Content="Yes" Command="{Binding ConfirmSavePresetCommand}" Classes="Primary" Padding="10,3" Margin="10,0,0,0" />
-                                    <Button Content="No" Command="{Binding CancelSavePresetCommand}" Classes="Secondary" Padding="10,3" />
-                                </StackPanel>
+                                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Path Fill="#EF4444" Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                                    <TextBlock Text="Preset already exists. Overwrite?" Foreground="#B91C1C" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,10,5"/>
+                                    <Button Content="Yes" Command="{Binding ConfirmSavePresetCommand}" Classes="Primary" Padding="10,3" Margin="0,0,10,5" />
+                                    <Button Content="No" Command="{Binding CancelSavePresetCommand}" Classes="Secondary" Padding="10,3" Margin="0,0,0,5" />
+                                </WrapPanel>
                             </Border>
 
                             <!-- Delete Confirmation popup inline -->
                             <Border Background="#FEE2E2" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,5,0,0" IsVisible="{Binding IsDeleteWarningVisible}">
-                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                    <Path Fill="#EF4444" Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center"/>
-                                    <TextBlock Text="Are you sure you want to delete this preset?" Foreground="#B91C1C" VerticalAlignment="Center" FontWeight="SemiBold" />
-                                    <Button Content="Yes" Command="{Binding ConfirmDeletePresetCommand}" Classes="Danger" Padding="10,3" Margin="10,0,0,0" />
-                                    <Button Content="No" Command="{Binding CancelDeletePresetCommand}" Classes="Secondary" Padding="10,3" />
-                                </StackPanel>
+                                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Path Fill="#EF4444" Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                                    <TextBlock Text="Are you sure you want to delete this preset?" Foreground="#B91C1C" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,10,5" />
+                                    <Button Content="Yes" Command="{Binding ConfirmDeletePresetCommand}" Classes="Danger" Padding="10,3" Margin="0,0,10,5" />
+                                    <Button Content="No" Command="{Binding CancelDeletePresetCommand}" Classes="Secondary" Padding="10,3" Margin="0,0,0,5" />
+                                </WrapPanel>
                             </Border>
 
                             <Separator Margin="0,15,0,15" Background="#E5E7EB" Height="1" />
@@ -588,11 +588,11 @@
         </TabItem>
 
             <TabItem Header="Wafermap">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                    <Grid Margin="20" MinWidth="900" MinHeight="650">
-                    <Grid ColumnDefinitions="35*,30,65*">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="20" MinWidth="400" MinHeight="650">
+                    <Grid ColumnDefinitions="40*,30,60*">
                         <!-- Left Container: Settings & Log & Sub-cells -->
-                        <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*" MinWidth="450">
+                        <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*">
                             <!-- Top: Settings and Buttons -->
                             <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" Margin="10,10,10,5" BoxShadow="0 4 15 0 #15000000" VerticalAlignment="Top">
                                 <StackPanel Spacing="20">
@@ -608,8 +608,8 @@
                                                 <Button Grid.Column="1" Content="Delete" Command="{Binding DeleteWaferScanPresetCommand}" Classes="Danger" Width="80" Height="36" />
                                             </Grid>
                                             <Grid ColumnDefinitions="*,Auto">
-                                                <TextBox Grid.Column="0" Text="{Binding NewWaferScanPresetName}" Watermark="Preset Name" HorizontalAlignment="Stretch" Margin="0,0,10,0" Height="36" VerticalContentAlignment="Center" />
-                                                <Button Grid.Column="1" Content="Save" Command="{Binding SaveWaferScanPresetCommand}" Classes="Secondary" Width="80" Height="36" />
+                                                <TextBox Grid.Column="0" Text="{Binding NewWaferScanPresetName}" PlaceholderText="Preset Name" HorizontalAlignment="Stretch" Margin="0,0,10,0" Height="36" VerticalContentAlignment="Center" />
+                                                <Button Grid.Column="1" Content="Save" Command="{Binding SaveWaferScanPresetCommand}" Classes="Primary" Width="80" Height="36" />
                                             </Grid>
                                         </StackPanel>
 
@@ -888,7 +888,7 @@
                         </Border>
 
                         <!-- Main 3-Column Layout -->
-                        <Grid Grid.Row="1" ColumnDefinitions="Auto, Auto, *">
+                        <Grid Grid.Row="1" ColumnDefinitions="4*, 2*, 6*">
                             <!-- Left: 16x16 Wafermap -->
                             <Border Grid.Column="0" Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8" Padding="20" Margin="0,0,20,0" VerticalAlignment="Top">
                                 <StackPanel Spacing="10">
