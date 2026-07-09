@@ -2543,8 +2543,18 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private bool _isLoadingResultData;
+    public bool IsLoadingResultData
+    {
+        get => _isLoadingResultData;
+        set => SetProperty(ref _isLoadingResultData, value);
+    }
+
     public async Task LoadScanFolderAsync(string folderPath)
     {
+        IsLoadingResultData = true;
+        await Task.Delay(50); // Yield to UI to show loading overlay
+
         try
         {
             InitializeResultTab();
@@ -2604,10 +2614,17 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             NotificationRequested?.Invoke("Error", $"Failed to load scan folder: {ex.Message}", null);
         }
+        finally
+        {
+            IsLoadingResultData = false;
+        }
     }
 
     public async Task LoadWafermapFromDatabaseAsync(List<Services.DatabaseService.MeasurementSummary> measurements)
     {
+        IsLoadingResultData = true;
+        await Task.Delay(50); // Yield to UI to show loading overlay
+
         try
         {
             InitializeResultTab();
@@ -2665,6 +2682,10 @@ public partial class MainWindowViewModel : ViewModelBase
         catch (Exception ex)
         {
             NotificationRequested?.Invoke("Error", $"Failed to load wafermap from DB: {ex.Message}", null);
+        }
+        finally
+        {
+            IsLoadingResultData = false;
         }
     }
 

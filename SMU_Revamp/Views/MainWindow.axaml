@@ -853,6 +853,19 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Loading Overlay -->
+                    <Border IsVisible="{Binding IsLoadingResultData}"
+                            Background="#DDFFFFFF"
+                            ZIndex="10"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
+                            <TextBlock Text="Loading &amp; Calculating Wafermap..." FontSize="20" FontWeight="SemiBold" Foreground="#1F2937" HorizontalAlignment="Center" />
+                            <ProgressBar IsIndeterminate="True" Width="250" Height="6" CornerRadius="3" Foreground="#2563EB" Background="#E5E7EB" />
+                            <TextBlock Text="Please wait while measurements are parsed." FontSize="14" Foreground="#4B5563" HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- Normal Result UI -->
                     <ScrollViewer IsVisible="{Binding IsResultFolderLoaded}" Margin="20" HorizontalScrollBarVisibility="Disabled">
                         <Grid RowDefinitions="Auto,*" Margin="10">
