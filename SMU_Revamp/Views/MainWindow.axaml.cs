@@ -122,18 +122,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void DebugButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void SettingsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var debugWindow = new DebugWindow
+        var settingsWindow = new SettingsWindow
         {
             DataContext = this.DataContext
         };
-        await debugWindow.ShowDialog(this);
-    }
-
-    private async void SettingsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        var settingsWindow = new SettingsWindow();
         await settingsWindow.ShowDialog(this);
     }
 

@@ -1,47 +1,154 @@
-using Avalonia;
-using Avalonia.Controls;
-using SMU_Revamp.ViewModels;
+using System;
 using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using SMU_Revamp.Services;
+using SMU_Revamp.Interfaces;
 
-namespace SMU_Revamp.Views
+namespace SMU_Revamp.Views;
+
+public partial class SettingsWindow : Window
 {
-    public partial class SettingsWindow : Window
+    private readonly IDeviceDebugService _debugService;
+
+    public SettingsWindow()
     {
-        public SettingsWindow()
+        InitializeComponent();
+        _debugService = DeviceDebugService.Instance;
+    }
+
+    private async void TestProberConnection_Click(object? sender, RoutedEventArgs e)
+    {
+        ProberOutputTextBox.Text = "Testing Prober connection...";
+        var result = await _debugService.TestProberConnectionAsync();
+        ProberOutputTextBox.Text = result;
+    }
+
+
+
+    private async void TestSwitchConnection_Click(object? sender, RoutedEventArgs e)
+    {
+        SwitchOutputTextBox.Text = "Testing Switch Matrix connection...";
+        var result = await _debugService.TestSwitchMatrixConnectionAsync();
+        SwitchOutputTextBox.Text = result;
+    }
+
+
+    private async void CreateSwitchConnection_Click(object? sender, RoutedEventArgs e)
+    {
+        var x = ConnectionXTextBox.Text ?? string.Empty;
+        var y = ConnectionYTextBox.Text ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(x) || string.IsNullOrWhiteSpace(y))
         {
-            InitializeComponent();
-            DataContext = new SettingsViewModel();
+            SwitchOutputTextBox.Text = "Error: Please specify endpoints X and Y to create a connection.";
+            return;
         }
 
-        private void ResetButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        SwitchOutputTextBox.Text = $"Creating connection between {x} and {y}...";
+        var result = await _debugService.CreateSwitchMatrixConnectionAsync(x, y);
+        SwitchOutputTextBox.Text = result;
+    }
+
+    private async void DisconnectSwitchConnection_Click(object? sender, RoutedEventArgs e)
+    {
+        var x = ConnectionXTextBox.Text ?? string.Empty;
+        var y = ConnectionYTextBox.Text ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(x) || string.IsNullOrWhiteSpace(y))
         {
-            if (DataContext is SettingsViewModel vm)
-            {
-                vm.ResetSettings();
-            }
+            SwitchOutputTextBox.Text = "Error: Please specify endpoints X and Y to disconnect.";
+            return;
         }
 
-        private async void ApplyButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        SwitchOutputTextBox.Text = $"Removing connection between {x} and {y}...";
+        var result = await _debugService.RemoveSwitchMatrixConnectionAsync(x, y);
+        SwitchOutputTextBox.Text = result;
+    }
+
+    private async void ClearAllSwitchConnections_Click(object? sender, RoutedEventArgs e)
+    {
+        SwitchOutputTextBox.Text = "Clearing all Switch Matrix connections...";
+        var result = await _debugService.ClearAllSwitchMatrixConnectionsAsync();
+        SwitchOutputTextBox.Text = result;
+    }
+
+
+    private async void TestSMUConnection_Click(object? sender, RoutedEventArgs e)
+    {
+        SmuOutputTextBox.Text = "Testing SMU connection...";
+        var result = await _debugService.TestSMUConnectionAsync();
+        SmuOutputTextBox.Text = result;
+    }
+
+    private async void QuerySMUIdentity_Click(object? sender, RoutedEventArgs e)
+    {
+        SmuOutputTextBox.Text = "Querying SMU identity...";
+        var result = await _debugService.QuerySMUIdentityAsync();
+        SmuOutputTextBox.Text = result;
+    }
+
+    private async void ForceSmuVoltage_Click(object? sender, RoutedEventArgs e)
+    {
+        var channel = SmuChannelTextBox.Text ?? string.Empty;
+        var voltStr = (SmuVoltageTextBox.Text ?? string.Empty).Replace(',', '.');
+        var compStr = (SmuComplianceTextBox.Text ?? string.Empty).Replace(',', '.');
+        var durStr = (SmuDurationTextBox.Text ?? string.Empty).Replace(',', '.');
+
+        if (string.IsNullOrWhiteSpace(channel))
         {
-            if (DataContext is SettingsViewModel vm)
-            {
-                await vm.ApplySettingsAsync();
-                await Task.Delay(500);
-                Close();
-            }
+            SmuOutputTextBox.Text = "Error: Please specify a channel.";
+            return;
         }
 
-        private void CloseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        if (!double.TryParse(voltStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double voltage))
         {
-            Close();
+            SmuOutputTextBox.Text = "Error: Voltage must be a valid number.";
+            return;
         }
 
-        private async void TestDbConnectionButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        if (!double.TryParse(compStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double compliance))
         {
-            if (DataContext is SettingsViewModel vm)
-            {
-                await vm.TestDbConnectionAsync();
-            }
+            SmuOutputTextBox.Text = "Error: Compliance must be a valid number.";
+            return;
+        }
+
+        if (!double.TryParse(durStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double duration) || duration <= 0)
+        {
+            SmuOutputTextBox.Text = "Error: Duration must be a positive number.";
+            return;
+        }
+
+        SmuOutputTextBox.Text = $"Connecting and forcing {voltage:F3} V on channel {channel} for {duration:F1} seconds...";
+        var result = await _debugService.ForceSMUDCVoltageAsync(channel, voltage, compliance, duration);
+        SmuOutputTextBox.Text = result;
+    }
+
+    private void ResetButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            vm.Settings.ResetSettings();
         }
     }
+
+    private async void ApplyButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            await vm.Settings.ApplySettingsAsync();
+            await Task.Delay(500);
+            Close();
+        }
+    }
+
+
+    private async void TestDbConnectionButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            await vm.Settings.TestDbConnectionAsync();
+        }
+    }
+
 }

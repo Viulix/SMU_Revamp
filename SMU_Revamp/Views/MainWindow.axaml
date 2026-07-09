@@ -43,7 +43,6 @@
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <Button Content="Configuration" Click="DebugButton_Click" Classes="Secondary" Padding="10,5" />
                 <Button Content="Settings" Click="SettingsButton_Click" Classes="Primary" Padding="10,5" />
             </StackPanel>
         </Grid>
@@ -496,7 +495,7 @@
                         <!-- Right Column: Status -->
                         <Grid Grid.Row="1" Grid.Column="1" Margin="20,15,10,20" RowDefinitions="Auto, *">
                             <Border Grid.Row="0" CornerRadius="8" BoxShadow="0 4 15 0 #15000000" Margin="0,0,0,15" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0">
-                                <Expander Header="Measurement Status &amp; Diagnostics" IsExpanded="True" HorizontalAlignment="Stretch" CornerRadius="8" Background="Transparent" BorderThickness="0" BorderBrush="Transparent">
+                                <Expander Header="Measurement Status &amp; Diagnostics" IsExpanded="False" HorizontalAlignment="Stretch" CornerRadius="8" Background="Transparent" BorderThickness="0" BorderBrush="Transparent">
                                     <Expander.Styles>
                                         <Style Selector="Expander /template/ ToggleButton#ExpanderHeader">
                                             <Setter Property="BorderThickness" Value="0" />
