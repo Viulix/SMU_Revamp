@@ -2892,9 +2892,9 @@ public partial class MainWindowViewModel : ViewModelBase
         if (double.IsNaN(value)) return string.Empty;
         if (metric == "Memristor Check")
         {
-            if (value >= 3) return "echte memristive I-V-Kurve";
-            if (value >= 2) return "unsicher";
-            return "wahrscheinlich Rauschen";
+            if (value >= 3) return "True memristive I-V curve";
+            if (value >= 2) return "Uncertain";
+            return "Probably noise";
         }
         return string.Empty;
     }
