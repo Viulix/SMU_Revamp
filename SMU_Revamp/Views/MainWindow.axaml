@@ -587,13 +587,11 @@
                     </Grid>
             </Grid>
         </TabItem>
-
             <TabItem Header="Wafermap">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <Grid Margin="20" MinWidth="400" MinHeight="650">
-                        <Grid ColumnDefinitions="40*,30,60*">
-                        <!-- Left Container: Settings & Log & Sub-cells -->
-                        <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*">
+                <Grid Margin="20" ColumnDefinitions="40*,30,60*">
+                    <!-- Left Container: Settings & Log & Sub-cells (Scrollable if too small) -->
+                    <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <Grid RowDefinitions="Auto,Auto,*" Margin="0,0,10,0">
                             <!-- Top: Settings and Buttons -->
                             <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" Margin="10,10,10,5" BoxShadow="0 4 15 0 #15000000" VerticalAlignment="Top">
                                 <StackPanel Spacing="20">
@@ -749,9 +747,10 @@
                                 </Grid>
                             </Border>
                         </Grid>
+                    </ScrollViewer>
 
-                        <!-- Right Container: Target Cells (16x16) -->
-                        <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" Margin="10" BoxShadow="0 4 15 0 #15000000" VerticalAlignment="Stretch">
+                    <!-- Right Container: Target Cells (16x16) -->
+                    <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" Margin="0" BoxShadow="0 4 15 0 #15000000" VerticalAlignment="Stretch">
                             <Grid RowDefinitions="Auto,Auto,*" IsEnabled="{Binding !IsScanningWafer}">
                                 <StackPanel Grid.Row="0" Margin="0,10,0,0">
                                     <TextBlock Text="Target Cells (16x16)" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -805,8 +804,6 @@
                             </Grid>
                         </Border>
                     </Grid>
-                </Grid>
-                </ScrollViewer>
             </TabItem>
             <TabItem Header="Result">
                 <Grid>
