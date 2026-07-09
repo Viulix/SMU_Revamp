@@ -92,22 +92,28 @@ namespace SMU_Revamp.ViewModels
                         {
                             var profileNode = new DbNode { Header = string.IsNullOrEmpty(profileGroup.Key) ? "Unknown Profile" : profileGroup.Key };
 
-                            var byPlan = profileGroup.GroupBy(m => m.PlanName).OrderBy(g => g.Key);
-                            foreach (var planGroup in byPlan)
+                            var bySample = profileGroup.GroupBy(m => m.SampleName).OrderBy(g => g.Key);
+                            foreach (var sampleGroup in bySample)
                             {
-                                var planNode = new DbNode { Header = string.IsNullOrEmpty(planGroup.Key) ? "Unknown Plan" : planGroup.Key };
-                                
-                                foreach (var meas in planGroup.OrderByDescending(m => m.Timestamp))
+                                var sampleNode = new DbNode { Header = string.IsNullOrEmpty(sampleGroup.Key) ? "Unknown Sample" : sampleGroup.Key };
+
+                                var byPlan = sampleGroup.GroupBy(m => m.PlanName).OrderBy(g => g.Key);
+                                foreach (var planGroup in byPlan)
                                 {
-                                    var sampleDisplay = string.IsNullOrEmpty(meas.SampleName) ? "Unknown Sample" : meas.SampleName;
-                                    var measNode = new DbNode 
-                                    { 
-                                        Header = $"{meas.Timestamp:dd.MM.yyyy HH:mm:ss} | {sampleDisplay}",
-                                        Measurement = meas
-                                    };
-                                    planNode.Children.Add(measNode);
+                                    var planNode = new DbNode { Header = string.IsNullOrEmpty(planGroup.Key) ? "Unknown Plan" : planGroup.Key };
+                                    
+                                    foreach (var meas in planGroup.OrderByDescending(m => m.Timestamp))
+                                    {
+                                        var measNode = new DbNode 
+                                        { 
+                                            Header = $"{meas.Timestamp:dd.MM.yyyy HH:mm:ss}",
+                                            Measurement = meas
+                                        };
+                                        planNode.Children.Add(measNode);
+                                    }
+                                    sampleNode.Children.Add(planNode);
                                 }
-                                profileNode.Children.Add(planNode);
+                                profileNode.Children.Add(sampleNode);
                             }
                             monthNode.Children.Add(profileNode);
                         }
