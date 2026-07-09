@@ -22,6 +22,9 @@ public partial class ResultContactViewModel : ObservableObject
     [ObservableProperty]
     private IBrush _color = new SolidColorBrush(Avalonia.Media.Color.Parse("#CBD5E1")); // Neutral color
 
+    [ObservableProperty]
+    private string _metricLabel = string.Empty;
+
     public static string FormatValue(double value)
     {
         if (double.IsNaN(value)) return "-";
@@ -54,6 +57,9 @@ public partial class ResultSubCellViewModel : ObservableObject
 
     [ObservableProperty]
     private IBrush _color = new SolidColorBrush(Avalonia.Media.Color.Parse("#F8FAFC"));
+
+    [ObservableProperty]
+    private string _metricLabel = string.Empty;
 
     public void RecalculateValue()
     {
@@ -92,6 +98,9 @@ public partial class ResultCellViewModel : ObservableObject
 
     [ObservableProperty]
     private IBrush _color = new SolidColorBrush(Avalonia.Media.Color.Parse("#F8FAFC"));
+
+    [ObservableProperty]
+    private string _metricLabel = string.Empty;
 
     public void RecalculateValue()
     {

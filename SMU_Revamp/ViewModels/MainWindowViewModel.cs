@@ -2432,7 +2432,7 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _selectedResultContact, value);
     }
 
-    private List<string> _availableResultMetrics = new() { "Average Resistance", "Max Current", "Max Voltage", "Gap At Voltage" };
+    private List<string> _availableResultMetrics = new() { "Average Resistance", "Max Current", "Max Voltage", "Gap At Voltage", "Memristor Check" };
     public List<string> AvailableResultMetrics
     {
         get => _availableResultMetrics;
@@ -2687,8 +2687,33 @@ public partial class MainWindowViewModel : ViewModelBase
                 foreach (var sub in cell.SubCells)
                 {
                     sub.Color = HeatmapHelper.GetColorForValue(sub.AggregatedValue, minSub, maxSub, hueLow, hueHigh);
+                    sub.MetricLabel = GetMetricLabel(SelectedResultMetric, sub.AggregatedValue);
                 }
             }
+        }
+
+        // Apply colors and labels to Contacts
+        var allContacts = ResultCells.SelectMany(c => c.SubCells).SelectMany(s => s.Contacts).Where(co => !double.IsNaN(co.AggregatedValue)).ToList();
+        if (allContacts.Any())
+        {
+            double minContact = allContacts.Min(co => co.AggregatedValue);
+            double maxContact = allContacts.Max(co => co.AggregatedValue);
+            foreach (var cell in ResultCells)
+            {
+                foreach (var sub in cell.SubCells)
+                {
+                    foreach (var contact in sub.Contacts)
+                    {
+                        contact.Color = HeatmapHelper.GetColorForValue(contact.AggregatedValue, minContact, maxContact, hueLow, hueHigh);
+                        contact.MetricLabel = GetMetricLabel(SelectedResultMetric, contact.AggregatedValue);
+                    }
+                }
+            }
+        }
+        
+        foreach (var cell in ResultCells)
+        {
+            cell.MetricLabel = GetMetricLabel(SelectedResultMetric, cell.AggregatedValue);
         }
     }
 
@@ -2751,11 +2776,151 @@ public partial class MainWindowViewModel : ViewModelBase
                 if (minAbsI < 1e-15) return double.NaN; // Avoid division by zero
                 return maxAbsI / minAbsI;
             }
-            
             return double.NaN;
+        }
+        else if (metric == "Memristor Check")
+        {
+            return CalculateMemristorCheck(points);
         }
 
         return double.NaN;
+    }
+
+    // --- Memristor Check Helper Methods ---
+    
+    private double GetMedian(IEnumerable<double> source)
+    {
+        var sorted = source.OrderBy(x => x).ToList();
+        if (sorted.Count == 0) return 0;
+        int mid = sorted.Count / 2;
+        if (sorted.Count % 2 == 0) return (sorted[mid - 1] + sorted[mid]) / 2.0;
+        return sorted[mid];
+    }
+
+    private double GetStdDev(IEnumerable<double> source)
+    {
+        var list = source.ToList();
+        if (list.Count < 2) return 0;
+        double avg = list.Average();
+        double sum = list.Sum(d => (d - avg) * (d - avg));
+        return Math.Sqrt(sum / (list.Count - 1));
+    }
+
+    private string GetMetricLabel(string metric, double value)
+    {
+        if (double.IsNaN(value)) return string.Empty;
+        if (metric == "Memristor Check")
+        {
+            if (value >= 3) return "echte memristive I-V-Kurve";
+            if (value >= 2) return "unsicher";
+            return "wahrscheinlich Rauschen";
+        }
+        return string.Empty;
+    }
+
+    private double Interpolate(List<CurvePoint> sortedPoints, double targetV)
+    {
+        if (sortedPoints.Count == 0) return 0;
+        if (targetV <= sortedPoints.First().Voltage) return sortedPoints.First().Current;
+        if (targetV >= sortedPoints.Last().Voltage) return sortedPoints.Last().Current;
+
+        for (int i = 0; i < sortedPoints.Count - 1; i++)
+        {
+            var p1 = sortedPoints[i];
+            var p2 = sortedPoints[i + 1];
+
+            if (targetV >= p1.Voltage && targetV <= p2.Voltage)
+            {
+                if (Math.Abs(p2.Voltage - p1.Voltage) < 1e-12) return p1.Current;
+                double fraction = (targetV - p1.Voltage) / (p2.Voltage - p1.Voltage);
+                return p1.Current + fraction * (p2.Current - p1.Current);
+            }
+        }
+        return 0;
+    }
+
+    private double CalculateMemristorCheck(List<CurvePoint> points)
+    {
+        if (points.Count == 0) return double.NaN;
+
+        // Extract V and I
+        var V = points.Select(p => p.Voltage).ToArray();
+        var I = points.Select(p => p.Current).ToArray();
+
+        // 1. Noise estimation near 0 V
+        double vNoise = 0.05;
+        var noiseRegion = I.Where((_, i) => Math.Abs(V[i]) < vNoise).ToList();
+        double noiseStd = noiseRegion.Count > 0 ? GetStdDev(noiseRegion) : GetStdDev(I);
+        
+        double iMax = I.Max(i => Math.Abs(i));
+        double snr = noiseStd > 0 ? iMax / noiseStd : double.PositiveInfinity;
+
+        // 2. Nonlinearity
+        var vAbs = V.Select(v => Math.Abs(v)).ToArray();
+        double maxV = vAbs.Max();
+        
+        var iHigh = I.Where((_, i) => vAbs[i] > 0.8 * maxV).Select(i => Math.Abs(i)).ToList();
+        var iLow = I.Where((_, i) => vAbs[i] < 0.2 * maxV).Select(i => Math.Abs(i)).ToList();
+
+        double medianHigh = GetMedian(iHigh);
+        double medianLow = GetMedian(iLow) + 1e-30; // Avoid div 0
+        double nonlinearity = medianHigh / medianLow;
+
+        // 3. Hysteresis
+        List<CurvePoint> upSweep = new();
+        List<CurvePoint> downSweep = new();
+
+        for (int i = 0; i < points.Count; i++)
+        {
+            if (i == 0)
+            {
+                if (points.Count > 1 && points[1].Voltage >= points[0].Voltage) upSweep.Add(points[i]);
+                else downSweep.Add(points[i]);
+            }
+            else
+            {
+                if (points[i].Voltage >= points[i - 1].Voltage) upSweep.Add(points[i]);
+                else downSweep.Add(points[i]);
+            }
+        }
+
+        double hysteresis = 0;
+        if (upSweep.Count > 5 && downSweep.Count > 5)
+        {
+            upSweep = upSweep.OrderBy(p => p.Voltage).ToList();
+            downSweep = downSweep.OrderBy(p => p.Voltage).ToList();
+
+            double vCommonMin = Math.Max(upSweep.First().Voltage, downSweep.First().Voltage);
+            double vCommonMax = Math.Min(upSweep.Last().Voltage, downSweep.Last().Voltage);
+
+            if (vCommonMax > vCommonMin)
+            {
+                int gridPoints = 300;
+                double step = (vCommonMax - vCommonMin) / (gridPoints - 1);
+                
+                double hystArea = 0;
+                double normArea = 0;
+
+                for (int i = 0; i < gridPoints; i++)
+                {
+                    double v = vCommonMin + i * step;
+                    double iUp = Interpolate(upSweep, v);
+                    double iDown = Interpolate(downSweep, v);
+                    
+                    hystArea += Math.Abs(iUp - iDown);
+                    normArea += Math.Abs(iUp) + Math.Abs(iDown);
+                }
+
+                if (normArea > 0) hysteresis = hystArea / normArea;
+            }
+        }
+
+        int score = 0;
+        if (snr > 10) score++;
+        if (nonlinearity > 3) score++;
+        if (hysteresis > 0.15) score++;
+
+        return score;
     }
 
     // --- Global Progress Properties ---

@@ -889,7 +889,7 @@
                         </Border>
 
                         <!-- Main 3-Column Layout -->
-                        <Grid Grid.Row="1" ColumnDefinitions="4*, 2*, 6*">
+                        <Grid Grid.Row="1" ColumnDefinitions="5*, 2*, 5*">
                             <!-- Left: 16x16 Wafermap -->
                             <Border Grid.Column="0" Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8" Padding="20" Margin="0,0,20,0" VerticalAlignment="Top">
                                 <StackPanel Spacing="10">
@@ -915,6 +915,7 @@
                                                             <StackPanel>
                                                                 <TextBlock Text="{Binding Id}" FontWeight="Bold" />
                                                                 <TextBlock Text="{Binding FormattedValue}" />
+                                                                <TextBlock Text="{Binding MetricLabel}" IsVisible="{Binding MetricLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" FontStyle="Italic" Foreground="Gray" />
                                                             </StackPanel>
                                                         </ToolTip.Tip>
                                                         <Grid>
@@ -963,6 +964,7 @@
                                                                 <StackPanel>
                                                                     <TextBlock Text="{Binding Id}" FontWeight="Bold" />
                                                                     <TextBlock Text="{Binding FormattedValue}" />
+                                                                    <TextBlock Text="{Binding MetricLabel}" IsVisible="{Binding MetricLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" FontStyle="Italic" Foreground="Gray" />
                                                                 </StackPanel>
                                                             </ToolTip.Tip>
                                                             <Grid>
@@ -989,7 +991,7 @@
                                              BorderThickness="0">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate x:DataType="vm:ResultContactViewModel">
-                                                <Border Background="#E5E7EB" CornerRadius="4" Padding="10,5" Margin="0,2">
+                                                <Border Background="{Binding Color}" CornerRadius="4" Padding="10,5" Margin="0,2">
                                                     <ToolTip.Tip>
                                                         <StackPanel>
                                                             <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" />
@@ -998,9 +1000,10 @@
                                                                 <TextBlock Text=":"/>
                                                                 <TextBlock Text="{Binding FormattedValue}" />
                                                             </StackPanel>
+                                                            <TextBlock Text="{Binding MetricLabel}" IsVisible="{Binding MetricLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" FontStyle="Italic" Foreground="Gray" />
                                                         </StackPanel>
                                                     </ToolTip.Tip>
-                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="#1F2937" />
                                                 </Border>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
