@@ -281,7 +281,7 @@
                                                 <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="15">
                                                     <Grid ColumnDefinitions="*, Auto">
                                                         <StackPanel Spacing="5" Grid.Column="0">
-                                                            <TextBlock Text="Klassifizierung" FontSize="12" Foreground="#64748B" FontWeight="Medium" />
+                                                            <TextBlock Text="Classification" FontSize="12" Foreground="#64748B" FontWeight="Medium" />
                                                             <TextBlock Text="{Binding SelectedMemristorCheckResult.Classification}" FontSize="18" FontWeight="Bold" Foreground="#1E293B" />
                                                         </StackPanel>
                                                         <StackPanel Spacing="5" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -298,7 +298,7 @@
 
                                                 <!-- Flags / Indicators -->
                                                 <StackPanel Spacing="8">
-                                                    <TextBlock Text="Indikatoren &amp; Warnungen" FontSize="13" FontWeight="SemiBold" Foreground="#475569" />
+                                                    <TextBlock Text="Indicators &amp; Warnings" FontSize="13" FontWeight="SemiBold" Foreground="#475569" />
                                                     
                                                     <!-- When there are flags -->
                                                     <ItemsControl ItemsSource="{Binding SelectedMemristorCheckResult.UserFlags}" 
@@ -320,13 +320,13 @@
                                                     <!-- When there are NO flags -->
                                                     <Border Background="#F0FDF4" BorderBrush="#86EFAC" BorderThickness="1" CornerRadius="6" Padding="10,8"
                                                             IsVisible="{Binding !SelectedMemristorCheckResult.Flags.Count}">
-                                                        <TextBlock Text="✓ Alle Checks bestanden - Starke memristive Signaturen" Foreground="#166534" FontSize="12" FontWeight="Medium" />
+                                                        <TextBlock Text="✓ All checks passed - Strong memristive signatures" Foreground="#166534" FontSize="12" FontWeight="Medium" />
                                                     </Border>
                                                 </StackPanel>
 
                                                 <!-- Parameters Grid -->
                                                 <StackPanel Spacing="8">
-                                                    <TextBlock Text="Detailmetriken" FontSize="13" FontWeight="SemiBold" Foreground="#475569" />
+                                                    <TextBlock Text="Detailed Metrics" FontSize="13" FontWeight="SemiBold" Foreground="#475569" />
                                                     <Border BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
                                                         <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="2*, 3*">
                                                             <Grid.Styles>
@@ -356,7 +356,7 @@
 
                                                             <!-- Row 1: Noise Std -->
                                                             <Border Grid.Row="1" Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="0,0,1,1">
-                                                                <TextBlock Text="Rauschen Standardabw. (Noise Std)" Classes="header" />
+                                                                <TextBlock Text="Noise Std Dev (Noise Std)" Classes="header" />
                                                             </Border>
                                                             <Border Grid.Row="1" Grid.Column="1" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
                                                                 <TextBlock Text="{Binding SelectedMemristorCheckResult.FormattedNoiseStd}" Classes="value" />
@@ -364,7 +364,7 @@
 
                                                             <!-- Row 2: Current Scale -->
                                                             <Border Grid.Row="2" Grid.Column="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,1,1">
-                                                                <TextBlock Text="Strom-Skalierung (Current Scale)" Classes="header" />
+                                                                <TextBlock Text="Current Scale" Classes="header" />
                                                             </Border>
                                                             <Border Grid.Row="2" Grid.Column="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
                                                                 <TextBlock Text="{Binding SelectedMemristorCheckResult.FormattedCurrentScale}" Classes="value" />
@@ -372,7 +372,7 @@
 
                                                             <!-- Row 3: Nonlinearity -->
                                                             <Border Grid.Row="3" Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="0,0,1,1">
-                                                                <TextBlock Text="Nichtlinearität (Nonlinearity)" Classes="header" />
+                                                                <TextBlock Text="Nonlinearity" Classes="header" />
                                                             </Border>
                                                             <Border Grid.Row="3" Grid.Column="1" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
                                                                 <TextBlock Text="{Binding SelectedMemristorCheckResult.FormattedNonlinearity}" Classes="value" />
@@ -380,7 +380,7 @@
 
                                                             <!-- Row 4: Hysteresis -->
                                                             <Border Grid.Row="4" Grid.Column="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,1,1">
-                                                                <TextBlock Text="Hysterese-Fläche (Hysteresis)" Classes="header" />
+                                                                <TextBlock Text="Hysteresis Area (Hysteresis)" Classes="header" />
                                                             </Border>
                                                             <Border Grid.Row="4" Grid.Column="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
                                                                 <TextBlock Text="{Binding SelectedMemristorCheckResult.FormattedHysteresis}" Classes="value" />
@@ -388,7 +388,7 @@
 
                                                             <!-- Row 5: Branch Separation SNR -->
                                                             <Border Grid.Row="5" Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="0,0,1,1">
-                                                                <TextBlock Text="Ast-Trennung SNR (Branch Sep)" Classes="header" />
+                                                                <TextBlock Text="Branch Separation SNR" Classes="header" />
                                                             </Border>
                                                             <Border Grid.Row="5" Grid.Column="1" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
                                                                 <TextBlock Text="{Binding SelectedMemristorCheckResult.FormattedBranchSeparationSnr}" Classes="value" />
@@ -396,7 +396,7 @@
 
                                                             <!-- Row 6: Pinch Error -->
                                                             <Border Grid.Row="6" Grid.Column="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,1,1">
-                                                                <TextBlock Text="Pinch-Fehler (Pinch Error)" Classes="header" />
+                                                                <TextBlock Text="Pinch Error" Classes="header" />
                                                             </Border>
                                                             <Border Grid.Row="6" Grid.Column="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
                                                                 <TextBlock Text="{Binding SelectedMemristorCheckResult.FormattedPinchError}" Classes="value" />
@@ -404,7 +404,7 @@
 
                                                             <!-- Row 7: Origin Offset -->
                                                             <Border Grid.Row="7" Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="0,0,1,1">
-                                                                <TextBlock Text="Ursprungsversatz (Origin Offset)" Classes="header" />
+                                                                <TextBlock Text="Origin Offset" Classes="header" />
                                                             </Border>
                                                             <Border Grid.Row="7" Grid.Column="1" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
                                                                 <TextBlock Text="{Binding SelectedMemristorCheckResult.FormattedOriginOffset}" Classes="value" />
@@ -412,7 +412,7 @@
 
                                                             <!-- Row 8: Roughness -->
                                                             <Border Grid.Row="8" Grid.Column="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,1,1">
-                                                                <TextBlock Text="Rauheit (Roughness)" Classes="header" />
+                                                                <TextBlock Text="Roughness" Classes="header" />
                                                             </Border>
                                                             <Border Grid.Row="8" Grid.Column="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
                                                                 <TextBlock Text="{Binding SelectedMemristorCheckResult.FormattedRoughness}" Classes="value" />
@@ -420,7 +420,7 @@
 
                                                             <!-- Row 9: Sweep Counts -->
                                                             <Border Grid.Row="9" Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="0,0,1,0">
-                                                                <TextBlock Text="Datenpunkte (Up / Down Sweep)" Classes="header" />
+                                                                <TextBlock Text="Data Points (Up / Down Sweep)" Classes="header" />
                                                             </Border>
                                                             <Border Grid.Row="9" Grid.Column="1" BorderBrush="#E2E8F0" BorderThickness="0,0,0,0">
                                                                 <TextBlock Text="{Binding SelectedMemristorCheckResult.FormattedSweepCounts}" Classes="value" />

@@ -126,6 +126,15 @@ namespace SMU_Revamp.Services
                         await alterCmd2.ExecuteNonQueryAsync();
                     }
                     catch { /* Ignore if it already exists */ }
+
+                    // Try to add index on Timestamp for better query performance
+                    try
+                    {
+                        using var indexCmd = connection.CreateCommand();
+                        indexCmd.CommandText = "CREATE INDEX idx_measurements_timestamp ON Measurements (Timestamp DESC);";
+                        await indexCmd.ExecuteNonQueryAsync();
+                    }
+                    catch { /* Ignore if it already exists */ }
                 }
 
                 return true;

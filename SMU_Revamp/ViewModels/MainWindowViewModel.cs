@@ -3070,11 +3070,11 @@ public partial class MainWindowViewModel : ViewModelBase
         if (double.IsNaN(value)) return string.Empty;
         if (metric == "Memristor Check")
         {
-            if (value < 0.75) return "Schlecht / vermutlich Rauschen";
-            if (value < 1.35) return "Signal, aber schwach";
-            if (value < 1.95) return "Möglicher Kandidat";
-            if (value <= 2.40) return "Guter Kandidat";
-            return "Sehr guter Kandidat";
+            if (value < 0.75) return "Poor / probably noise";
+            if (value < 1.35) return "Signal, but weak";
+            if (value < 1.95) return "Possible candidate";
+            if (value <= 2.40) return "Good candidate";
+            return "Very good candidate";
         }
         return string.Empty;
     }

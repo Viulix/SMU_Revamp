@@ -109,60 +109,45 @@ namespace SMU_Revamp.ViewModels
                 var list = await _dbService.GetRecentMeasurementsAsync(1000);
                 
                 var roots = new ObservableCollection<DbNode>();
-                var byYear = list.GroupBy(m => m.Timestamp.Year).OrderByDescending(g => g.Key);
-                foreach (var yearGroup in byYear)
+                var byProfile = list.GroupBy(m => m.ProfileName).OrderBy(g => g.Key);
+                foreach (var profileGroup in byProfile)
                 {
-                    var yearNode = new DbNode { Header = yearGroup.Key.ToString() };
+                    var profileNode = new DbNode { Header = string.IsNullOrEmpty(profileGroup.Key) ? "Unknown User" : profileGroup.Key };
                     
-                    var byMonth = yearGroup.GroupBy(m => m.Timestamp.Month).OrderByDescending(g => g.Key);
-                    foreach (var monthGroup in byMonth)
+                    var bySample = profileGroup.GroupBy(m => m.SampleName).OrderBy(g => g.Key);
+                    foreach (var sampleGroup in bySample)
                     {
-                        var monthName = System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(monthGroup.Key);
-                        var monthNode = new DbNode { Header = $"{monthGroup.Key:D2} - {monthName}" };
-                        
-                        var byProfile = monthGroup.GroupBy(m => m.ProfileName).OrderBy(g => g.Key);
-                        foreach (var profileGroup in byProfile)
+                        var sampleNode = new DbNode { Header = string.IsNullOrEmpty(sampleGroup.Key) ? "Unknown Probe" : sampleGroup.Key };
+
+                        var byFolder = sampleGroup.GroupBy(m => m.FolderName).OrderByDescending(g => g.Max(m => m.Timestamp));
+                        foreach (var folderGroup in byFolder)
                         {
-                            var profileNode = new DbNode { Header = string.IsNullOrEmpty(profileGroup.Key) ? "Unknown Profile" : profileGroup.Key };
+                            var folderNode = new DbNode { 
+                                Header = string.IsNullOrEmpty(folderGroup.Key) ? "Unknown Folder" : folderGroup.Key,
+                                IsFolderNode = true 
+                            };
 
-                            var bySample = profileGroup.GroupBy(m => m.SampleName).OrderBy(g => g.Key);
-                            foreach (var sampleGroup in bySample)
+                            var byPlan = folderGroup.GroupBy(m => m.PlanName).OrderByDescending(g => g.Max(m => m.Timestamp));
+                            foreach (var planGroup in byPlan)
                             {
-                                var sampleNode = new DbNode { Header = string.IsNullOrEmpty(sampleGroup.Key) ? "Unknown Sample" : sampleGroup.Key };
-
-                                var byFolder = sampleGroup.GroupBy(m => m.FolderName).OrderByDescending(g => g.Max(m => m.Timestamp));
-                                foreach (var folderGroup in byFolder)
+                                var planNode = new DbNode { Header = string.IsNullOrEmpty(planGroup.Key) ? "Unknown Plan" : planGroup.Key };
+                                
+                                foreach (var meas in planGroup.OrderByDescending(m => m.Timestamp))
                                 {
-                                    var folderNode = new DbNode { 
-                                        Header = string.IsNullOrEmpty(folderGroup.Key) ? "Unknown Folder" : folderGroup.Key,
-                                        IsFolderNode = true 
+                                    var measNode = new DbNode 
+                                    { 
+                                        Header = $"{meas.Timestamp:dd.MM.yyyy HH:mm:ss}",
+                                        Measurement = meas
                                     };
-
-                                    var byPlan = folderGroup.GroupBy(m => m.PlanName).OrderByDescending(g => g.Max(m => m.Timestamp));
-                                    foreach (var planGroup in byPlan)
-                                    {
-                                        var planNode = new DbNode { Header = string.IsNullOrEmpty(planGroup.Key) ? "Unknown Plan" : planGroup.Key };
-                                        
-                                        foreach (var meas in planGroup.OrderByDescending(m => m.Timestamp))
-                                        {
-                                            var measNode = new DbNode 
-                                            { 
-                                                Header = $"{meas.Timestamp:dd.MM.yyyy HH:mm:ss}",
-                                                Measurement = meas
-                                            };
-                                            planNode.Children.Add(measNode);
-                                        }
-                                        folderNode.Children.Add(planNode);
-                                    }
-                                    sampleNode.Children.Add(folderNode);
+                                    planNode.Children.Add(measNode);
                                 }
-                                profileNode.Children.Add(sampleNode);
+                                folderNode.Children.Add(planNode);
                             }
-                            monthNode.Children.Add(profileNode);
+                            sampleNode.Children.Add(folderNode);
                         }
-                        yearNode.Children.Add(monthNode);
+                        profileNode.Children.Add(sampleNode);
                     }
-                    roots.Add(yearNode);
+                    roots.Add(profileNode);
                 }
 
                 RootNodes = roots;

@@ -60,22 +60,22 @@ namespace SMU_Revamp.Services
         {
             return flag switch
             {
-                "InsufficientData" => "Zu wenige Datenpunkte (< 12)",
-                "InsufficientValidData" => "Zu wenige gültige Datenpunkte (< 12)",
-                "NoVoltageRange" => "Keine sinnvolle Spannungsvariation",
-                "VoltageDoesNotCrossZero" => "Spannung kreuzt 0 V nicht",
-                "NoCurrentSignal" => "Kein messbares Stromsignal",
-                "WeakSignal" => "Schwaches Signal (SNR < 3)",
-                "MostlyLinear" => "Kurve ist fast linear",
-                "WeakHysteresis" => "Schwache Hysterese (< 5%)",
-                "HysteresisNotAboveNoise" => "Hysterese unter Rauschen",
-                "WeakPinch" => "Schwacher Pinch am Ursprung",
-                "HighOriginOffset" => "Hoher Ursprungsversatz",
-                "NoCommonZeroVoltage" => "Kein gemeinsamer 0-V-Punkt",
-                "NoCommonSweepRange" => "Kein gemeinsamer Sweep-Bereich",
-                "InterpolationFailed" => "Interpolation fehlgeschlagen",
-                "CouldNotSeparateSweeps" => "Sweeps nicht trennbar",
-                "NoisyOrJaggedCurve" => "Starkes Rauschen / unruhig",
+                "InsufficientData" => "Too few data points (< 12)",
+                "InsufficientValidData" => "Too few valid data points (< 12)",
+                "NoVoltageRange" => "No significant voltage variation",
+                "VoltageDoesNotCrossZero" => "Voltage does not cross 0 V",
+                "NoCurrentSignal" => "No measurable current signal",
+                "WeakSignal" => "Weak signal (SNR < 3)",
+                "MostlyLinear" => "Curve is mostly linear",
+                "WeakHysteresis" => "Weak hysteresis (< 5%)",
+                "HysteresisNotAboveNoise" => "Hysterese below noise floor",
+                "WeakPinch" => "Weak pinch at origin",
+                "HighOriginOffset" => "High origin offset",
+                "NoCommonZeroVoltage" => "No common 0 V point",
+                "NoCommonSweepRange" => "No common sweep range",
+                "InterpolationFailed" => "Interpolation failed",
+                "CouldNotSeparateSweeps" => "Sweeps could not be separated",
+                "NoisyOrJaggedCurve" => "High noise / jagged curve",
                 _ => flag
             };
         }
@@ -103,7 +103,7 @@ namespace SMU_Revamp.Services
             {
                 result.Score01 = double.NaN;
                 result.Score3 = double.NaN;
-                result.Classification = "Zu wenige Datenpunkte";
+                result.Classification = "Too few data points";
                 result.Flags.Add("InsufficientData");
                 return result;
             }
@@ -117,7 +117,7 @@ namespace SMU_Revamp.Services
             {
                 result.Score01 = double.NaN;
                 result.Score3 = double.NaN;
-                result.Classification = "Zu wenige gültige Datenpunkte";
+                result.Classification = "Too few valid data points";
                 result.Flags.Add("InsufficientValidData");
                 return result;
             }
@@ -136,7 +136,7 @@ namespace SMU_Revamp.Services
             {
                 result.Score01 = 0;
                 result.Score3 = 0;
-                result.Classification = "Keine sinnvolle Spannungsvariation";
+                result.Classification = "No significant voltage variation";
                 result.Flags.Add("NoVoltageRange");
                 return result;
             }
@@ -159,7 +159,7 @@ namespace SMU_Revamp.Services
             {
                 result.Score01 = 0;
                 result.Score3 = 0;
-                result.Classification = "Kein messbares Stromsignal";
+                result.Classification = "No measurable current signal";
                 result.Flags.Add("NoCurrentSignal");
                 return result;
             }
@@ -481,26 +481,26 @@ namespace SMU_Revamp.Services
         private static string ClassifyScore(double score01, List<string> flags)
         {
             if (double.IsNaN(score01))
-                return "Nicht auswertbar";
+                return "Not evaluable";
 
             double score3 = score01 * 3.0;
 
             if (flags.Contains("WeakSignal") && score3 < 1.2)
-                return "Schlecht / vermutlich Rauschen";
+                return "Poor / probably noise";
 
             if (score3 < 0.75)
-                return "Schlecht / vermutlich Rauschen";
+                return "Poor / probably noise";
 
             if (score3 < 1.35)
-                return "Signal, aber schwach";
+                return "Signal, but weak";
 
             if (score3 < 1.95)
-                return "Möglicher Kandidat";
+                return "Possible candidate";
 
             if (score3 <= 2.40)
-                return "Guter Kandidat";
+                return "Good candidate";
 
-            return "Sehr guter Kandidat";
+            return "Very good candidate";
         }
 
         private static double Median(IEnumerable<double> source)
