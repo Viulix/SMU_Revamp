@@ -1,0 +1,227 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SMU_Revamp.ViewModels"
+             xmlns:views="using:SMU_Revamp.Views"
+             xmlns:models="using:SMU_Revamp.Models"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="SMU_Revamp.Views.WafermapTabView"
+             x:DataType="vm:MainWindowViewModel">
+    <Grid Margin="20" ColumnDefinitions="40*,30,60*">
+        <!-- Left Container: Settings & Log & Sub-cells (Scrollable if too small) -->
+        <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <Grid RowDefinitions="Auto,Auto,*" Margin="0,0,10,0">
+                <!-- Top: Settings and Buttons -->
+                <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" Margin="10,10,10,5" BoxShadow="0 4 15 0 #15000000" VerticalAlignment="Top">
+                    <StackPanel Spacing="20">
+                        <TextBlock Text="Automatic Wafer Scan" FontSize="20" FontWeight="Bold" Margin="0,0,0,0" TextWrapping="Wrap" />
+                        <TextBlock Text="Note: The automatic wafer scan will execute the measurement plan currently selected in the 'Measurements' tab at each target contact." FontStyle="Italic" TextWrapping="Wrap" Foreground="#666666" Margin="0,0,0,10" />
+
+                        <StackPanel Spacing="15" IsEnabled="{Binding !IsScanningWafer}">
+                            <!-- Scan Presets -->
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Scan Presets:" FontSize="14" FontWeight="SemiBold" />
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <ComboBox Grid.Column="0" ItemsSource="{Binding WaferScanPresetNames}" SelectedItem="{Binding SelectedWaferScanPreset}" HorizontalAlignment="Stretch" Margin="0,0,10,0" PlaceholderText="Select a preset..." />
+                                    <Button Grid.Column="1" Content="Delete" Command="{Binding DeleteWaferScanPresetCommand}" Classes="Danger" Width="80" Height="36" />
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBox Grid.Column="0" Text="{Binding NewWaferScanPresetName}" PlaceholderText="Preset Name" HorizontalAlignment="Stretch" Margin="0,0,10,0" Height="36" VerticalContentAlignment="Center" />
+                                    <Button Grid.Column="1" Content="Save" Command="{Binding SaveWaferScanPresetCommand}" Classes="Primary" Width="80" Height="36" />
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Movement Delay -->
+                            <StackPanel Spacing="5">
+                                <TextBlock Text="Movement Delay (ms):" FontSize="14" FontWeight="SemiBold" />
+                                <TextBox Text="{Binding WaferScanDelayMs}" Width="120" HorizontalAlignment="Left" Height="32" VerticalContentAlignment="Center" />
+                            </StackPanel>
+
+                            <!-- Buttons -->
+                            <StackPanel Spacing="10" Margin="0,10,0,0">
+                                <Button Content="Start Wafer Scan" Command="{Binding ScanWaferCommand}" Classes="Primary" HorizontalAlignment="Stretch" Height="36" />
+                                <Button Content="Stop Scan" Command="{Binding RequestStopScanCommand}" Classes="Danger" HorizontalAlignment="Stretch" Height="36" />
+                                <Button Content="Move to Start Point" Command="{Binding GoToScanStartCommand}" Classes="Secondary" HorizontalAlignment="Stretch" Height="36" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Middle: Sub-cells and Contacts -->
+                <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" Margin="10,5,10,5" BoxShadow="0 4 15 0 #15000000" VerticalAlignment="Top">
+                    <Grid ColumnDefinitions="*,15,*" IsEnabled="{Binding !IsScanningWafer}">
+                        <!-- Left: 5x5 Sub-cells Grid -->
+                        <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*">
+                            <TextBlock Grid.Row="0" Text="Global Sub-cells (5x5)" FontSize="16" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap" />
+                            <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,15,0,15">
+                                <Button Content="Select All" Command="{Binding SelectAllSubCellsCommand}" Classes="Secondary" Padding="10,5" Margin="0,0,10,0" />
+                                <Button Content="Deselect All" Command="{Binding DeselectAllSubCellsCommand}" Classes="Secondary" Padding="10,5" Margin="0,0,10,0" />
+                            </WrapPanel>
+                            
+                            <Viewbox Grid.Row="2" Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Border Background="#F3F4F6" Padding="10" CornerRadius="8">
+                                    <ItemsControl x:Name="SubCellsItemsControl" ItemsSource="{Binding SubCells}">
+                                        <ItemsControl.Styles>
+                                            <Style Selector="ToggleButton">
+                                                <Setter Property="Background" Value="#FFCDD2" />
+                                            </Style>
+                                            <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+                                                <Setter Property="Background" Value="#C8E6C9" />
+                                            </Style>
+                                            <Style Selector="ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                                <Setter Property="Background" Value="#EF9A9A" />
+                                            </Style>
+                                            <Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                                <Setter Property="Background" Value="#A5D6A7" />
+                                            </Style>
+                                        </ItemsControl.Styles>
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="5" Rows="5" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:SubCellViewModel">
+                                                <Border Width="44" Height="44" Margin="3">
+                                                    <ToggleButton IsChecked="{Binding IsSelected}" 
+                                                                  IsVisible="{Binding IsValid}" 
+                                                                  HorizontalAlignment="Stretch" 
+                                                                  VerticalAlignment="Stretch"
+                                                                  CornerRadius="4"
+                                                                  ToolTip.Tip="{Binding Id}"
+                                                                  Padding="0">
+                                                        <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </ToggleButton>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Border>
+                            </Viewbox>
+                        </Grid>
+
+                        <!-- Right: Target Contacts (3x2) -->
+                        <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*">
+                            <TextBlock Grid.Row="0" Text="Target Contacts (1-6)" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,0" TextWrapping="Wrap" />
+                            <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,15,0,15">
+                                <Button Content="Select All" Command="{Binding SelectAllContactsCommand}" Classes="Secondary" Padding="10,5" Margin="0,0,10,0" />
+                                <Button Content="Deselect All" Command="{Binding DeselectAllContactsCommand}" Classes="Secondary" Padding="10,5" Margin="0,0,10,0" />
+                            </WrapPanel>
+                            
+                            <Viewbox Grid.Row="2" Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Border Background="#F3F4F6" Padding="10" CornerRadius="8">
+                                    <ItemsControl ItemsSource="{Binding Contacts}">
+                                        <ItemsControl.Styles>
+                                            <Style Selector="ToggleButton">
+                                                <Setter Property="Background" Value="#FFCDD2" />
+                                            </Style>
+                                            <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+                                                <Setter Property="Background" Value="#C8E6C9" />
+                                            </Style>
+                                            <Style Selector="ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                                <Setter Property="Background" Value="#EF9A9A" />
+                                            </Style>
+                                            <Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                                <Setter Property="Background" Value="#A5D6A7" />
+                                            </Style>
+                                        </ItemsControl.Styles>
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="3" Rows="2" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ContactViewModel">
+                                                <Border Width="44" Height="44" Margin="3">
+                                                    <ToggleButton IsChecked="{Binding IsSelected}" 
+                                                                  HorizontalAlignment="Stretch" 
+                                                                  VerticalAlignment="Stretch"
+                                                                  CornerRadius="4"
+                                                                  ToolTip.Tip="{Binding Id}"
+                                                                  Padding="0">
+                                                        <TextBlock Text="{Binding Id}" FontSize="12" FontWeight="Bold" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </ToggleButton>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Border>
+                            </Viewbox>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- Bottom: Log -->
+                <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" Margin="10,5,10,10" BoxShadow="0 4 15 0 #15000000" VerticalAlignment="Stretch">
+                    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="0,0,0,0">
+                        <ProgressBar Grid.Row="0" Value="{Binding WaferScanProgress}" Minimum="0" Maximum="100" Height="20" Foreground="Black" HorizontalAlignment="Stretch" Margin="0,0,0,10" IsVisible="{Binding IsScanningWafer}" />
+                        <TextBlock Grid.Row="1" Text="Status / Log" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                        <ScrollViewer Grid.Row="2" Background="#F9FAFB" Padding="10" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="4" Margin="0,0,0,10" MinHeight="100" MaxHeight="250" IsVisible="{Binding HasWaferScanLog}">
+                            <TextBlock Text="{Binding WaferScanLog}" FontFamily="Consolas, monospace" FontSize="12" Foreground="#374151" TextWrapping="Wrap" />
+                        </ScrollViewer>
+                        <WrapPanel Grid.Row="3" Orientation="Horizontal">
+                            <TextBlock Text="{Binding WaferScanCountText}" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0" />
+                            <TextBlock Text="{Binding WaferScanEstimatedFinish}" Foreground="#666666" VerticalAlignment="Center" />
+                        </WrapPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- Right Container: Target Cells (16x16) -->
+        <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" Margin="0" BoxShadow="0 4 15 0 #15000000" VerticalAlignment="Stretch">
+            <Grid RowDefinitions="Auto,Auto,*" IsEnabled="{Binding !IsScanningWafer}">
+                <StackPanel Grid.Row="0" Margin="0,10,0,0">
+                    <TextBlock Text="Target Cells (16x16)" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="Tip: Use Ctrl+Click to toggle a row, Alt+Click to toggle a column. Right-click with Ctrl/Alt toggles every 2nd cell." FontStyle="Italic" Foreground="#666666" FontSize="12" Margin="0,5,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+                <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,15,0,15">
+                    <Button Content="Select All" Command="{Binding SelectAllCellsCommand}" Classes="Secondary" Padding="10,5" Margin="0,0,10,0" />
+                    <Button Content="Deselect All" Command="{Binding DeselectAllCellsCommand}" Classes="Secondary" Padding="10,5" Margin="0,0,10,0" />
+                </WrapPanel>
+
+                <Viewbox Grid.Row="2" Stretch="Uniform" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                    <Border Background="#F3F4F6" Padding="15" CornerRadius="8">
+                        <ItemsControl x:Name="WaferCellsItemsControl" ItemsSource="{Binding WaferCells}">
+                            <ItemsControl.Styles>
+                                <Style Selector="ToggleButton">
+                                    <Setter Property="Background" Value="#FFCDD2" />
+                                </Style>
+                                <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+                                    <Setter Property="Background" Value="#C8E6C9" />
+                                </Style>
+                                <Style Selector="ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                    <Setter Property="Background" Value="#EF9A9A" />
+                                </Style>
+                                <Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                    <Setter Property="Background" Value="#A5D6A7" />
+                                </Style>
+                            </ItemsControl.Styles>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="16" Rows="16" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:WaferCellViewModel">
+                                    <Border Width="38" Height="38" Margin="1">
+                                        <ToggleButton IsChecked="{Binding IsSelected}" 
+                                                      IsVisible="{Binding IsValid}" 
+                                                      HorizontalAlignment="Stretch" 
+                                                      VerticalAlignment="Stretch"
+                                                      ToolTip.Tip="{Binding Id}"
+                                                      CornerRadius="4"
+                                                      Padding="0">
+                                            <TextBlock Text="{Binding Id}" FontSize="9" FontWeight="Bold" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </ToggleButton>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </Viewbox>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,297 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SMU_Revamp.ViewModels"
+             xmlns:views="using:SMU_Revamp.Views"
+             xmlns:models="using:SMU_Revamp.Models"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="SMU_Revamp.Views.MeasurementsTabView"
+             x:DataType="vm:MainWindowViewModel">
+    <Grid RowDefinitions="*, Auto" Margin="20">
+        <Grid Grid.Row="0">
+            <Grid ColumnDefinitions="55*, 45*" RowDefinitions="Auto, *" Margin="10">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Measurement Configuration" FontSize="18" FontWeight="SemiBold" />
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="Measurement Status &amp; Diagnostics" FontSize="18" FontWeight="SemiBold" Margin="20,0,0,0" />
+                
+                <!-- Left Column: Configuration -->
+                <ScrollViewer Grid.Row="1" Grid.Column="0" x:Name="MeasurementScrollViewer" HorizontalScrollBarVisibility="Disabled" ScrollChanged="MeasurementScrollViewer_ScrollChanged">
+                    <Border Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" Margin="10,15,10,20" BoxShadow="0 4 15 0 #15000000">
+                        <StackPanel Spacing="10" MaxWidth="800" IsEnabled="{Binding !IsScanningWafer}">
+                            <WrapPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="Measurement Plan:" Width="150" VerticalAlignment="Center" Margin="0,0,10,10" />
+                                <ComboBox ItemsSource="{Binding MeasurementPlans}"
+                                          SelectedItem="{Binding SelectedPlan}"
+                                          Width="200">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </WrapPanel>
+
+                            <WrapPanel Orientation="Horizontal" Margin="0,5,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Preset:" Width="150" VerticalAlignment="Center" Margin="0,0,10,10" />
+                                <ComboBox ItemsSource="{Binding AvailablePresets}"
+                                          SelectedItem="{Binding SelectedPreset}"
+                                          PlaceholderText="No presets saved"
+                                          Width="150" Height="32" VerticalAlignment="Center" Margin="0,0,10,10">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                
+                                <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="0,0,10,10">
+                                    <TextBox Text="{Binding NewPresetName}" PlaceholderText="Preset Name" Width="120" Height="32" VerticalContentAlignment="Center">
+                                        <TextBox.Styles>
+                                            <Style Selector="TextBox.invalid /template/ Border#PART_BorderElement">
+                                                <Setter Property="BorderBrush" Value="#EF4444"/>
+                                                <Setter Property="BorderThickness" Value="1"/>
+                                            </Style>
+                                        </TextBox.Styles>
+                                        <Classes.invalid>
+                                            <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                                <Binding Path="IsPresetNameInvalid" />
+                                            </MultiBinding>
+                                        </Classes.invalid>
+                                    </TextBox>
+                                </StackPanel>
+                                <Button Content="Save" Command="{Binding SavePresetCommand}" Classes="Primary" Height="32" VerticalContentAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,10" />
+                                <Button Content="Delete" Command="{Binding DeletePresetCommand}" Classes="Danger" Height="32" VerticalContentAlignment="Center" IsEnabled="{Binding SelectedPreset, Converter={x:Static ObjectConverters.IsNotNull}}" VerticalAlignment="Center" Margin="0,0,10,10" />
+                            </WrapPanel>
+                            
+                            <!-- Overwrite Confirmation popup inline -->
+                            <Border Background="#FEE2E2" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,5,0,0" IsVisible="{Binding IsOverwriteWarningVisible}">
+                                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Path Fill="#EF4444" Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                                    <TextBlock Text="Preset already exists. Overwrite?" Foreground="#B91C1C" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,10,5"/>
+                                    <Button Content="Yes" Command="{Binding ConfirmSavePresetCommand}" Classes="Primary" Padding="10,3" Margin="0,0,10,5" />
+                                    <Button Content="No" Command="{Binding CancelSavePresetCommand}" Classes="Secondary" Padding="10,3" Margin="0,0,0,5" />
+                                </WrapPanel>
+                            </Border>
+
+                            <!-- Delete Confirmation popup inline -->
+                            <Border Background="#FEE2E2" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,5,0,0" IsVisible="{Binding IsDeleteWarningVisible}">
+                                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Path Fill="#EF4444" Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                                    <TextBlock Text="Are you sure you want to delete this preset?" Foreground="#B91C1C" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,10,5" />
+                                    <Button Content="Yes" Command="{Binding ConfirmDeletePresetCommand}" Classes="Danger" Padding="10,3" Margin="0,0,10,5" />
+                                    <Button Content="No" Command="{Binding CancelDeletePresetCommand}" Classes="Secondary" Padding="10,3" Margin="0,0,0,5" />
+                                </WrapPanel>
+                            </Border>
+
+                            <Separator Margin="0,15,0,15" Background="#E5E7EB" Height="1" />
+
+                            <TextBlock Text="{Binding SelectedPlan.Description}" 
+                                       TextWrapping="Wrap" 
+                                       FontStyle="Italic" 
+                                       Opacity="0.7" 
+                                       Margin="0,5,0,15" />
+
+                            <ItemsControl ItemsSource="{Binding SelectedPlanSections}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:ParameterSection">
+                                        <StackPanel Spacing="5" Margin="0,0,20,15" Width="370">
+                                            <!-- Section Header -->
+                                            <TextBlock Text="{Binding Name}" 
+                                                       FontSize="11" 
+                                                       FontWeight="Bold" 
+                                                       Foreground="#777777" 
+                                                       Margin="0,5,0,5" 
+                                                       IsVisible="{Binding HasName}" />
+                                            
+                                            <!-- Parameters in this Section -->
+                                            <ItemsControl ItemsSource="{Binding Parameters}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="models:MeasurementParameter">
+                                                        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,10" ToolTip.Tip="{Binding Tooltip}">
+                                                            <TextBlock Grid.Column="0" Text="{Binding DisplayName}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                                            <ContentControl Grid.Column="1" Content="{Binding}" VerticalAlignment="Center">
+                                                                <ContentControl.ContentTemplate>
+                                                                    <views:ParameterTemplateSelector>
+                                                                        <views:ParameterTemplateSelector.TextTemplate>
+                                                                            <DataTemplate x:DataType="models:MeasurementParameter">
+                                                                                <Grid Width="150" ColumnDefinitions="*, Auto" Background="Transparent" 
+                                                                                      ToolTip.Tip="{Binding LinkTooltip}"
+                                                                                      PointerPressed="ParameterGrid_PointerPressed">
+                                                                                    <views:ParameterTextBox Grid.Column="0" Text="{Binding Value, Mode=TwoWay}" HorizontalAlignment="Stretch" IsEnabled="{Binding !IsLinked}" />
+                                                                                    <Button Grid.Column="1" 
+                                                                                            Classes.is-linked="{Binding IsLinked}"
+                                                                                                  IsVisible="{Binding IsLinkable}" 
+                                                                                                  Click="ToggleParameterLink_Click"
+                                                                                                  VerticalAlignment="Center"
+                                                                                                  VerticalContentAlignment="Center"
+                                                                                                  HorizontalContentAlignment="Center"
+                                                                                                  Width="26" Height="26"
+                                                                                                  Margin="5,0,0,0"
+                                                                                                  Padding="0"
+                                                                                                  Background="Transparent"
+                                                                                                  BorderThickness="0"
+                                                                                                  CornerRadius="4">
+                                                                                        <Button.Styles>
+                                                                                            <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                                                                                                <Setter Property="Background" Value="#E5E7EB"/>
+                                                                                            </Style>
+                                                                                            <Style Selector="Button Path">
+                                                                                                <Setter Property="Fill" Value="#9CA3AF"/>
+                                                                                            </Style>
+                                                                                            <Style Selector="Button.is-linked Path">
+                                                                                                <Setter Property="Fill" Value="#111827"/>
+                                                                                            </Style>
+                                                                                        </Button.Styles>
+                                                                                        <Path Data="M3.9,12C3.9,10.29 5.29,8.9 7,8.9H11V7H7C4.24,7 2,9.24 2,12C2,14.76 4.24,17 7,17H11V15.1H7C5.29,15.1 3.9,13.71 3.9,12ZM8,13H16V11H8V13ZM17,7H13V8.9H17C18.71,8.9 20.1,10.29 20.1,12C20.1,13.71 18.71,15.1 17,15.1H13V17H17C19.76,17 22,14.76 22,12C22,9.24 19.76,7 17,7Z" 
+                                                                                              Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                                                    </Button>
+                                                                                </Grid>
+                                                                            </DataTemplate>
+                                                                        </views:ParameterTemplateSelector.TextTemplate>
+                                                                        <views:ParameterTemplateSelector.CheckboxTemplate>
+                                                                            <DataTemplate x:DataType="models:MeasurementParameter">
+                                                                                <CheckBox IsChecked="{Binding Value, Mode=TwoWay}" />
+                                                                            </DataTemplate>
+                                                                        </views:ParameterTemplateSelector.CheckboxTemplate>
+                                                                        <views:ParameterTemplateSelector.DropdownTemplate>
+                                                                            <DataTemplate x:DataType="models:MeasurementParameter">
+                                                                                <ComboBox ItemsSource="{Binding Options}" 
+                                                                                          SelectedItem="{Binding Value, Mode=TwoWay}" 
+                                                                                          Width="200" />
+                                                                            </DataTemplate>
+                                                                        </views:ParameterTemplateSelector.DropdownTemplate>
+                                                                    </views:ParameterTemplateSelector>
+                                                                </ContentControl.ContentTemplate>
+                                                            </ContentControl>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <CheckBox Content="Switch to Viewer tab automatically"
+                                      IsChecked="{Binding AutoSwitchToViewer}"
+                                      Margin="0,10,0,0" />
+
+                            <CheckBox Content="Automatically save measurements"
+                                      IsChecked="{Binding AutoSaveMeasurements}"
+                                      Margin="0,5,0,0" />
+                                      
+                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,20,0,0">
+                                <Button Content="Run Measurement" 
+                                        Command="{Binding RunMeasurementCommand}" 
+                                        IsEnabled="{Binding !IsMeasuring}"
+                                        Classes="Primary" 
+                                        Width="180" />
+
+                                <Button Content="Export to CSV" 
+                                        Click="ExportCsvButton_Click"
+                                        IsEnabled="{Binding HasCurvePoints}"
+                                        Classes="Secondary" 
+                                        Width="150" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+
+                <!-- Right Column: Status -->
+                <Grid Grid.Row="1" Grid.Column="1" Margin="20,15,10,20" RowDefinitions="Auto, *">
+                    <Border Grid.Row="0" CornerRadius="8" BoxShadow="0 4 15 0 #15000000" Margin="0,0,0,15" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0">
+                        <Expander Header="Measurement Status &amp; Diagnostics" IsExpanded="False" HorizontalAlignment="Stretch" CornerRadius="8" Background="Transparent" BorderThickness="0" BorderBrush="Transparent">
+                            <Expander.Styles>
+                                <Style Selector="Expander /template/ ToggleButton#ExpanderHeader">
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                </Style>
+                            </Expander.Styles>
+                            <StackPanel Spacing="10" Margin="15,0,15,15">
+                                <Border BorderBrush="Transparent" BorderThickness="0" CornerRadius="4" Padding="15" Background="#F9F9F9" MinWidth="450" MinHeight="80">
+                                    <TextBlock Text="{Binding MeasurementStatus}" 
+                                               Foreground="#333333"
+                                               FontFamily="Courier New" 
+                                               FontSize="12" 
+                                               TextWrapping="Wrap" />
+                                </Border>
+
+                                <StackPanel Spacing="5" IsVisible="{Binding IsMeasuringSweep}">
+                                    <Grid ColumnDefinitions="*, Auto">
+                                        <TextBlock Text="Measurement Progress" FontSize="11" FontWeight="SemiBold" Foreground="#666666" />
+                                        <TextBlock Grid.Column="1" Text="{Binding MeasurementProgressText}" FontSize="11" FontWeight="SemiBold" Foreground="#333333" />
+                                    </Grid>
+                                    <ProgressBar Minimum="0" 
+                                                 Maximum="100" 
+                                                 Value="{Binding MeasurementProgress}" 
+                                                 IsIndeterminate="{Binding IsProgressIndeterminate}" 
+                                                 Height="8" 
+                                                 CornerRadius="4"
+                                                 Foreground="#3B82F6"
+                                                 Background="#E0E0E0" />
+                                </StackPanel>
+
+                                <TextBlock Text="{Binding WarningMessage}" 
+                                           Foreground="#E65100" 
+                                           TextWrapping="Wrap" 
+                                           HorizontalAlignment="Stretch"
+                                           IsVisible="{Binding HasWarningMessage}" />
+
+                                <TextBlock Text="{Binding ErrorMessage}" 
+                                           Foreground="#D32F2F" 
+                                           TextWrapping="Wrap" 
+                                           HorizontalAlignment="Stretch" />
+                            </StackPanel>
+                        </Expander>
+                    </Border>
+
+                    <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" BoxShadow="0 4 15 0 #15000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                        <Grid RowDefinitions="*, Auto">
+                            <views:CurvePlotView Grid.Row="0" Title="Live Measurement Preview"
+                                                 XAxisLabel="{Binding XAxisTitle}"
+                                                 YAxisLabel="{Binding YAxisTitle}"
+                                                 Series="{Binding PlotSeries}"
+                                                 Points="{Binding CurvePoints}"
+                                                 PlotStyle="{Binding SelectedPlotStyle}"
+                                                 LogarithmicY="{Binding IsMeasurementLogarithmic}"
+                                                 LogarithmicX="{Binding IsMeasurementLogarithmicX}"
+                                                 PlotAspectRatio="{Binding PlotAspectRatio}"
+                                             SeriesSettings="{Binding SeriesSettings}" />
+                            
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="20" Margin="0,15,0,0" HorizontalAlignment="Center">
+                                <CheckBox Content="Logarithmic X-Axis" IsChecked="{Binding IsMeasurementLogarithmicX}" />
+                                <CheckBox Content="Logarithmic Y-Axis" IsChecked="{Binding IsMeasurementLogarithmic}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <!-- Scroll Indicator -->
+            <Border x:Name="MeasurementScrollIndicator" 
+                    VerticalAlignment="Bottom" 
+                    Height="30" 
+                    IsHitTestVisible="False"
+                    Opacity="0">
+                <Border.Transitions>
+                    <Transitions>
+                        <DoubleTransition Property="Opacity" Duration="0:0:0.2"/>
+                    </Transitions>
+                </Border.Transitions>
+                <Path Data="M0,0 L6,6 L12,0" 
+                      Stroke="#888888" 
+                      StrokeThickness="2" 
+                      Fill="Transparent" 
+                      HorizontalAlignment="Center" 
+                      VerticalAlignment="Bottom" 
+                      Margin="0,0,0,10"/>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

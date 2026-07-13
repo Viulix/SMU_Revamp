@@ -1,0 +1,220 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SMU_Revamp.ViewModels"
+             xmlns:views="using:SMU_Revamp.Views"
+             xmlns:models="using:SMU_Revamp.Models"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="SMU_Revamp.Views.ViewerTabView"
+             x:DataType="vm:MainWindowViewModel">
+    <Grid>
+        <!-- Empty State Placeholder (No Data Loaded) -->
+        <Border IsVisible="{Binding !IsPlottedPlanLoaded}"
+                Background="#F9FAFB"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="40"
+                Margin="30"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MaxWidth="500">
+            <StackPanel Spacing="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <!-- Visual Circle / Icon Representative (Chart Icon) -->
+                <Border Width="80" Height="80" CornerRadius="40" Background="#EEF2F6" HorizontalAlignment="Center">
+                    <Path Fill="#6B7280" Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" Width="36" Height="36" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                
+                <TextBlock Text="No measurement data loaded" 
+                           FontSize="20" 
+                           FontWeight="Bold" 
+                           Foreground="#1F2937" 
+                           HorizontalAlignment="Center" 
+                           TextAlignment="Center"/>
+                           
+                <TextBlock Text="Please execute a measurement in the Measurements tab, import a CSV/TSV measurement file, or load from the Database to view the plots." 
+                           TextWrapping="Wrap" 
+                           FontSize="14" 
+                           Foreground="#4B5563" 
+                           HorizontalAlignment="Center" 
+                           TextAlignment="Center"
+                           LineHeight="20"/>
+                
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" Margin="0,10,0,0">
+                    <Button Content="Import File" 
+                            Click="ImportFileButton_Click" 
+                            Classes="Primary" 
+                            Padding="20,10" />
+                    <Button Content="Load from DB" 
+                            Click="LoadFromDatabaseButton_Click" 
+                            Classes="Secondary" 
+                            Padding="20,10" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Normal Viewer UI -->
+        <Grid IsVisible="{Binding IsPlottedPlanLoaded}" Margin="20" RowDefinitions="Auto, *">
+            <!-- Top Control Bar -->
+            <Grid Grid.Row="0" Margin="0,0,0,10" ColumnDefinitions="*, Auto" VerticalAlignment="Center">
+                    <!-- Middle: Plot Controls -->
+                    <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,0,15,10">
+                            <TextBlock Text="Plot View:" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#4B5563"/>
+                            <ComboBox ItemsSource="{Binding AvailablePlotViews}"
+                                      SelectedItem="{Binding SelectedPlotView}"
+                                      Width="150" Height="32" VerticalContentAlignment="Center"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,0,15,10">
+                            <TextBlock Text="Plot Style:" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#4B5563"/>
+                            <ComboBox ItemsSource="{Binding AvailablePlotStyles}"
+                                      SelectedItem="{Binding SelectedPlotStyleString}"
+                                      Width="150" Height="32" VerticalContentAlignment="Center"/>
+                        </StackPanel>
+
+                        <Button Content="Advanced Plot Settings" 
+                                Click="OpenAdvancedPlotSettingsButton_Click"
+                                Classes="Secondary" 
+                                Height="32"
+                                Padding="15,0"
+                                VerticalContentAlignment="Center" Margin="0,0,15,10" />
+
+                        <CheckBox Content="Logarithmic X" IsChecked="{Binding IsViewerLogarithmicX}" VerticalAlignment="Center" Foreground="#4B5563" FontWeight="SemiBold" Margin="0,0,15,10"/>
+                    </WrapPanel>
+
+                    <!-- Right: Action Buttons -->
+                    <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                        <Button Content="Import File" 
+                                Click="ImportFileButton_Click"
+                                Classes="Primary" 
+                                Height="32"
+                                Padding="15,0"
+                                VerticalContentAlignment="Center" Margin="0,0,15,10" />
+
+                        <Button Content="Load from DB" 
+                                Click="LoadFromDatabaseButton_Click"
+                                Classes="Secondary" 
+                                Height="32"
+                                Padding="15,0"
+                                VerticalContentAlignment="Center" Margin="0,0,15,10" />
+
+                        <Button Content="Export" 
+                                Click="ExportCsvButton_Click"
+                                IsEnabled="{Binding HasCurvePoints}"
+                                Classes="Secondary" 
+                                Height="32"
+                                Padding="15,0"
+                                VerticalContentAlignment="Center" Margin="0,0,15,10" />
+
+                        <Button Content="Upload to DB" 
+                                Click="UploadToDatabaseButton_Click"
+                                IsEnabled="{Binding HasCurvePoints}"
+                                Classes="Secondary" 
+                                Height="32"
+                                Padding="15,0"
+                                VerticalContentAlignment="Center" Margin="0,0,0,10" />
+                    </WrapPanel>
+            </Grid>
+
+            <DockPanel Grid.Row="1" Margin="0,15,0,0">
+                <!-- Measurement Settings (Right) -->
+                <Border DockPanel.Dock="Right" IsVisible="{Binding !IsTwoPlotsVisible}" Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8" Padding="15" Margin="10,5,5,5" Width="300">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Measurement Settings" FontWeight="SemiBold" FontSize="16" Foreground="#1F2937" />
+                            <ItemsControl ItemsSource="{Binding PlottedPlan.Parameters}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Vertical" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                                            <TextBlock Grid.Column="0" Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="#4B5563" HorizontalAlignment="Left" TextWrapping="Wrap" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Value}" Foreground="#1F2937" HorizontalAlignment="Right" Margin="10,0,0,0" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            
+                            <Separator Margin="0,5" Background="#E5E7EB" Height="1" />
+                            <StackPanel Spacing="5">
+                                <TextBlock Text="Active Plan / File" FontWeight="SemiBold" FontSize="14" Foreground="#4B5563" />
+                                <TextBlock Text="{Binding PlottedPlan.Name}" FontWeight="Bold" Foreground="#1F2937" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding PlottedPlan.Description}" FontStyle="Italic" Foreground="#666666" TextWrapping="Wrap" FontSize="12" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- Measurement Settings (Bottom) -->
+                <Border DockPanel.Dock="Bottom" IsVisible="{Binding IsTwoPlotsVisible}" Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8" Padding="15" Margin="0,15,0,0" MaxHeight="150">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Measurement Settings" FontWeight="SemiBold" FontSize="16" Foreground="#1F2937" />
+                            <ItemsControl ItemsSource="{Binding PlottedPlan.Parameters}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,0,20,5">
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="#4B5563" />
+                                            <TextBlock Text="{Binding Value}" Foreground="#1F2937" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Separator Margin="0,5" Background="#E5E7EB" Height="1" />
+                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,20,5">
+                                <TextBlock Text="Active Plan / File:" FontWeight="SemiBold" Foreground="#4B5563" />
+                                <TextBlock Text="{Binding PlottedPlan.Name}" FontWeight="Bold" Foreground="#1F2937" />
+                                <TextBlock Text="{Binding PlottedPlan.Description}" FontStyle="Italic" Foreground="#666666" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+
+                <UniformGrid Rows="1">
+                    <Border IsVisible="{Binding IsLinearPlotVisible}" Margin="5" Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8">
+                        <views:CurvePlotView Title="{Binding LinearPlotTitle}"
+                                             XAxisLabel="{Binding XAxisTitle}"
+                                             YAxisLabel="{Binding YAxisTitle}"
+                                             Series="{Binding PlotSeries}"
+                                             Points="{Binding CurvePoints}"
+                                             PlotStyle="{Binding SelectedPlotStyle}"
+                                             LogarithmicX="{Binding IsViewerLogarithmicX}"
+                                             PlotAspectRatio="{Binding PlotAspectRatio}"
+                                             XMin="{Binding CustomXMin}" XMax="{Binding CustomXMax}"
+                                             YMin="{Binding CustomYMin}" YMax="{Binding CustomYMax}"
+                                             AutoFitDataX="{Binding AutoFitDataX}"
+                                             AutoFitDataY="{Binding AutoFitDataY}"
+                                             SeriesSettings="{Binding SeriesSettings}" />
+                    </Border>
+                    <Border IsVisible="{Binding IsLogPlotVisible}" Margin="5" Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8">
+                        <views:CurvePlotView Title="{Binding LogPlotTitle}"
+                                             XAxisLabel="{Binding XAxisTitle}"
+                                             YAxisLabel="{Binding YAxisTitle}"
+                                             Series="{Binding PlotSeries}"
+                                             Points="{Binding CurvePoints}"
+                                             PlotStyle="{Binding SelectedPlotStyle}"
+                                             LogarithmicY="True"
+                                             LogarithmicX="{Binding IsViewerLogarithmicX}"
+                                             PlotAspectRatio="{Binding PlotAspectRatio}"
+                                             XMin="{Binding CustomXMin}" XMax="{Binding CustomXMax}"
+                                             YMin="{Binding CustomYMin}" YMax="{Binding CustomYMax}"
+                                             AutoFitDataX="{Binding AutoFitDataX}"
+                                             AutoFitDataY="{Binding AutoFitDataY}"
+                                             SeriesSettings="{Binding SeriesSettings}" />
+                    </Border>
+                </UniformGrid>
+            </DockPanel>
+        </Grid>
+    </Grid>
+</UserControl>
