@@ -101,6 +101,11 @@ public class AppConfig
     public System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<MeasurementPreset>> PlanPresets { get; set; } = new();
 
     /// <summary>
+    /// Global list of presets.
+    /// </summary>
+    public System.Collections.Generic.List<MeasurementPreset> Presets { get; set; } = new();
+
+    /// <summary>
     /// Flag to automatically save measurement results to a Profile-named folder.
     /// </summary>
     public bool AutoSaveMeasurements { get; set; } = true;
@@ -157,6 +162,7 @@ public class AppConfig
 public class MeasurementPreset
 {
     public string Name { get; set; } = string.Empty;
+    public string PlanName { get; set; } = string.Empty;
     public System.Collections.Generic.Dictionary<string, string> Parameters { get; set; } = new();
 }
 

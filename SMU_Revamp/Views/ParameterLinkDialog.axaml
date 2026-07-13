@@ -7,7 +7,7 @@
         Width="400" Height="300"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
-        Icon="/Assets/tf_logo_rgb_en.ico">
+        Icon="/Assets/smu_logo.png">
 
     <Grid RowDefinitions="Auto,*,Auto" Margin="20">
         <TextBlock Grid.Row="0" Text="{Binding SourceParameter.DisplayName, StringFormat='Link Settings for {0}'}" 

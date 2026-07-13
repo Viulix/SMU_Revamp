@@ -5,7 +5,7 @@
         Title="Enlarged Plot"
         Width="1000" Height="800"
         WindowStartupLocation="CenterOwner"
-        Icon="/Assets/tf_logo_rgb_en.ico">
+        Icon="/Assets/smu_logo.png">
     <Grid RowDefinitions="Auto, *">
         <Border Grid.Row="0" Background="#F3F4F6" Padding="15,10">
             <TextBlock x:Name="PlotTitleText" Text="Enlarged Plot" FontSize="18" FontWeight="Bold" Foreground="#1F2937" />

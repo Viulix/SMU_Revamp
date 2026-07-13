@@ -6,7 +6,7 @@
         mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="600"
         x:Class="SMU_Revamp.Views.SettingsWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/tf_logo_rgb_en.ico"
+        Icon="/Assets/smu_logo.png"
         Title="Settings"
         WindowStartupLocation="CenterOwner"
         Width="700"

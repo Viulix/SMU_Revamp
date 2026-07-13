@@ -6,7 +6,7 @@
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
         x:Class="SMU_Revamp.Views.DatabaseLoadWindow"
         x:DataType="vm:DatabaseLoadViewModel"
-        Icon="/Assets/tf_logo_rgb_en.ico"
+        Icon="/Assets/smu_logo.png"
         Title="Load Measurement from Database"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"

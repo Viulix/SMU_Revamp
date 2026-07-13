@@ -80,6 +80,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 {
                     _selectedPlan.LoadDefaults();
                     LoadLastConfig();
+                    if (!_isLoadingPreset)
+                    {
+                        SelectedPreset = null;
+                    }
                     LoadAvailablePresets();
                     SubscribeToParameterChanges();
                 }
@@ -87,6 +91,16 @@ public partial class MainWindowViewModel : ViewModelBase
                 UpdateWarningMessage();
                 OnPropertyChanged(nameof(IsMeasuringSweep));
                 OnPropertyChanged(nameof(GlobalProgressTitle));
+                OnPropertyChanged(nameof(IsModularPlanActive));
+                OnPropertyChanged(nameof(SelectedPlanSteps));
+                if (SelectedPlan is ModularSequenceMeasurementPlan modular && modular.Steps.Count > 0)
+                {
+                    SelectedSequenceStep = modular.Steps[0];
+                }
+                else
+                {
+                    SelectedSequenceStep = null;
+                }
             }
         }
     }
@@ -603,6 +617,44 @@ public partial class MainWindowViewModel : ViewModelBase
     public ICommand ProceedWithScanCommand { get; }
     public ICommand CancelAlignmentWarningCommand { get; }
 
+    // Sequencer properties and commands
+    public bool IsModularPlanActive => SelectedPlan is ModularSequenceMeasurementPlan;
+
+    public ObservableCollection<SequenceStep>? SelectedPlanSteps
+    {
+        get
+        {
+            if (SelectedPlan is ModularSequenceMeasurementPlan modular)
+            {
+                return modular.Steps;
+            }
+            return null;
+        }
+    }
+
+    private SequenceStep? _selectedSequenceStep;
+    public SequenceStep? SelectedSequenceStep
+    {
+        get => _selectedSequenceStep;
+        set
+        {
+            if (SetProperty(ref _selectedSequenceStep, value))
+            {
+                (MoveStepUpCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                (MoveStepDownCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                (DeleteStepCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public ICommand AddPulseStepCommand { get; }
+    public ICommand AddPointStepCommand { get; }
+    public ICommand AddSweepStepCommand { get; }
+    public ICommand AddMeasureStepCommand { get; }
+    public ICommand MoveStepUpCommand { get; }
+    public ICommand MoveStepDownCommand { get; }
+    public ICommand DeleteStepCommand { get; }
+
     // Preset properties and commands
     private ObservableCollection<MeasurementPreset> _availablePresets = new();
     public ObservableCollection<MeasurementPreset> AvailablePresets
@@ -618,26 +670,41 @@ public partial class MainWindowViewModel : ViewModelBase
         get => _selectedPreset;
         set
         {
-            if (SetProperty(ref _selectedPreset, value) && value != null && SelectedPlan != null)
+            if (SetProperty(ref _selectedPreset, value) && value != null)
             {
                 _isLoadingPreset = true;
-                foreach (var param in SelectedPlan.Parameters)
+                
+                // 1. Switch the plan if needed
+                if (!string.IsNullOrEmpty(value.PlanName) && (SelectedPlan == null || SelectedPlan.Name != value.PlanName))
                 {
-                    if (value.Parameters.TryGetValue(param.Name, out var stringVal))
+                    var targetPlan = MeasurementPlans.FirstOrDefault(p => p.Name == value.PlanName);
+                    if (targetPlan != null)
                     {
-                        if (param.Type == ParameterType.Number)
+                        SelectedPlan = targetPlan;
+                    }
+                }
+                
+                // 2. Load the parameter values for the active plan
+                if (SelectedPlan != null)
+                {
+                    foreach (var param in SelectedPlan.Parameters)
+                    {
+                        if (value.Parameters.TryGetValue(param.Name, out var stringVal))
                         {
-                            if (ParameterConfigHelper.TryParseDoubleRobust(stringVal, out double d))
-                                param.Value = d;
-                        }
-                        else if (param.Type == ParameterType.Checkbox)
-                        {
-                            if (bool.TryParse(stringVal, out bool b))
-                                param.Value = b;
-                        }
-                        else
-                        {
-                            param.Value = stringVal;
+                            if (param.Type == ParameterType.Number)
+                            {
+                                if (ParameterConfigHelper.TryParseDoubleRobust(stringVal, out double d))
+                                    param.Value = d;
+                            }
+                            else if (param.Type == ParameterType.Checkbox)
+                            {
+                                if (bool.TryParse(stringVal, out bool b))
+                                    param.Value = b;
+                            }
+                            else
+                            {
+                                param.Value = stringVal;
+                            }
                         }
                     }
                 }
@@ -776,17 +843,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
         DeletePresetCommand = new RelayCommand(() =>
         {
-            if (SelectedPreset == null || SelectedPlan == null) return;
+            if (SelectedPreset == null) return;
             IsDeleteWarningVisible = true;
         });
 
         ConfirmDeletePresetCommand = new AsyncRelayCommand(async () =>
         {
-            if (SelectedPreset == null || SelectedPlan == null) return;
+            if (SelectedPreset == null) return;
             var config = ConfigurationService.Instance.GetConfig();
-            if (config.PlanPresets.TryGetValue(SelectedPlan.Name, out var presets))
+            if (config.Presets != null)
             {
-                presets.RemoveAll(p => p.Name == SelectedPreset.Name);
+                config.Presets.RemoveAll(p => p.Name == SelectedPreset.Name);
                 await ConfigurationService.Instance.SaveAsync(config);
                 LoadAvailablePresets();
             }
@@ -794,6 +861,14 @@ public partial class MainWindowViewModel : ViewModelBase
         });
 
         CancelDeletePresetCommand = new RelayCommand(() => IsDeleteWarningVisible = false);
+
+        AddPulseStepCommand = new RelayCommand(() => AddSequenceStep(StepType.Pulse));
+        AddPointStepCommand = new RelayCommand(() => AddSequenceStep(StepType.Point));
+        AddSweepStepCommand = new RelayCommand(() => AddSequenceStep(StepType.Sweep));
+        AddMeasureStepCommand = new RelayCommand(() => AddSequenceStep(StepType.Measure));
+        MoveStepUpCommand = new RelayCommand(MoveSelectedStepUp, () => SelectedSequenceStep != null);
+        MoveStepDownCommand = new RelayCommand(MoveSelectedStepDown, () => SelectedSequenceStep != null);
+        DeleteStepCommand = new RelayCommand(DeleteSelectedStep, () => SelectedSequenceStep != null);
 
         ResetAdvancedSettingsCommand = new RelayCommand(ResetAdvancedSettings);
         CurvePoints = Array.Empty<CurvePoint>();
@@ -2125,6 +2200,99 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private void AddSequenceStep(StepType type)
+    {
+        if (SelectedPlan is ModularSequenceMeasurementPlan modular)
+        {
+            SelectedPreset = null; // Clear preset
+            var step = new SequenceStep 
+            { 
+                Type = type,
+                WriteChannel = "2",
+                ReadingChannel = "2",
+                Compliance = 0.1,
+                AdcSamples = 1
+            };
+            if (type == StepType.Pulse)
+            {
+                step.BaseVoltage = 0.0;
+                step.PulseVoltage = 1.0;
+                step.PulseWidth = 0.001;
+                step.PulsePeriod = 0.01;
+            }
+            else if (type == StepType.Sweep)
+            {
+                step.Voltage = 0.0;
+                step.StopVoltage = 1.5;
+                step.Points = 41;
+                step.SweepMode = "Single Staircase (1)";
+            }
+            else if (type == StepType.Point)
+            {
+                step.Voltage = 1.0;
+            }
+            else if (type == StepType.Measure)
+            {
+                step.KeepCurrentVoltage = true;
+                step.Voltage = 0.0;
+            }
+
+            modular.Steps.Add(step);
+            SelectedSequenceStep = step;
+        }
+    }
+
+    private void MoveSelectedStepUp()
+    {
+        if (SelectedPlan is ModularSequenceMeasurementPlan modular && SelectedSequenceStep != null)
+        {
+            int index = modular.Steps.IndexOf(SelectedSequenceStep);
+            if (index > 0)
+            {
+                SelectedPreset = null; // Clear preset
+                var step = SelectedSequenceStep;
+                modular.Steps.RemoveAt(index);
+                modular.Steps.Insert(index - 1, step);
+                SelectedSequenceStep = step;
+            }
+        }
+    }
+
+    private void MoveSelectedStepDown()
+    {
+        if (SelectedPlan is ModularSequenceMeasurementPlan modular && SelectedSequenceStep != null)
+        {
+            int index = modular.Steps.IndexOf(SelectedSequenceStep);
+            if (index >= 0 && index < modular.Steps.Count - 1)
+            {
+                SelectedPreset = null; // Clear preset
+                var step = SelectedSequenceStep;
+                modular.Steps.RemoveAt(index);
+                modular.Steps.Insert(index + 1, step);
+                SelectedSequenceStep = step;
+            }
+        }
+    }
+
+    private void DeleteSelectedStep()
+    {
+        if (SelectedPlan is ModularSequenceMeasurementPlan modular && SelectedSequenceStep != null)
+        {
+            SelectedPreset = null; // Clear preset
+            int index = modular.Steps.IndexOf(SelectedSequenceStep);
+            modular.Steps.Remove(SelectedSequenceStep);
+            if (modular.Steps.Count > 0)
+            {
+                int newIndex = Math.Clamp(index, 0, modular.Steps.Count - 1);
+                SelectedSequenceStep = modular.Steps[newIndex];
+            }
+            else
+            {
+                SelectedSequenceStep = null;
+            }
+        }
+    }
+
     /// <summary>
     /// Reloads measurement plans to reflect new parameter defaults.
     /// </summary>
@@ -2137,11 +2305,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void LoadAvailablePresets()
     {
-        if (SelectedPlan == null) return;
         var config = ConfigurationService.Instance.GetConfig();
-        if (config.PlanPresets != null && config.PlanPresets.TryGetValue(SelectedPlan.Name, out var presets))
+        if (config.Presets != null)
         {
-            AvailablePresets = new ObservableCollection<MeasurementPreset>(presets);
+            AvailablePresets = new ObservableCollection<MeasurementPreset>(config.Presets);
         }
         else
         {
@@ -2187,29 +2354,32 @@ public partial class MainWindowViewModel : ViewModelBase
         if (SelectedPlan == null) return;
 
         var config = ConfigurationService.Instance.GetConfig();
-        if (!config.PlanPresets.TryGetValue(SelectedPlan.Name, out var presets))
+        if (config.Presets == null)
         {
-            presets = new List<MeasurementPreset>();
-            config.PlanPresets[SelectedPlan.Name] = presets;
+            config.Presets = new List<MeasurementPreset>();
         }
 
-        var existing = presets.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        var existing = config.Presets.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
         if (existing != null)
         {
-            presets.Remove(existing);
+            config.Presets.Remove(existing);
         }
 
-        var newPreset = new MeasurementPreset { Name = name };
+        var newPreset = new MeasurementPreset 
+        { 
+            Name = name,
+            PlanName = SelectedPlan.Name
+        };
         foreach (var param in SelectedPlan.Parameters)
         {
             newPreset.Parameters[param.Name] = param.GetValueAsString() ?? string.Empty;
         }
 
-        presets.Add(newPreset);
+        config.Presets.Add(newPreset);
         await ConfigurationService.Instance.SaveAsync(config);
         
         LoadAvailablePresets();
-        SelectedPreset = AvailablePresets.FirstOrDefault(p => p.Name == name);
+        SelectedPreset = config.Presets.FirstOrDefault(p => p.Name == name);
         NewPresetName = string.Empty;
     }
 
@@ -2429,7 +2599,32 @@ public partial class MainWindowViewModel : ViewModelBase
     public ResultContactViewModel? SelectedResultContact
     {
         get => _selectedResultContact;
-        set => SetProperty(ref _selectedResultContact, value);
+        set
+        {
+            if (SetProperty(ref _selectedResultContact, value))
+            {
+                UpdateSelectedMemristorCheckResult();
+            }
+        }
+    }
+
+    private MemristorCheckResult? _selectedMemristorCheckResult;
+    public MemristorCheckResult? SelectedMemristorCheckResult
+    {
+        get => _selectedMemristorCheckResult;
+        set => SetProperty(ref _selectedMemristorCheckResult, value);
+    }
+
+    private void UpdateSelectedMemristorCheckResult()
+    {
+        if (_selectedResultContact != null && _selectedResultContact.CurveData != null && _selectedResultContact.CurveData.Count > 0)
+        {
+            SelectedMemristorCheckResult = MemristorCheckService.Calculate(_selectedResultContact.CurveData);
+        }
+        else
+        {
+            SelectedMemristorCheckResult = null;
+        }
     }
 
     private List<string> _availableResultMetrics = new() { "Average Resistance", "Max Current", "Max Voltage", "Gap At Voltage", "Memristor Check" };
@@ -2861,147 +3056,27 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         else if (metric == "Memristor Check")
         {
-            return CalculateMemristorCheck(points);
+            var result = MemristorCheckService.Calculate(points);
+            return result.Score3;
         }
 
         return double.NaN;
     }
 
     // --- Memristor Check Helper Methods ---
-    
-    private double GetMedian(IEnumerable<double> source)
-    {
-        var sorted = source.OrderBy(x => x).ToList();
-        if (sorted.Count == 0) return 0;
-        int mid = sorted.Count / 2;
-        if (sorted.Count % 2 == 0) return (sorted[mid - 1] + sorted[mid]) / 2.0;
-        return sorted[mid];
-    }
-
-    private double GetStdDev(IEnumerable<double> source)
-    {
-        var list = source.ToList();
-        if (list.Count < 2) return 0;
-        double avg = list.Average();
-        double sum = list.Sum(d => (d - avg) * (d - avg));
-        return Math.Sqrt(sum / (list.Count - 1));
-    }
 
     private string GetMetricLabel(string metric, double value)
     {
         if (double.IsNaN(value)) return string.Empty;
         if (metric == "Memristor Check")
         {
-            if (value >= 3) return "True memristive I-V curve";
-            if (value >= 2) return "Uncertain";
-            return "Probably noise";
+            if (value < 0.75) return "Schlecht / vermutlich Rauschen";
+            if (value < 1.35) return "Signal, aber schwach";
+            if (value < 1.95) return "Möglicher Kandidat";
+            if (value <= 2.40) return "Guter Kandidat";
+            return "Sehr guter Kandidat";
         }
         return string.Empty;
-    }
-
-    private double Interpolate(List<CurvePoint> sortedPoints, double targetV)
-    {
-        if (sortedPoints.Count == 0) return 0;
-        if (targetV <= sortedPoints.First().Voltage) return sortedPoints.First().Current;
-        if (targetV >= sortedPoints.Last().Voltage) return sortedPoints.Last().Current;
-
-        for (int i = 0; i < sortedPoints.Count - 1; i++)
-        {
-            var p1 = sortedPoints[i];
-            var p2 = sortedPoints[i + 1];
-
-            if (targetV >= p1.Voltage && targetV <= p2.Voltage)
-            {
-                if (Math.Abs(p2.Voltage - p1.Voltage) < 1e-12) return p1.Current;
-                double fraction = (targetV - p1.Voltage) / (p2.Voltage - p1.Voltage);
-                return p1.Current + fraction * (p2.Current - p1.Current);
-            }
-        }
-        return 0;
-    }
-
-    private double CalculateMemristorCheck(List<CurvePoint> points)
-    {
-        if (points.Count == 0) return double.NaN;
-
-        // Extract V and I
-        var V = points.Select(p => p.Voltage).ToArray();
-        var I = points.Select(p => p.Current).ToArray();
-
-        // 1. Noise estimation near 0 V
-        double vNoise = 0.05;
-        var noiseRegion = I.Where((_, i) => Math.Abs(V[i]) < vNoise).ToList();
-        double noiseStd = noiseRegion.Count > 0 ? GetStdDev(noiseRegion) : GetStdDev(I);
-        
-        double iMax = I.Max(i => Math.Abs(i));
-        double snr = noiseStd > 0 ? iMax / noiseStd : double.PositiveInfinity;
-
-        // 2. Nonlinearity
-        var vAbs = V.Select(v => Math.Abs(v)).ToArray();
-        double maxV = vAbs.Max();
-        
-        var iHigh = I.Where((_, i) => vAbs[i] > 0.8 * maxV).Select(i => Math.Abs(i)).ToList();
-        var iLow = I.Where((_, i) => vAbs[i] < 0.2 * maxV).Select(i => Math.Abs(i)).ToList();
-
-        double medianHigh = GetMedian(iHigh);
-        double medianLow = GetMedian(iLow) + 1e-30; // Avoid div 0
-        double nonlinearity = medianHigh / medianLow;
-
-        // 3. Hysteresis
-        List<CurvePoint> upSweep = new();
-        List<CurvePoint> downSweep = new();
-
-        for (int i = 0; i < points.Count; i++)
-        {
-            if (i == 0)
-            {
-                if (points.Count > 1 && points[1].Voltage >= points[0].Voltage) upSweep.Add(points[i]);
-                else downSweep.Add(points[i]);
-            }
-            else
-            {
-                if (points[i].Voltage >= points[i - 1].Voltage) upSweep.Add(points[i]);
-                else downSweep.Add(points[i]);
-            }
-        }
-
-        double hysteresis = 0;
-        if (upSweep.Count > 5 && downSweep.Count > 5)
-        {
-            upSweep = upSweep.OrderBy(p => p.Voltage).ToList();
-            downSweep = downSweep.OrderBy(p => p.Voltage).ToList();
-
-            double vCommonMin = Math.Max(upSweep.First().Voltage, downSweep.First().Voltage);
-            double vCommonMax = Math.Min(upSweep.Last().Voltage, downSweep.Last().Voltage);
-
-            if (vCommonMax > vCommonMin)
-            {
-                int gridPoints = 300;
-                double step = (vCommonMax - vCommonMin) / (gridPoints - 1);
-                
-                double hystArea = 0;
-                double normArea = 0;
-
-                for (int i = 0; i < gridPoints; i++)
-                {
-                    double v = vCommonMin + i * step;
-                    double iUp = Interpolate(upSweep, v);
-                    double iDown = Interpolate(downSweep, v);
-                    
-                    hystArea += Math.Abs(iUp - iDown);
-                    normArea += Math.Abs(iUp) + Math.Abs(iDown);
-                }
-
-                if (normArea > 0) hysteresis = hystArea / normArea;
-            }
-        }
-
-        int score = 0;
-        if (snr > 10) score++;
-        if (nonlinearity > 3) score++;
-        if (hysteresis > 0.15) score++;
-
-        return score;
     }
 
     // --- Global Progress Properties ---

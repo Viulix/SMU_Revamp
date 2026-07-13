@@ -53,6 +53,22 @@ namespace SMU_Revamp.Services
                 {
                     var json = await File.ReadAllTextAsync(_configPath);
                     _config = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
+
+                    // Migrate PlanPresets to global Presets if Presets is empty and PlanPresets contains data
+                    if ((_config.Presets == null || _config.Presets.Count == 0) && _config.PlanPresets != null && _config.PlanPresets.Count > 0)
+                    {
+                        _config.Presets = new System.Collections.Generic.List<MeasurementPreset>();
+                        foreach (var kvp in _config.PlanPresets)
+                        {
+                            var planName = kvp.Key;
+                            foreach (var preset in kvp.Value)
+                            {
+                                preset.PlanName = planName;
+                                _config.Presets.Add(preset);
+                            }
+                        }
+                        await SaveAsync(_config);
+                    }
                 }
                 else
                 {
