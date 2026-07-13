@@ -20,6 +20,9 @@ namespace SMU_Revamp.ViewModels
 
     public class DatabaseLoadViewModel : ViewModelBase
     {
+        private static readonly System.Text.RegularExpressions.Regex WafermapRegex = 
+            new(@"Cell\d{2}\d{2}_R\dC\d_Contact\d", System.Text.RegularExpressions.RegexOptions.Compiled);
+
         private readonly DatabaseService _dbService;
 
         private ObservableCollection<DbNode> _rootNodes = new();
@@ -122,9 +125,17 @@ namespace SMU_Revamp.ViewModels
                         var byFolder = sampleGroup.GroupBy(m => m.FolderName).OrderByDescending(g => g.Max(m => m.Timestamp));
                         foreach (var folderGroup in byFolder)
                         {
+                            bool canLoadAsWafermap = folderGroup.Any(m => !string.IsNullOrEmpty(m.SourceFilename) && WafermapRegex.IsMatch(m.SourceFilename));
+                            
+                            string folderHeader = string.IsNullOrEmpty(folderGroup.Key) ? "Unknown Folder" : folderGroup.Key;
+                            if (canLoadAsWafermap)
+                            {
+                                folderHeader += " (Wafermap)";
+                            }
+
                             var folderNode = new DbNode { 
-                                Header = string.IsNullOrEmpty(folderGroup.Key) ? "Unknown Folder" : folderGroup.Key,
-                                IsFolderNode = true 
+                                Header = folderHeader,
+                                IsFolderNode = canLoadAsWafermap 
                             };
 
                             var byPlan = folderGroup.GroupBy(m => m.PlanName).OrderByDescending(g => g.Max(m => m.Timestamp));

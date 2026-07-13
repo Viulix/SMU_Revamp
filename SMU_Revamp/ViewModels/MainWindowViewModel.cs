@@ -2864,6 +2864,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 RecalculateResultMetrics();
                 IsResultFolderLoaded = true;
+                SelectedTabIndex = 3; // Auto switch to Result tab
                 NotificationRequested?.Invoke("Success", $"Loaded {measurements.Count} measurements from database.", null);
             }
             else

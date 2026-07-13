@@ -72,6 +72,10 @@ public partial class ViewerTabView : UserControl
             {
                 await vm.LoadMeasurementFromDatabaseAsync(id);
             };
+            dbViewModel.RequestLoadWafermap = async (measurements) => 
+            {
+                await vm.LoadWafermapFromDatabaseAsync(measurements);
+            };
 
             var parentWindow = TopLevel.GetTopLevel(this) as Window;
             if (parentWindow != null)
