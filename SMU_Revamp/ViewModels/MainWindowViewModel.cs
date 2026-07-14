@@ -353,7 +353,7 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _targetContact, value);
     }
 
-    private bool _stayHere;
+    private bool _stayHere = true;
     public bool StayHere
     {
         get => _stayHere;
