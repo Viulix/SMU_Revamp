@@ -2730,6 +2730,7 @@ public partial class MainWindowViewModel : ViewModelBase
         get => _selectedResultMetric;
         set
         {
+            if (string.IsNullOrEmpty(value)) return;
             if (SetProperty(ref _selectedResultMetric, value))
             {
                 var config = ConfigurationService.Instance.GetConfig();
@@ -2796,6 +2797,7 @@ public partial class MainWindowViewModel : ViewModelBase
         get => _selectedHeatmapColorLow;
         set
         {
+            if (string.IsNullOrEmpty(value)) return;
             if (SetProperty(ref _selectedHeatmapColorLow, value))
             {
                 var config = ConfigurationService.Instance.GetConfig();
@@ -2812,6 +2814,7 @@ public partial class MainWindowViewModel : ViewModelBase
         get => _selectedHeatmapColorHigh;
         set
         {
+            if (string.IsNullOrEmpty(value)) return;
             if (SetProperty(ref _selectedHeatmapColorHigh, value))
             {
                 var config = ConfigurationService.Instance.GetConfig();

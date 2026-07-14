@@ -75,8 +75,10 @@ namespace SMU_Revamp.Services
                     _config = new AppConfig();
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Console.Error.WriteLine($"[ConfigurationService] Load failed: {ex}");
+                System.Diagnostics.Debug.WriteLine($"[ConfigurationService] Load failed: {ex}");
                 _config = new AppConfig();
             }
         }
@@ -93,9 +95,10 @@ namespace SMU_Revamp.Services
                 var json = JsonSerializer.Serialize(config, options);
                 await File.WriteAllTextAsync(_configPath, json);
             }
-            catch
+            catch (Exception ex)
             {
-                // Silently fail if save doesn't work
+                Console.Error.WriteLine($"[ConfigurationService] Save failed: {ex}");
+                System.Diagnostics.Debug.WriteLine($"[ConfigurationService] Save failed: {ex}");
             }
         }
 
