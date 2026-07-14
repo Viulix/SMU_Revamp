@@ -162,6 +162,11 @@ public class AppConfig
     public double MemristorWeightBranchSep { get; set; } = 0.15;
     public double MemristorWeightPinch { get; set; } = 0.20;
     public double MemristorWeightSmoothness { get; set; } = 0.05;
+
+    // Visualization Result settings
+    public string SelectedResultMetric { get; set; } = "Average Resistance";
+    public double GapTargetVoltage { get; set; } = 1.0;
+    public bool UseAverageForMemristorCheck { get; set; } = false;
 }
 
 /// <summary>

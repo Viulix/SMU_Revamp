@@ -2549,6 +2549,17 @@ public partial class MainWindowViewModel : ViewModelBase
                 WaferScanPresetNames.Add(preset.Name);
             }
         }
+
+        // Load result visualization settings
+        if (!string.IsNullOrEmpty(config.SelectedResultMetric))
+        {
+            _selectedResultMetric = config.SelectedResultMetric;
+        }
+        _gapTargetVoltage = config.GapTargetVoltage;
+        _useAverageForMemristorCheck = config.UseAverageForMemristorCheck;
+
+        LoadAvailablePresets();
+        LoadLastConfig();
     }
 
     private async Task SaveAutoSaveSettingAsync(bool value)
@@ -2697,6 +2708,10 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (SetProperty(ref _selectedResultMetric, value))
             {
+                var config = ConfigurationService.Instance.GetConfig();
+                config.SelectedResultMetric = value;
+                _ = ConfigurationService.Instance.SaveAsync(config);
+
                 RecalculateResultMetrics();
                 OnPropertyChanged(nameof(IsGapMetricSelected));
                 OnPropertyChanged(nameof(IsMemristorCheckSelected));
@@ -2715,6 +2730,10 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (SetProperty(ref _useAverageForMemristorCheck, value))
             {
+                var config = ConfigurationService.Instance.GetConfig();
+                config.UseAverageForMemristorCheck = value;
+                _ = ConfigurationService.Instance.SaveAsync(config);
+
                 RecalculateResultMetrics();
             }
         }
@@ -2728,6 +2747,10 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (SetProperty(ref _gapTargetVoltage, value))
             {
+                var config = ConfigurationService.Instance.GetConfig();
+                config.GapTargetVoltage = value;
+                _ = ConfigurationService.Instance.SaveAsync(config);
+
                 if (IsGapMetricSelected)
                 {
                     RecalculateResultMetrics();
