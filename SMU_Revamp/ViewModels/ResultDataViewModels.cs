@@ -61,12 +61,14 @@ public partial class ResultSubCellViewModel : ObservableObject
     [ObservableProperty]
     private string _metricLabel = string.Empty;
 
-    public void RecalculateValue()
+    public void RecalculateValue(bool useMaxAggregation = false)
     {
         var validContacts = Contacts.Where(c => !double.IsNaN(c.AggregatedValue)).ToList();
         if (validContacts.Any())
         {
-            AggregatedValue = validContacts.Average(c => c.AggregatedValue);
+            AggregatedValue = useMaxAggregation 
+                ? validContacts.Max(c => c.AggregatedValue) 
+                : validContacts.Average(c => c.AggregatedValue);
         }
         else
         {
@@ -102,12 +104,14 @@ public partial class ResultCellViewModel : ObservableObject
     [ObservableProperty]
     private string _metricLabel = string.Empty;
 
-    public void RecalculateValue()
+    public void RecalculateValue(bool useMaxAggregation = false)
     {
         var validSubCells = SubCells.Where(s => !double.IsNaN(s.AggregatedValue)).ToList();
         if (validSubCells.Any())
         {
-            AggregatedValue = validSubCells.Average(s => s.AggregatedValue);
+            AggregatedValue = useMaxAggregation 
+                ? validSubCells.Max(s => s.AggregatedValue) 
+                : validSubCells.Average(s => s.AggregatedValue);
         }
         else
         {

@@ -93,6 +93,12 @@
                                                    Width="130" 
                                                    Height="32" />
                                 </StackPanel>
+
+                                <CheckBox Content="Use Average Score" 
+                                          IsChecked="{Binding UseAverageForMemristorCheck}"
+                                          IsVisible="{Binding IsMemristorCheckSelected}"
+                                          Margin="10,0,0,0"
+                                          VerticalAlignment="Center" />
                             </StackPanel>
 
                             <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">

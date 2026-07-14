@@ -2644,11 +2644,26 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 RecalculateResultMetrics();
                 OnPropertyChanged(nameof(IsGapMetricSelected));
+                OnPropertyChanged(nameof(IsMemristorCheckSelected));
             }
         }
     }
 
     public bool IsGapMetricSelected => SelectedResultMetric == "Gap At Voltage";
+    public bool IsMemristorCheckSelected => SelectedResultMetric == "Memristor Check";
+
+    private bool _useAverageForMemristorCheck = false;
+    public bool UseAverageForMemristorCheck
+    {
+        get => _useAverageForMemristorCheck;
+        set
+        {
+            if (SetProperty(ref _useAverageForMemristorCheck, value))
+            {
+                RecalculateResultMetrics();
+            }
+        }
+    }
 
     private double _gapTargetVoltage = 0.6;
     public double GapTargetVoltage
@@ -2914,6 +2929,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void RecalculateResultMetrics()
     {
+        bool useMaxAggregation = SelectedResultMetric == "Memristor Check" && !UseAverageForMemristorCheck;
+
         // 1. Calculate values for every single Contact
         foreach (var cell in ResultCells)
         {
@@ -2924,10 +2941,10 @@ public partial class MainWindowViewModel : ViewModelBase
                     contact.AggregatedValue = CalculateMetric(contact.CurveData, SelectedResultMetric);
                 }
                 // 2. Aggregate to SubCell
-                subCell.RecalculateValue();
+                subCell.RecalculateValue(useMaxAggregation);
             }
             // 3. Aggregate to Cell
-            cell.RecalculateValue();
+            cell.RecalculateValue(useMaxAggregation);
         }
 
         // 4. Find global min / max on Cell level
