@@ -800,6 +800,13 @@ public partial class MainWindowViewModel : ViewModelBase
             _selectedHeatmapColorHigh = config.VisualizationHeatmapColorHigh;
         }
 
+        _memristorWeightSnr = config.MemristorWeightSnr;
+        _memristorWeightNonlinearity = config.MemristorWeightNonlinearity;
+        _memristorWeightHysteresis = config.MemristorWeightHysteresis;
+        _memristorWeightBranchSep = config.MemristorWeightBranchSep;
+        _memristorWeightPinch = config.MemristorWeightPinch;
+        _memristorWeightSmoothness = config.MemristorWeightSmoothness;
+
         for (int i = 1; i <= 6; i++)
         {
             Contacts.Add(new ContactViewModel(i.ToString(), true));
@@ -2558,6 +2565,10 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _isResultFolderLoaded, value);
     }
 
+    private int? _lastSelectedSubCellRow;
+    private int? _lastSelectedSubCellCol;
+    private int? _lastSelectedContactNumber;
+
     private ResultCellViewModel? _selectedResultCell;
     public ResultCellViewModel? SelectedResultCell
     {
@@ -2567,8 +2578,25 @@ public partial class MainWindowViewModel : ViewModelBase
             if (_selectedResultCell != null) _selectedResultCell.IsSelected = false;
             if (SetProperty(ref _selectedResultCell, value))
             {
-                if (_selectedResultCell != null) _selectedResultCell.IsSelected = true;
-                SelectedResultSubCell = null;
+                if (_selectedResultCell != null) 
+                {
+                    _selectedResultCell.IsSelected = true;
+                    
+                    ResultSubCellViewModel? nextSubCell = null;
+                    if (_lastSelectedSubCellRow.HasValue && _lastSelectedSubCellCol.HasValue)
+                    {
+                        nextSubCell = _selectedResultCell.SubCells.FirstOrDefault(s => s.Row == _lastSelectedSubCellRow.Value && s.Col == _lastSelectedSubCellCol.Value);
+                    }
+                    if (nextSubCell == null)
+                    {
+                        nextSubCell = _selectedResultCell.SubCells.FirstOrDefault();
+                    }
+                    SelectedResultSubCell = nextSubCell;
+                }
+                else
+                {
+                    SelectedResultSubCell = null;
+                }
             }
         }
     }
@@ -2585,7 +2613,19 @@ public partial class MainWindowViewModel : ViewModelBase
                 if (_selectedResultSubCell != null) 
                 {
                     _selectedResultSubCell.IsSelected = true;
-                    SelectedResultContact = _selectedResultSubCell.Contacts.FirstOrDefault();
+                    _lastSelectedSubCellRow = _selectedResultSubCell.Row;
+                    _lastSelectedSubCellCol = _selectedResultSubCell.Col;
+
+                    ResultContactViewModel? nextContact = null;
+                    if (_lastSelectedContactNumber.HasValue)
+                    {
+                        nextContact = _selectedResultSubCell.Contacts.FirstOrDefault(c => c.ContactNumber == _lastSelectedContactNumber.Value);
+                    }
+                    if (nextContact == null)
+                    {
+                        nextContact = _selectedResultSubCell.Contacts.FirstOrDefault();
+                    }
+                    SelectedResultContact = nextContact;
                 }
                 else
                 {
@@ -2603,6 +2643,10 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (SetProperty(ref _selectedResultContact, value))
             {
+                if (_selectedResultContact != null)
+                {
+                    _lastSelectedContactNumber = _selectedResultContact.ContactNumber;
+                }
                 UpdateSelectedMemristorCheckResult();
             }
         }
@@ -2716,6 +2760,108 @@ public partial class MainWindowViewModel : ViewModelBase
                 config.VisualizationHeatmapColorHigh = value;
                 _ = ConfigurationService.Instance.SaveAsync(config);
                 RecalculateResultMetrics();
+            }
+        }
+    }
+
+    private double _memristorWeightSnr = 0.20;
+    public double MemristorWeightSnr
+    {
+        get => _memristorWeightSnr;
+        set
+        {
+            if (SetProperty(ref _memristorWeightSnr, value))
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                config.MemristorWeightSnr = value;
+                _ = ConfigurationService.Instance.SaveAsync(config);
+                RecalculateResultMetrics();
+                UpdateSelectedMemristorCheckResult();
+            }
+        }
+    }
+
+    private double _memristorWeightNonlinearity = 0.15;
+    public double MemristorWeightNonlinearity
+    {
+        get => _memristorWeightNonlinearity;
+        set
+        {
+            if (SetProperty(ref _memristorWeightNonlinearity, value))
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                config.MemristorWeightNonlinearity = value;
+                _ = ConfigurationService.Instance.SaveAsync(config);
+                RecalculateResultMetrics();
+                UpdateSelectedMemristorCheckResult();
+            }
+        }
+    }
+
+    private double _memristorWeightHysteresis = 0.25;
+    public double MemristorWeightHysteresis
+    {
+        get => _memristorWeightHysteresis;
+        set
+        {
+            if (SetProperty(ref _memristorWeightHysteresis, value))
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                config.MemristorWeightHysteresis = value;
+                _ = ConfigurationService.Instance.SaveAsync(config);
+                RecalculateResultMetrics();
+                UpdateSelectedMemristorCheckResult();
+            }
+        }
+    }
+
+    private double _memristorWeightBranchSep = 0.15;
+    public double MemristorWeightBranchSep
+    {
+        get => _memristorWeightBranchSep;
+        set
+        {
+            if (SetProperty(ref _memristorWeightBranchSep, value))
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                config.MemristorWeightBranchSep = value;
+                _ = ConfigurationService.Instance.SaveAsync(config);
+                RecalculateResultMetrics();
+                UpdateSelectedMemristorCheckResult();
+            }
+        }
+    }
+
+    private double _memristorWeightPinch = 0.20;
+    public double MemristorWeightPinch
+    {
+        get => _memristorWeightPinch;
+        set
+        {
+            if (SetProperty(ref _memristorWeightPinch, value))
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                config.MemristorWeightPinch = value;
+                _ = ConfigurationService.Instance.SaveAsync(config);
+                RecalculateResultMetrics();
+                UpdateSelectedMemristorCheckResult();
+            }
+        }
+    }
+
+    private double _memristorWeightSmoothness = 0.05;
+    public double MemristorWeightSmoothness
+    {
+        get => _memristorWeightSmoothness;
+        set
+        {
+            if (SetProperty(ref _memristorWeightSmoothness, value))
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                config.MemristorWeightSmoothness = value;
+                _ = ConfigurationService.Instance.SaveAsync(config);
+                RecalculateResultMetrics();
+                UpdateSelectedMemristorCheckResult();
             }
         }
     }

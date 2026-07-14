@@ -99,6 +99,48 @@
                                           IsVisible="{Binding IsMemristorCheckSelected}"
                                           Margin="10,0,0,0"
                                           VerticalAlignment="Center" />
+
+                                <Button Content="Configure Weights..." 
+                                        IsVisible="{Binding IsMemristorCheckSelected}"
+                                        Margin="10,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Classes="Secondary">
+                                    <Button.Flyout>
+                                        <Flyout Placement="BottomEdgeAlignedLeft">
+                                            <StackPanel Spacing="12" Width="260">
+                                                <TextBlock Text="Memristor Check Weights" FontWeight="Bold" FontSize="14" Margin="0,0,0,5" />
+                                                
+                                                <Grid ColumnDefinitions="*,80" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                                                    <!-- SNR -->
+                                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="SNR Weight:" VerticalAlignment="Center" Margin="0,0,0,8" />
+                                                    <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding MemristorWeightSnr}" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00" Height="28" ShowButtonSpinner="False" Margin="0,0,0,8" />
+                                                    
+                                                    <!-- Nonlinearity -->
+                                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Nonlinearity:" VerticalAlignment="Center" Margin="0,0,0,8" />
+                                                    <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding MemristorWeightNonlinearity}" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00" Height="28" ShowButtonSpinner="False" Margin="0,0,0,8" />
+                                                    
+                                                    <!-- Hysteresis -->
+                                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Hysteresis:" VerticalAlignment="Center" Margin="0,0,0,8" />
+                                                    <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding MemristorWeightHysteresis}" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00" Height="28" ShowButtonSpinner="False" Margin="0,0,0,8" />
+                                                    
+                                                    <!-- Branch Separation -->
+                                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Branch Sep:" VerticalAlignment="Center" Margin="0,0,0,8" />
+                                                    <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding MemristorWeightBranchSep}" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00" Height="28" ShowButtonSpinner="False" Margin="0,0,0,8" />
+                                                    
+                                                    <!-- Pinch -->
+                                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Pinch Error:" VerticalAlignment="Center" Margin="0,0,0,8" />
+                                                    <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding MemristorWeightPinch}" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00" Height="28" ShowButtonSpinner="False" Margin="0,0,0,8" />
+                                                    
+                                                    <!-- Smoothness -->
+                                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Smoothness:" VerticalAlignment="Center" Margin="0,0,0,8" />
+                                                    <NumericUpDown Grid.Row="5" Grid.Column="1" Value="{Binding MemristorWeightSmoothness}" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00" Height="28" ShowButtonSpinner="False" Margin="0,0,0,8" />
+                                                </Grid>
+                                                
+                                                <TextBlock Text="Note: Weights are automatically normalized." FontSize="10" FontStyle="Italic" Foreground="Gray" Margin="0,5,0,0" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Flyout>
+                                    </Button.Flyout>
+                                </Button>
                             </StackPanel>
 
                             <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">

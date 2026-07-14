@@ -154,6 +154,14 @@ public class AppConfig
     /// Presets for wafer scans.
     /// </summary>
     public System.Collections.Generic.List<WaferScanPreset> WaferScanPresets { get; set; } = new();
+
+    // Memristor Check weights
+    public double MemristorWeightSnr { get; set; } = 0.20;
+    public double MemristorWeightNonlinearity { get; set; } = 0.15;
+    public double MemristorWeightHysteresis { get; set; } = 0.25;
+    public double MemristorWeightBranchSep { get; set; } = 0.15;
+    public double MemristorWeightPinch { get; set; } = 0.20;
+    public double MemristorWeightSmoothness { get; set; } = 0.05;
 }
 
 /// <summary>

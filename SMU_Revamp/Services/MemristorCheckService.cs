@@ -366,15 +366,15 @@ namespace SMU_Revamp.Services
                 hysteresisScore *= Math.Max(0.2, branchSepScore);
             }
 
-            // 6. Gewichteter Gesamtscore.
+            var config = ConfigurationService.Instance.GetConfig();
             var weightedScores = new List<(double score, double weight)>
             {
-                (snrScore, 0.20),
-                (nonlinearityScore, 0.15),
-                (hysteresisScore, 0.25),
-                (branchSepScore, 0.15),
-                (pinchScore, 0.20),
-                (smoothnessScore, 0.05)
+                (snrScore, config.MemristorWeightSnr),
+                (nonlinearityScore, config.MemristorWeightNonlinearity),
+                (hysteresisScore, config.MemristorWeightHysteresis),
+                (branchSepScore, config.MemristorWeightBranchSep),
+                (pinchScore, config.MemristorWeightPinch),
+                (smoothnessScore, config.MemristorWeightSmoothness)
             };
 
             double score01 = WeightedMeanIgnoringNaN(weightedScores);
