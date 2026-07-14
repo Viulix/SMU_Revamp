@@ -36,6 +36,10 @@ public partial class ResultTabView : UserControl
         if (DataContext is MainWindowViewModel vm)
         {
             var dbViewModel = new DatabaseLoadViewModel();
+            dbViewModel.RequestLoadMeasurement = async (id) => 
+            {
+                await vm.LoadMeasurementFromDatabaseAsync(id);
+            };
             dbViewModel.RequestLoadWafermap = async (measurements) => 
             {
                 await vm.LoadWafermapFromDatabaseAsync(measurements);

@@ -938,6 +938,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
         SetSelectedResultCellCommand = new RelayCommand<ResultCellViewModel>(c => SelectedResultCell = c);
         SetSelectedResultSubCellCommand = new RelayCommand<ResultSubCellViewModel>(c => SelectedResultSubCell = c);
+        ResetMemristorWeightsCommand = new RelayCommand(() =>
+        {
+            MemristorWeightSnr = 0.20;
+            MemristorWeightNonlinearity = 0.15;
+            MemristorWeightHysteresis = 0.25;
+            MemristorWeightBranchSep = 0.15;
+            MemristorWeightPinch = 0.20;
+            MemristorWeightSmoothness = 0.05;
+        });
 
         LoadScanFolderCommand = new AsyncRelayCommand(async () =>
         {
@@ -1889,6 +1898,8 @@ public partial class MainWindowViewModel : ViewModelBase
             IsMeasurementLogarithmic = plan.ShowLogPlot;
 
             MeasurementStatus = $"Finished. Data loaded from database (ID: {measurementId}).";
+            
+            SelectedTabIndex = 0; // Auto switch to Viewer tab
             
             NotificationRequested?.Invoke(
                 "Load Successful",
@@ -2882,6 +2893,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public ICommand LoadScanFolderCommand { get; }
     public ICommand SetSelectedResultCellCommand { get; }
     public ICommand SetSelectedResultSubCellCommand { get; }
+    public ICommand ResetMemristorWeightsCommand { get; }
 
     private void InitializeResultTab()
     {
@@ -2975,6 +2987,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public async Task LoadWafermapFromDatabaseAsync(List<Services.DatabaseService.MeasurementSummary> measurements)
     {
+        SelectedTabIndex = 3; // Switch to Result tab immediately so they see the loading overlay!
         IsLoadingResultData = true;
         await Task.Delay(50); // Yield to UI to show loading overlay
 
@@ -3025,7 +3038,6 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 RecalculateResultMetrics();
                 IsResultFolderLoaded = true;
-                SelectedTabIndex = 3; // Auto switch to Result tab
                 NotificationRequested?.Invoke("Success", $"Loaded {measurements.Count} measurements from database.", null);
             }
             else
