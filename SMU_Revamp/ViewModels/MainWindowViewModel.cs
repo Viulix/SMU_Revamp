@@ -2550,13 +2550,37 @@ public partial class MainWindowViewModel : ViewModelBase
             }
         }
 
-        // Load result visualization settings
+        // Load result visualization settings using public properties to trigger UI and recalculation!
         if (!string.IsNullOrEmpty(config.SelectedResultMetric))
         {
-            _selectedResultMetric = config.SelectedResultMetric;
+            SelectedResultMetric = config.SelectedResultMetric;
         }
-        _gapTargetVoltage = config.GapTargetVoltage;
-        _useAverageForMemristorCheck = config.UseAverageForMemristorCheck;
+        GapTargetVoltage = config.GapTargetVoltage;
+        UseAverageForMemristorCheck = config.UseAverageForMemristorCheck;
+
+        if (!string.IsNullOrEmpty(config.VisualizationHeatmapColorLow))
+        {
+            SelectedHeatmapColorLow = config.VisualizationHeatmapColorLow;
+        }
+        if (!string.IsNullOrEmpty(config.VisualizationHeatmapColorHigh))
+        {
+            SelectedHeatmapColorHigh = config.VisualizationHeatmapColorHigh;
+        }
+
+        // Load Memristor check weights (use backing fields to avoid multiple saves, but raise property changed)
+        _memristorWeightSnr = config.MemristorWeightSnr;
+        _memristorWeightNonlinearity = config.MemristorWeightNonlinearity;
+        _memristorWeightHysteresis = config.MemristorWeightHysteresis;
+        _memristorWeightBranchSep = config.MemristorWeightBranchSep;
+        _memristorWeightPinch = config.MemristorWeightPinch;
+        _memristorWeightSmoothness = config.MemristorWeightSmoothness;
+
+        OnPropertyChanged(nameof(MemristorWeightSnr));
+        OnPropertyChanged(nameof(MemristorWeightNonlinearity));
+        OnPropertyChanged(nameof(MemristorWeightHysteresis));
+        OnPropertyChanged(nameof(MemristorWeightBranchSep));
+        OnPropertyChanged(nameof(MemristorWeightPinch));
+        OnPropertyChanged(nameof(MemristorWeightSmoothness));
 
         LoadAvailablePresets();
         LoadLastConfig();
