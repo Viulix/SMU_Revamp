@@ -1,0 +1,80 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SMU_Revamp.ViewModels"
+             x:Class="SMU_Revamp.Views.Controls.ResultSubCellsControl"
+             x:DataType="vm:MainWindowViewModel">
+    <Border Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8" Padding="20" Margin="0,0,20,0" VerticalAlignment="Top">
+        <StackPanel Spacing="20">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Sub-Cells (5x5)" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Text="Select a cell on the left first." IsVisible="{Binding SelectedResultCell, Converter={x:Static ObjectConverters.IsNull}}" FontStyle="Italic" Foreground="Gray" />
+                
+                <Viewbox Stretch="Uniform" HorizontalAlignment="Left" StretchDirection="DownOnly" MaxWidth="350" IsVisible="{Binding SelectedResultCell, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <Border Background="#F3F4F6" Padding="10" CornerRadius="8">
+                        <ItemsControl ItemsSource="{Binding SelectedResultCell.SubCells}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="5" Rows="5" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ResultSubCellViewModel">
+                                    <Border Width="65" Height="65" Margin="3" Background="{Binding Color}" CornerRadius="4" IsVisible="{Binding IsValid}" Classes.selected="{Binding IsSelected}">
+                                        <Border.Styles>
+                                            <Style Selector="Border.selected">
+                                                <Setter Property="BorderBrush" Value="#1F2937" />
+                                                <Setter Property="BorderThickness" Value="2" />
+                                            </Style>
+                                        </Border.Styles>
+                                        <ToolTip.Tip>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Id}" FontWeight="Bold" />
+                                                <TextBlock Text="{Binding FormattedValue}" />
+                                                <TextBlock Text="{Binding MetricLabel}" IsVisible="{Binding MetricLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" FontStyle="Italic" Foreground="Gray" />
+                                            </StackPanel>
+                                        </ToolTip.Tip>
+                                        <Grid>
+                                            <RadioButton GroupName="ResultSubCells"
+                                                         Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SetSelectedResultSubCellCommand}"
+                                                         CommandParameter="{Binding}"
+                                                         Opacity="0"
+                                                         HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                                            <TextBlock Text="{Binding Id}" FontSize="14" FontWeight="Bold" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </Viewbox>
+            </StackPanel>
+
+            <StackPanel Spacing="10" IsVisible="{Binding SelectedResultSubCell, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Text="Contacts" FontSize="16" FontWeight="SemiBold" />
+                <ListBox ItemsSource="{Binding SelectedResultSubCell.Contacts}"
+                         SelectedItem="{Binding SelectedResultContact}"
+                         Background="Transparent"
+                         BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ResultContactViewModel">
+                            <Border Background="{Binding Color}" CornerRadius="4" Padding="10,5" Margin="0,2">
+                                <ToolTip.Tip>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" />
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectedResultMetric}" FontWeight="SemiBold"/>
+                                            <TextBlock Text=":"/>
+                                            <TextBlock Text="{Binding FormattedValue}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding MetricLabel}" IsVisible="{Binding MetricLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" FontStyle="Italic" Foreground="Gray" />
+                                    </StackPanel>
+                                </ToolTip.Tip>
+                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="#1F2937" />
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

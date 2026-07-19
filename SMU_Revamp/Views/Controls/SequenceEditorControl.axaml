@@ -1,0 +1,152 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SMU_Revamp.ViewModels"
+             xmlns:models="using:SMU_Revamp.Models"
+             x:Class="SMU_Revamp.Views.Controls.SequenceEditorControl"
+             x:DataType="vm:MainWindowViewModel">
+    <StackPanel Spacing="10" IsVisible="{Binding IsModularPlanActive}" Margin="0,0,0,15">
+        <TextBlock Text="Sequence Steps" FontWeight="Bold" FontSize="14" Foreground="#374151" />
+        <ListBox ItemsSource="{Binding SelectedPlanSteps}" 
+                 SelectedItem="{Binding SelectedSequenceStep}" 
+                 Height="180" 
+                 BorderThickness="1" 
+                 BorderBrush="#D1D5DB" 
+                 CornerRadius="6"
+                 Background="#F9FAFB">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="models:SequenceStep">
+                    <TextBlock Text="{Binding Summary}" VerticalAlignment="Center" Margin="5" />
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
+            <Button Content="Move Up" Command="{Binding MoveStepUpCommand}" Margin="0,0,5,5" Classes="Secondary" Height="32" VerticalContentAlignment="Center" />
+            <Button Content="Move Down" Command="{Binding MoveStepDownCommand}" Margin="0,0,5,5" Classes="Secondary" Height="32" VerticalContentAlignment="Center" />
+            <Button Content="Delete" Command="{Binding DeleteStepCommand}" Margin="0,0,15,5" Classes="Danger" Height="32" VerticalContentAlignment="Center" />
+            
+            <Button Content="+ Pulse" Command="{Binding AddPulseStepCommand}" Margin="0,0,5,5" Classes="Primary" Height="32" VerticalContentAlignment="Center" />
+            <Button Content="+ Point" Command="{Binding AddPointStepCommand}" Margin="0,0,5,5" Classes="Primary" Height="32" VerticalContentAlignment="Center" />
+            <Button Content="+ Sweep" Command="{Binding AddSweepStepCommand}" Margin="0,0,5,5" Classes="Primary" Height="32" VerticalContentAlignment="Center" />
+            <Button Content="+ Measure" Command="{Binding AddMeasureStepCommand}" Margin="0,0,0,5" Classes="Primary" Height="32" VerticalContentAlignment="Center" />
+        </WrapPanel>
+
+        <!-- Step Editor Card -->
+        <Border Background="#F3F4F6" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="15" Margin="0,10,0,0" IsVisible="{Binding SelectedSequenceStep, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <StackPanel Spacing="10" DataContext="{Binding SelectedSequenceStep}">
+                <TextBlock Text="Selected Step Settings" FontWeight="SemiBold" FontSize="14" Foreground="#1F2937" Margin="0,0,0,5" />
+                
+                <!-- Common settings: Channels & Delay -->
+                <WrapPanel Orientation="Horizontal">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                        <TextBlock Text="Write CH:" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                        <TextBox Text="{Binding WriteChannel, Mode=TwoWay}" Width="60" Height="28" VerticalContentAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                        <TextBlock Text="Read CH:" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                        <TextBox Text="{Binding ReadingChannel, Mode=TwoWay}" Width="60" Height="28" VerticalContentAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                        <TextBlock Text="Delay (ms):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                        <TextBox Text="{Binding DelayMs, Mode=TwoWay}" Width="60" Height="28" VerticalContentAlignment="Center" />
+                    </StackPanel>
+                </WrapPanel>
+
+                <!-- Pulse step type -->
+                <StackPanel Spacing="8" IsVisible="{Binding IsPulseStep}">
+                    <WrapPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Base V (V):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding BaseVoltage, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Pulse V (V):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding PulseVoltage, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Width (s):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding PulseWidth, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Period (s):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding PulsePeriod, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Comp (A):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding Compliance, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                    </WrapPanel>
+                </StackPanel>
+
+                <!-- Point step type -->
+                <StackPanel Spacing="8" IsVisible="{Binding IsPointStep}">
+                    <WrapPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Voltage (V):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding Voltage, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Comp (A):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding Compliance, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="ADC (PLC):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding AdcSamples, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                    </WrapPanel>
+                </StackPanel>
+
+                <!-- Sweep step type -->
+                <StackPanel Spacing="8" IsVisible="{Binding IsSweepStep}">
+                    <WrapPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Start V (V):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding Voltage, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Stop V (V):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding StopVoltage, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Points:" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding Points, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Comp (A):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding Compliance, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="ADC (PLC):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding AdcSamples, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Mode:" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <ComboBox ItemsSource="{x:Static models:SequenceStep.SweepModeOptions}" SelectedItem="{Binding SweepMode, Mode=TwoWay}" Width="160" Height="30" />
+                        </StackPanel>
+                    </WrapPanel>
+                </StackPanel>
+
+                <!-- Measure step type -->
+                <StackPanel Spacing="8" IsVisible="{Binding IsMeasureStep}">
+                    <WrapPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <CheckBox Content="Keep Current Voltage" IsChecked="{Binding KeepCurrentVoltage, Mode=TwoWay}" Margin="0,0,15,0" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center" IsVisible="{Binding !KeepCurrentVoltage}">
+                            <TextBlock Text="Voltage (V):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding Voltage, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="Comp (A):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding Compliance, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,15,10" VerticalAlignment="Center">
+                            <TextBlock Text="ADC (PLC):" VerticalAlignment="Center" Width="90" Foreground="#4B5563" FontWeight="Medium" />
+                            <TextBox Text="{Binding AdcSamples, Mode=TwoWay}" Width="80" Height="28" VerticalContentAlignment="Center" />
+                        </StackPanel>
+                    </WrapPanel>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,50 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SMU_Revamp.ViewModels"
+             x:Class="SMU_Revamp.Views.Controls.ResultWafermapControl"
+             x:DataType="vm:MainWindowViewModel">
+    <Border Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8" Padding="20" Margin="0,0,20,0" VerticalAlignment="Top">
+        <StackPanel Spacing="10">
+            <TextBlock Text="Wafer Cells (16x16)" FontSize="16" FontWeight="SemiBold" />
+            <Viewbox Stretch="Uniform" HorizontalAlignment="Left" StretchDirection="DownOnly" MaxWidth="700">
+                <Border Background="#F3F4F6" Padding="15" CornerRadius="8">
+                    <ItemsControl ItemsSource="{Binding ResultCells}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="16" Rows="16" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ResultCellViewModel">
+                                <Border Width="42" Height="42" Margin="1" Background="{Binding Color}" CornerRadius="4" IsVisible="{Binding IsValid}" Classes.selected="{Binding IsSelected}">
+                                    <Border.Styles>
+                                        <Style Selector="Border.selected">
+                                            <Setter Property="BorderBrush" Value="#1F2937" />
+                                            <Setter Property="BorderThickness" Value="2" />
+                                        </Style>
+                                    </Border.Styles>
+                                    <ToolTip.Tip>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Id}" FontWeight="Bold" />
+                                            <TextBlock Text="{Binding FormattedValue}" />
+                                            <TextBlock Text="{Binding MetricLabel}" IsVisible="{Binding MetricLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" FontStyle="Italic" Foreground="Gray" />
+                                        </StackPanel>
+                                    </ToolTip.Tip>
+                                    <Grid>
+                                        <RadioButton GroupName="ResultCells" 
+                                                     IsChecked="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SelectedResultCell, Mode=OneWayToSource, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                     Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).SetSelectedResultCellCommand}"
+                                                     CommandParameter="{Binding}"
+                                                     Opacity="0"
+                                                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                                        <TextBlock Text="{Binding Id}" FontSize="9" FontWeight="Bold" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </Viewbox>
+        </StackPanel>
+    </Border>
+</UserControl>

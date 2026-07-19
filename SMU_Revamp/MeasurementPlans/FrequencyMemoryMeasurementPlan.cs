@@ -19,22 +19,20 @@ namespace SMU_Revamp.MeasurementPlans
     /// sample standard deviation over repetitions.
     /// CSV output: one row per individual trial, preserving all raw repetition data.
     /// </summary>
-    public sealed class FrequencyMemoryMeasurementPlan : IMeasurementPlan
+    public sealed class FrequencyMemoryMeasurementPlan : MeasurementPlanBase
     {
-        public string Name => "Frequency Memory";
-        public string Description => "Applies fixed spike trains with linearly varied inter-spike interval, reads after a fixed delay, and resets with a negative I-V sweep.";
+        public override string Name => "Frequency Memory";
+        public override string Description => "Applies fixed spike trains with linearly varied inter-spike interval, reads after a fixed delay, and resets with a negative I-V sweep.";
 
-        public string PlotTitle => "Frequency Memory Response";
-        public string XAxisLabel => "Inter-spike interval (ms)";
-        public string YAxisLabel => GetParamValueBool("BaselineReadEnabled") ? "Mean Δ Read Current (A)" : "Mean Read Current (A)";
-        public bool ShowLogPlot => false;
-        public double PlotAspectRatio => 1.777;
+        public override string PlotTitle => "Frequency Memory Response";
+        public override string XAxisLabel => "Inter-spike interval (ms)";
+        public override string YAxisLabel => GetParamValueBool("BaselineReadEnabled") ? "Mean Δ Read Current (A)" : "Mean Read Current (A)";
+        public override bool ShowLogPlot => false;
+        public override double PlotAspectRatio => 1.777;
 
-        public List<MeasurementParameter> Parameters { get; }
-        public List<CurvePoint> ResultPoints { get; } = new();
         private List<FrequencyMemoryTrialResult> TrialResults { get; } = new();
 
-        public IReadOnlyList<PlotSeries> PlotSeries
+        public override IReadOnlyList<PlotSeries> PlotSeries
         {
             get
             {
@@ -45,10 +43,7 @@ namespace SMU_Revamp.MeasurementPlans
             }
         }
 
-        private string GetParamValueString(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsString() ?? string.Empty;
-        private double GetParamValueDouble(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsDouble() ?? 0.0;
-        private int GetParamValueInt(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsInt() ?? 0;
-        private bool GetParamValueBool(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsBool() ?? false;
+
 
         public FrequencyMemoryMeasurementPlan()
         {
@@ -79,63 +74,29 @@ namespace SMU_Revamp.MeasurementPlans
             LoadDefaults();
         }
 
-        public void LoadDefaults()
+        protected override Dictionary<string, object> GetParameterDefaults()
         {
-            var config = ConfigurationService.Instance.GetConfig();
-            foreach (var param in Parameters)
+            return new Dictionary<string, object>
             {
-                switch (param.Name)
-                {
-                    case "WriteChannel":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "WriteChannel", config.SweepChannel);
-                        break;
-                    case "ReadingChannel":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadingChannel", config.SweepChannel);
-                        break;
-                    case "InputSpikeVoltage":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "InputSpikeVoltage", 1.0);
-                        break;
-                    case "InputSpikeLengthMs":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "InputSpikeLengthMs", 10.0);
-                        break;
-                    case "InputSpikeCount":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "InputSpikeCount", 10);
-                        break;
-                    case "MinInterSpikeIntervalMs":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "MinInterSpikeIntervalMs", 0.0);
-                        break;
-                    case "MaxInterSpikeIntervalMs":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "MaxInterSpikeIntervalMs", 200.0);
-                        break;
-                    case "IntervalValueCount":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "IntervalValueCount", 11);
-                        break;
-                    case "DelayBeforeMeasurementMs":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "DelayBeforeMeasurementMs", 1000.0);
-                        break;
-                    case "ReadoutVoltage":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadoutVoltage", 0.3);
-                        break;
-                    case "ReadoutLengthMs":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadoutLengthMs", 20.0);
-                        break;
-                    case "BaselineReadEnabled":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "BaselineReadEnabled", true);
-                        break;
-                    case "ResetSweepMinimum":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ResetSweepMinimum", -1.0);
-                        break;
-                    case "RepetitionsPerInterval":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "RepetitionsPerInterval", 3);
-                        break;
-                    case "Compliance":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Compliance", config.SweepCompliance);
-                        break;
-                }
-            }
+                { "WriteChannel", "1" },
+                { "ReadingChannel", "1" },
+                { "InputSpikeVoltage", 1.0 },
+                { "InputSpikeLengthMs", 10.0 },
+                { "InputSpikeCount", 10 },
+                { "MinInterSpikeIntervalMs", 0.0 },
+                { "MaxInterSpikeIntervalMs", 200.0 },
+                { "IntervalValueCount", 11 },
+                { "DelayBeforeMeasurementMs", 1000.0 },
+                { "ReadoutVoltage", 0.3 },
+                { "ReadoutLengthMs", 20.0 },
+                { "BaselineReadEnabled", true },
+                { "ResetSweepMinimum", -1.0 },
+                { "RepetitionsPerInterval", 3 },
+                { "Compliance", 0.01 }
+            };
         }
 
-        public async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
         {
             ResultPoints.Clear();
             TrialResults.Clear();

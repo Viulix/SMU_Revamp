@@ -10,17 +10,12 @@ using SMU_Revamp.Interfaces;
 
 namespace SMU_Revamp.MeasurementPlans
 {
-    public sealed class MemristorSweepMeasurementPlan : IMeasurementPlan
+    public sealed class MemristorSweepMeasurementPlan : MeasurementPlanBase
     {
-        public string Name => "Memristor Sweep";
-        public string Description => "Performs a cyclic voltage sweep (0 -> Pos -> 0 -> Neg -> 0) multiple times, designed for memristor hysteresis loops.";
-        public List<MeasurementParameter> Parameters { get; }
-        public List<CurvePoint> ResultPoints { get; } = new();
-
-        private string GetParamValueString(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsString() ?? string.Empty;
-        private double GetParamValueDouble(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsDouble() ?? 0.0;
-        private int GetParamValueInt(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsInt() ?? 0;
-
+        public override string Name => "Memristor Sweep";
+        public override string Description => "Performs a cyclic voltage sweep (0 -> Pos -> 0 -> Neg -> 0) multiple times, designed for memristor hysteresis loops.";
+                
+                        
         public MemristorSweepMeasurementPlan()
         {
             Parameters = new List<MeasurementParameter>
@@ -37,44 +32,24 @@ namespace SMU_Revamp.MeasurementPlans
             LoadDefaults();
         }
 
-        public void LoadDefaults()
+        protected override Dictionary<string, object> GetParameterDefaults()
         {
-            var config = ConfigurationService.Instance.GetConfig();
-            foreach (var param in Parameters)
+            return new Dictionary<string, object>
             {
-                switch (param.Name)
-                {
-                    case "WriteChannel":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "WriteChannel", config.SweepChannel);
-                        break;
-                    case "ReadingChannel":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadingChannel", config.SweepChannel);
-                        break;
-                    case "PositiveVoltage":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "PositiveVoltage", 1.0);
-                        break;
-                    case "NegativeVoltage":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "NegativeVoltage", -1.0);
-                        break;
-                    case "PointsPerSweep":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "PointsPerSweep", config.SweepPoints);
-                        break;
-                    case "Cycles":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Cycles", 1);
-                        break;
-                    case "Compliance":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Compliance", config.SweepCompliance);
-                        break;
-                    case "AdcSamples":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "AdcSamples", config.SweepAdcSamples);
-                        break;
-                }
-            }
+                { "WriteChannel", "1" },
+                { "ReadingChannel", "1" },
+                { "PositiveVoltage", 1.0 },
+                { "NegativeVoltage", -1.0 },
+                { "PointsPerSweep", 0 },
+                { "Cycles", 1 },
+                { "Compliance", 0.01 },
+                { "AdcSamples", 0 }
+            };
         }
 
         public List<List<CurvePoint>> CycleData { get; } = new();
 
-        public IReadOnlyList<PlotSeries> PlotSeries
+        public override IReadOnlyList<PlotSeries> PlotSeries
         {
             get
             {
@@ -87,7 +62,7 @@ namespace SMU_Revamp.MeasurementPlans
             }
         }
 
-        public async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
         {
             ResultPoints.Clear();
             CycleData.Clear();

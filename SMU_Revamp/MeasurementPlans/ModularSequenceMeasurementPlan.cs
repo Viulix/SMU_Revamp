@@ -10,27 +10,25 @@ using SMU_Revamp.Services;
 
 namespace SMU_Revamp.MeasurementPlans
 {
-    public sealed class ModularSequenceMeasurementPlan : IMeasurementPlan
+    public sealed class ModularSequenceMeasurementPlan : MeasurementPlanBase
     {
-        public string Name => "Modular Sequence";
-        public string Description => "A modular, configurable measurement plan where you can arrange pulses, point measurements, sweeps, and pure measurements in any order.";
+        public override string Name => "Modular Sequence";
+        public override string Description => "A modular, configurable measurement plan where you can arrange pulses, point measurements, sweeps, and pure measurements in any order.";
         
-        public List<MeasurementParameter> Parameters { get; }
-        public List<CurvePoint> ResultPoints { get; } = new();
-
+                
         // This holds the actual steps. Since preset saving/loading operates on Parameters,
         // we will serialize this list into a single JSON-string parameter.
         public ObservableCollection<SequenceStep> Steps { get; } = new();
 
-        public string PlotTitle => Name;
-        public string XAxisLabel => "Forced Voltage (V)";
-        public string YAxisLabel => "Measured Current (A)";
-        public bool ShowLogPlot => true;
-        public double PlotAspectRatio => 1.333;
-        public PlotStyle DefaultPlotStyle => PlotStyle.LineAndScatter;
+        public override string PlotTitle => Name;
+        public override string XAxisLabel => "Forced Voltage (V)";
+        public override string YAxisLabel => "Measured Current (A)";
+        public override bool ShowLogPlot => true;
+        public override double PlotAspectRatio => 1.333;
+        public override PlotStyle DefaultPlotStyle => PlotStyle.LineAndScatter;
 
         // Custom Multi-Series Plot: Each step has its own series!
-        public IReadOnlyList<PlotSeries> PlotSeries
+        public override IReadOnlyList<PlotSeries> PlotSeries
         {
             get
             {
@@ -110,13 +108,12 @@ namespace SMU_Revamp.MeasurementPlans
             SerializeSteps();
         }
 
-        public void LoadDefaults()
+        protected override Dictionary<string, object> GetParameterDefaults()
         {
-            Steps.Clear();
-            var step = new SequenceStep { Type = StepType.Point, Voltage = 1.0, WriteChannel = "2", ReadingChannel = "2" };
-            step.PropertyChanged += Step_PropertyChanged;
-            Steps.Add(step);
-            SerializeSteps();
+            return new Dictionary<string, object>
+            {
+
+            };
         }
 
         private bool _isDeserializing = false;
@@ -183,7 +180,7 @@ namespace SMU_Revamp.MeasurementPlans
             }
         }
 
-        public async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
         {
             // Sync current state
             DeserializeSteps();

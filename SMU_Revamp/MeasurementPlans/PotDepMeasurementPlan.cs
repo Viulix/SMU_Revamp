@@ -9,19 +9,14 @@ using SMU_Revamp.Interfaces;
 
 namespace SMU_Revamp.MeasurementPlans
 {
-    public sealed class PotDepMeasurementPlan : IMeasurementPlan
+    public sealed class PotDepMeasurementPlan : MeasurementPlanBase
     {
-        public string Name => "PotDep";
-        public string Description => "Performs cycles of Potentiation and Depression and measures read current.";
-        public List<MeasurementParameter> Parameters { get; }
-        public List<CurvePoint> ResultPoints { get; } = new();
-        public double PlotAspectRatio => 3.0;
-        public PlotStyle DefaultPlotStyle => PlotStyle.LineAndScatter;
+        public override string Name => "PotDep";
+        public override string Description => "Performs cycles of Potentiation and Depression and measures read current.";
+                        public override double PlotAspectRatio => 3.0;
+        public override PlotStyle DefaultPlotStyle => PlotStyle.LineAndScatter;
 
-        private string GetParamValueString(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsString() ?? string.Empty;
-        public double GetParamValueDouble(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsDouble() ?? 0.0;
-        private int GetParamValueInt(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsInt() ?? 0;
-
+                        
         public PotDepMeasurementPlan()
         {
             Parameters = new List<MeasurementParameter>
@@ -46,28 +41,24 @@ namespace SMU_Revamp.MeasurementPlans
             LoadDefaults();
         }
 
-        public void LoadDefaults()
+        protected override Dictionary<string, object> GetParameterDefaults()
         {
-            var config = ConfigurationService.Instance.GetConfig();
-            foreach (var param in Parameters)
+            return new Dictionary<string, object>
             {
-                switch (param.Name)
-                {
-                    case "WriteChannel": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "WriteChannel", config.SweepChannel); break;
-                    case "ReadingChannel": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadingChannel", config.SweepChannel); break;
-                    case "Vpot": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Vpot", 1.0); break;
-                    case "Vdep": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Vdep", -1.0); break;
-                    case "VreadPD": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "VreadPD", 0.1); break;
-                    case "Compliance": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Compliance", 0.1); break;
-                    case "tpot": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "tpot", 10.0); break;
-                    case "tdep": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "tdep", 10.0); break;
-                    case "treadPD": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "treadPD", 5.0); break;
-                    case "WaitBeforeRead": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "WaitBeforeRead", 0.0); break;
-                    case "CyclesPot": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "CyclesPot", 1); break;
-                    case "CyclesDep": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "CyclesDep", 1); break;
-                    case "CyclesRep": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "CyclesRep", 1); break;
-                }
-            }
+                { "WriteChannel", "1" },
+                { "ReadingChannel", "1" },
+                { "Vpot", 1.0 },
+                { "Vdep", -1.0 },
+                { "VreadPD", 0.1 },
+                { "Compliance", 0.1 },
+                { "tpot", 10.0 },
+                { "tdep", 10.0 },
+                { "treadPD", 5.0 },
+                { "WaitBeforeRead", 0.0 },
+                { "CyclesPot", 1 },
+                { "CyclesDep", 1 },
+                { "CyclesRep", 1 }
+            };
         }
 
         private async Task WaitMillisecondsAccurateAsync(double ms, CancellationToken ct)
@@ -100,7 +91,7 @@ namespace SMU_Revamp.MeasurementPlans
             return 0.0;
         }
 
-        public async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
         {
             ResultPoints.Clear();
             progress?.Report(0);

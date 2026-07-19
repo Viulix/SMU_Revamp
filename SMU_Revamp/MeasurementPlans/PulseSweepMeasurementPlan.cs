@@ -8,17 +8,12 @@ using SMU_Revamp.Interfaces;
 
 namespace SMU_Revamp.MeasurementPlans
 {
-    public sealed class PulseSweepMeasurementPlan : IMeasurementPlan
+    public sealed class PulseSweepMeasurementPlan : MeasurementPlanBase
     {
-        public string Name => "Pulse Sweep";
-        public string Description => "Performs a pulsed linear voltage sweep and measures the resulting current.";
-        public List<MeasurementParameter> Parameters { get; }
-        public List<CurvePoint> ResultPoints { get; } = new();
-
-        private string GetParamValueString(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsString() ?? string.Empty;
-        private double GetParamValueDouble(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsDouble() ?? 0.0;
-        private int GetParamValueInt(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsInt() ?? 0;
-
+        public override string Name => "Pulse Sweep";
+        public override string Description => "Performs a pulsed linear voltage sweep and measures the resulting current.";
+                
+                        
         public PulseSweepMeasurementPlan()
         {
             var startVolt = new MeasurementParameter { Name = "StartVoltage", DisplayName = "Start Voltage (V):", Type = ParameterType.Number, Tooltip = "The starting voltage of the pulsed sweep", Section = "Voltage Settings" };
@@ -41,51 +36,25 @@ namespace SMU_Revamp.MeasurementPlans
             LoadDefaults();
         }
 
-        public void LoadDefaults()
+        protected override Dictionary<string, object> GetParameterDefaults()
         {
-            var config = ConfigurationService.Instance.GetConfig();
-            foreach (var param in Parameters)
+            return new Dictionary<string, object>
             {
-                switch (param.Name)
-                {
-                    case "WriteChannel":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "WriteChannel", config.SweepChannel);
-                        break;
-                    case "ReadingChannel":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadingChannel", config.SweepChannel);
-                        break;
-                    case "BaseVoltage":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "BaseVoltage", 0.0);
-                        break;
-                    case "StartVoltage":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "StartVoltage", config.SweepStart);
-                        break;
-                    case "StopVoltage":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "StopVoltage", config.SweepStop);
-                        break;
-                    case "Points":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Points", config.SweepPoints);
-                        break;
-                    case "HoldTime":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "HoldTime", 0.0);
-                        break;
-                    case "PulseWidth":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "PulseWidth", 0.001);
-                        break;
-                    case "PulsePeriod":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "PulsePeriod", 0.01);
-                        break;
-                    case "Compliance":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Compliance", config.SweepCompliance);
-                        break;
-                    case "SweepMode":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "SweepMode", config.SelectedSweepMode);
-                        break;
-                }
-            }
+                { "WriteChannel", "1" },
+                { "ReadingChannel", "1" },
+                { "BaseVoltage", 0.0 },
+                { "StartVoltage", 0 },
+                { "StopVoltage", 0 },
+                { "Points", 0 },
+                { "HoldTime", 0.0 },
+                { "PulseWidth", 0.001 },
+                { "PulsePeriod", 0.01 },
+                { "Compliance", 0.01 },
+                { "SweepMode", 0 }
+            };
         }
 
-        public async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
         {
             ResultPoints.Clear();
             progress?.Report(0);

@@ -27,31 +27,19 @@ namespace SMU_Revamp.MeasurementPlans
     ///     x = actual readout pulse start after last spike end, y = measured current.
     /// Detailed metadata is exported through GetCsvLines().
     /// </summary>
-    public sealed class SpikeTimingMeasurementPlan : IMeasurementPlan
+    public sealed class SpikeTimingMeasurementPlan : MeasurementPlanBase
     {
-        public string Name => "Spike Timing";
-        public string Description => "Applies four-spike patterns generated from the six permutations of three device time constants, resets between trials, and records user-defined pulsed readouts after each pattern.";
+        public override string Name => "Spike Timing";
+        public override string Description => "Applies four-spike patterns generated from the six permutations of three device time constants, resets between trials, and records user-defined pulsed readouts after each pattern.";
 
-        public string PlotTitle => "Time-Constant Spike Response";
-        public string XAxisLabel => "Delay after Last Spike End (ms)";
-        public string YAxisLabel => "Read Current (A)";
-        public bool ShowLogPlot => true;
-        public double PlotAspectRatio => 3.0;
-        public PlotStyle DefaultPlotStyle => PlotStyle.LineAndScatter;
+        public override string PlotTitle => "Time-Constant Spike Response";
+        public override string XAxisLabel => "Delay after Last Spike End (ms)";
+        public override string YAxisLabel => "Read Current (A)";
+        public override bool ShowLogPlot => true;
+        public override double PlotAspectRatio => 3.0;
+        public override PlotStyle DefaultPlotStyle => PlotStyle.LineAndScatter;
 
-        public List<MeasurementParameter> Parameters { get; }
-
-        /// <summary>
-        /// Contains the latest completed trial as I(t). This keeps the legacy single-series viewer path useful.
-        /// The multi-series viewer uses PlotSeries below.
-        /// </summary>
-        public List<CurvePoint> ResultPoints { get; } = new();
-
-        /// <summary>
-        /// Six averaged I(t) curves, one per gap-order pattern.
-        /// Each curve has one point per user-defined readout pulse. Points contain optional YError values for standard deviation across repetitions.
-        /// </summary>
-        public IReadOnlyList<PlotSeries> PlotSeries => BuildAveragePlotSeries();
+        public override IReadOnlyList<PlotSeries> PlotSeries => BuildAveragePlotSeries();
 
         /// <summary>
         /// Full metadata for every trial. There is one result row per spike pattern execution.
@@ -63,10 +51,7 @@ namespace SMU_Revamp.MeasurementPlans
         /// </summary>
         public List<SpikeTimingPatternInfo> GeneratedPatterns { get; } = new();
 
-        private string GetParamValueString(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsString() ?? string.Empty;
-        private double GetParamValueDouble(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsDouble() ?? 0.0;
-        private int GetParamValueInt(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsInt() ?? 0;
-        private bool GetParamValueBool(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsBool() ?? false;
+
 
         public SpikeTimingMeasurementPlan()
         {
@@ -106,44 +91,35 @@ namespace SMU_Revamp.MeasurementPlans
             LoadDefaults();
         }
 
-        public void LoadDefaults()
+        protected override Dictionary<string, object> GetParameterDefaults()
         {
-            var config = ConfigurationService.Instance.GetConfig();
-            foreach (var param in Parameters)
+            return new Dictionary<string, object>
             {
-                switch (param.Name)
-                {
-                    case "WriteChannel": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "WriteChannel", config.SweepChannel); break;
-                    case "ReadingChannel": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadingChannel", config.SweepChannel); break;
-
-                    case "TimeConstantA_Ms": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "TimeConstantA_Ms", 100.0); break;
-                    case "TimeConstantB_Ms": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "TimeConstantB_Ms", 500.0); break;
-                    case "TimeConstantC_Ms": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "TimeConstantC_Ms", 1000.0); break;
-                    case "RepetitionsPerPattern": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "RepetitionsPerPattern", 3); break;
-                    case "ShuffleExecutionOrder": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ShuffleExecutionOrder", true); break;
-
-                    case "SpikeVoltage": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "SpikeVoltage", 1.0); break;
-                    case "SpikeLengthMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "SpikeLengthMs", 30.0); break;
-
-                    case "NumberOfReadoutPulses": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "NumberOfReadoutPulses", 3); break;
-                    case "ReadoutStartTimesMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadoutStartTimesMs", "100;500;1000"); break;
-                    case "ReadoutVoltages": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadoutVoltages", "0.3"); break;
-                    case "ReadoutPulseLengthsMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadoutPulseLengthsMs", "20"); break;
-
-                    case "Compliance": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Compliance", config.SweepCompliance); break;
-                    case "ShuffleSeed": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ShuffleSeed", 12345); break;
-                    case "BaselineReadEnabled": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "BaselineReadEnabled", true); break;
-
-                    case "ResetEnabled": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ResetEnabled", true); break;
-                    case "ResetVoltage": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ResetVoltage", -1.0); break;
-                    case "ResetPulseLengthMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ResetPulseLengthMs", 100.0); break;
-                    case "ResetRepetitions": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ResetRepetitions", 1); break;
-                    case "ResetRecoveryMs": param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ResetRecoveryMs", 100.0); break;
-                }
-            }
+                { "WriteChannel", "1" },
+                { "ReadingChannel", "1" },
+                { "TimeConstantA_Ms", 100.0 },
+                { "TimeConstantB_Ms", 500.0 },
+                { "TimeConstantC_Ms", 1000.0 },
+                { "RepetitionsPerPattern", 3 },
+                { "ShuffleExecutionOrder", true },
+                { "SpikeVoltage", 1.0 },
+                { "SpikeLengthMs", 30.0 },
+                { "NumberOfReadoutPulses", 3 },
+                { "ReadoutStartTimesMs", "100;500;1000" },
+                { "ReadoutVoltages", "0.3" },
+                { "ReadoutPulseLengthsMs", "20" },
+                { "Compliance", 0.01 },
+                { "ShuffleSeed", 12345 },
+                { "BaselineReadEnabled", true },
+                { "ResetEnabled", true },
+                { "ResetVoltage", -1.0 },
+                { "ResetPulseLengthMs", 100.0 },
+                { "ResetRepetitions", 1 },
+                { "ResetRecoveryMs", 100.0 }
+            };
         }
 
-        public async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
         {
             ResultPoints.Clear();
             TrialResults.Clear();

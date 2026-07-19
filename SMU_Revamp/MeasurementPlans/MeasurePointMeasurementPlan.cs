@@ -7,17 +7,12 @@ using SMU_Revamp.Interfaces;
 
 namespace SMU_Revamp.MeasurementPlans
 {
-    public sealed class MeasurePointMeasurementPlan : IMeasurementPlan
+    public sealed class MeasurePointMeasurementPlan : MeasurementPlanBase
     {
-        public string Name => "Measure Point";
-        public string Description => "Performs a single-point spot measurement of current at a specified voltage.";
-        public List<MeasurementParameter> Parameters { get; }
-        public List<CurvePoint> ResultPoints { get; } = new();
-
-        private string GetParamValueString(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsString() ?? string.Empty;
-        private double GetParamValueDouble(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsDouble() ?? 0.0;
-        private int GetParamValueInt(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsInt() ?? 0;
-
+        public override string Name => "Measure Point";
+        public override string Description => "Performs a single-point spot measurement of current at a specified voltage.";
+                
+                        
         public MeasurePointMeasurementPlan()
         {
             Parameters = new List<MeasurementParameter>
@@ -31,33 +26,19 @@ namespace SMU_Revamp.MeasurementPlans
             LoadDefaults();
         }
 
-        public void LoadDefaults()
+        protected override Dictionary<string, object> GetParameterDefaults()
         {
-            var config = ConfigurationService.Instance.GetConfig();
-            foreach (var param in Parameters)
+            return new Dictionary<string, object>
             {
-                switch (param.Name)
-                {
-                    case "WriteChannel":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "WriteChannel", config.SweepChannel);
-                        break;
-                    case "ReadingChannel":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "ReadingChannel", config.SweepChannel);
-                        break;
-                    case "Voltage":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Voltage", config.SweepStart);
-                        break;
-                    case "Compliance":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "Compliance", config.SweepCompliance);
-                        break;
-                    case "AdcSamples":
-                        param.Value = ParameterConfigHelper.GetDefaultValue(Name, "AdcSamples", config.SweepAdcSamples);
-                        break;
-                }
-            }
+                { "WriteChannel", "1" },
+                { "ReadingChannel", "1" },
+                { "Voltage", 0 },
+                { "Compliance", 0.01 },
+                { "AdcSamples", 0 }
+            };
         }
 
-        public async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
         {
             ResultPoints.Clear();
             progress?.Report(0);
