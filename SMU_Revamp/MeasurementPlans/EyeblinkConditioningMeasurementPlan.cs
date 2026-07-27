@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SMU_Revamp.Models;
+using SMU_Revamp.Interfaces;
 using SMU_Revamp.Services;
 
 namespace SMU_Revamp.MeasurementPlans
@@ -27,7 +28,7 @@ namespace SMU_Revamp.MeasurementPlans
     /// entire measurement, followed by a reset. Every full conditioning block is
     /// reset independently.
     /// </summary>
-    public sealed class EyeblinkConditioningMeasurementPlan : MeasurementPlanBase
+    public sealed class EyeblinkConditioningMeasurementPlan : MeasurementPlanBase, IMeasurementPlan
     {
         public override string Name => "Eyeblink Conditioning";
         public override string Description => "Compares small-pulse current traces before and after repeated small/large pulse pairing while sweeping the end-to-end timing between both stimuli.";
@@ -230,13 +231,73 @@ namespace SMU_Revamp.MeasurementPlans
             progress?.Report(100.0);
         }
 
+        // MeasurementPlanBase already implements IMeasurementPlan. Re-declaring the
+        // interface above and forwarding it explicitly ensures calls made through
+        // IMeasurementPlan use this plan's detailed export instead of the interface's
+        // default x/y-only CSV implementation.
+        IReadOnlyList<string> IMeasurementPlan.GetCsvLines() => GetCsvLines();
+
         public IReadOnlyList<string> GetCsvLines()
         {
             var lines = new List<string>
             {
                 "sep=\t",
-                "RowType\tGapIndex\tSmallLargeEndGap_ms\tBlockRepetition\tPhase\tSmallPulseNumber\tSampleIndex\tSampleTargetTime_ms\tSampleActualTime_ms\tActualSmallPulseDuration_ms\tPairNumber\tLargeStartTarget_ms\tSmallEndTarget_ms\tLargeEndTarget_ms\tLargeStartActual_ms\tSmallEndActual_ms\tLargeEndActual_ms\tReadoutNumber\tReadoutTargetStartAfterLargeEnd_ms\tReadoutActualStartAfterLargeEnd_ms\tReadoutVoltage_V\tReadoutPulseLength_ms\tCurrent_A\tSmallPulseVoltage_V\tSmallPulseLength_ms\tLargePulseVoltageContribution_V\tLargePulseLength_ms\tNumberOfSmallTestPulses\tGapBetweenSmallTestPulses_ms\tSmallPulseSamplingInterval_ms\tNumberOfConditioningPairs\tGapBetweenConditioningPairs_ms\tBlockRepetitionsPerGap\tPostPairReadoutEnabled\tResetVoltage_V\tResetPulseLength_ms\tResetRepetitions\tResetRecovery_ms\tCompliance_A"
+                "# Section: Plotted summary - these are the same averaged curves and error bars shown in the measurement viewer"
             };
+
+            // Export the exact curves shown in the viewer first. Each plotted series gets
+            // one mean-current column and one standard-deviation column.
+            var plottedSeries = BuildAveragePlotSeries();
+            if (plottedSeries.Count > 0)
+            {
+                var summaryHeader = new List<string> { "TimeWithinSmallPulse_ms" };
+                foreach (var plotSeries in plottedSeries)
+                {
+                    summaryHeader.Add(Csv($"{plotSeries.Name} MeanCurrent_A"));
+                    summaryHeader.Add(Csv($"{plotSeries.Name} StdDev_A"));
+                }
+                lines.Add(string.Join("\t", summaryHeader));
+
+                int maximumPointCount = plottedSeries.Max(series => series.Points.Count);
+                for (int pointIndex = 0; pointIndex < maximumPointCount; pointIndex++)
+                {
+                    var firstAvailablePoint = plottedSeries
+                        .Where(series => series.Points.Count > pointIndex)
+                        .Select(series => series.Points[pointIndex])
+                        .FirstOrDefault();
+
+                    var row = new List<string>
+                    {
+                        firstAvailablePoint == null
+                            ? string.Empty
+                            : firstAvailablePoint.X.ToString("G9", CultureInfo.InvariantCulture)
+                    };
+
+                    foreach (var plotSeries in plottedSeries)
+                    {
+                        if (plotSeries.Points.Count > pointIndex)
+                        {
+                            var point = plotSeries.Points[pointIndex];
+                            row.Add(point.Y.ToString("E9", CultureInfo.InvariantCulture));
+                            row.Add(point.YError.HasValue
+                                ? point.YError.Value.ToString("E9", CultureInfo.InvariantCulture)
+                                : string.Empty);
+                        }
+                        else
+                        {
+                            row.Add(string.Empty);
+                            row.Add(string.Empty);
+                        }
+                    }
+
+                    lines.Add(string.Join("\t", row));
+                }
+
+                lines.Add(string.Empty);
+            }
+
+            lines.Add("# Section: Raw measurements - every gap, block repetition, phase, pulse and sample");
+            lines.Add("RowType\tGapIndex\tSmallLargeEndGap_ms\tBlockRepetition\tPhase\tSmallPulseNumber\tSampleIndex\tSampleTargetTime_ms\tSampleActualTime_ms\tActualSmallPulseDuration_ms\tPairNumber\tLargeStartTarget_ms\tSmallEndTarget_ms\tLargeEndTarget_ms\tLargeStartActual_ms\tSmallEndActual_ms\tLargeEndActual_ms\tReadoutNumber\tReadoutTargetStartAfterLargeEnd_ms\tReadoutActualStartAfterLargeEnd_ms\tReadoutVoltage_V\tReadoutPulseLength_ms\tCurrent_A\tSmallPulseVoltage_V\tSmallPulseLength_ms\tLargePulseVoltageContribution_V\tLargePulseLength_ms\tNumberOfSmallTestPulses\tGapBetweenSmallTestPulses_ms\tSmallPulseSamplingInterval_ms\tNumberOfConditioningPairs\tGapBetweenConditioningPairs_ms\tBlockRepetitionsPerGap\tPostPairReadoutEnabled\tResetVoltage_V\tResetPulseLength_ms\tResetRepetitions\tResetRecovery_ms\tCompliance_A");
 
             var settings = ReadAndValidateSettings();
 
