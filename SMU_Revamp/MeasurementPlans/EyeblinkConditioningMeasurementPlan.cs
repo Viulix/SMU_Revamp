@@ -25,14 +25,12 @@ namespace SMU_Revamp.MeasurementPlans
     ///     largeStart = smallLength + gap - largeLength.
     /// When the pulses overlap, their voltages are added.
     ///
-    /// The stimulus sequence and all user-configurable stimulus parameters are kept
-    /// unchanged. The acquisition has been restructured so current is sampled
-    /// repeatedly throughout:
-    ///     - every Pre and Post small pulse,
-    ///     - every active small-only, overlap and large-only segment of the
-    ///       complete small/large conditioning pair,
-    ///     - the optional large-only baseline pulse,
-    ///     - every enabled monitoring readout pulse.
+    /// Every stimulus is wrapped in a low-voltage state readout:
+    ///     pre-read -> stimulus -> post-read.
+    /// For non-overlapping conditioning pairs, the complete interval between the
+    /// small and large pulse is also held at the state-read voltage and sampled.
+    /// Sample times are exported relative to the start of the active small or large
+    /// stimulus, so pre-read samples have negative times.
     ///
     /// Current traces are acquired with the E5263A quasi-sampling mode: a constant-
     /// voltage staircase sweep (identical start and stop values) is executed inside
@@ -66,10 +64,10 @@ namespace SMU_Revamp.MeasurementPlans
         private readonly List<int> _storedProgramNumbers = new();
 
         public override string Name => "Eyeblink Conditioning";
-        public override string Description => "Uses instrument-buffered quasi-sampling to record timestamped current traces during every active pulse while preserving the original eyeblink-conditioning stimulus sequence.";
+        public override string Description => "Uses instrument-buffered quasi-sampling to record one continuous pre-read, stimulus and post-read current trace around every baseline pulse, small test pulse and conditioning pair.";
 
-        public override string PlotTitle => "Small-Stimulus Response Before and After Conditioning";
-        public override string XAxisLabel => "Time within Small Pulse (ms)";
+        public override string PlotTitle => "Small-Stimulus State Before, During and After Conditioning";
+        public override string XAxisLabel => "Time Relative to Small Pulse Start (ms)";
         public override string YAxisLabel => "Measured Current (A)";
         public override bool ShowLogPlot => false;
         public override double PlotAspectRatio => 3.0;
@@ -91,21 +89,20 @@ namespace SMU_Revamp.MeasurementPlans
                 new() { Name = "SmallPulseVoltage", DisplayName = "Small Pulse Voltage (V):", Type = ParameterType.Number, Tooltip = "Voltage contribution of the small/conditioned stimulus.", Section = "Small Stimulus" },
                 new() { Name = "SmallPulseLengthMs", DisplayName = "Small Pulse Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of every small pulse.", Section = "Small Stimulus" },
                 new() { Name = "NumberOfSmallTestPulses", DisplayName = "Number of Small Test Pulses:", Type = ParameterType.Number, Tooltip = "Number of small pulses in both the pre-conditioning and post-conditioning test phases.", Section = "Small Stimulus" },
-                new() { Name = "GapBetweenSmallTestPulsesMs", DisplayName = "Gap Between Small Test Pulses (ms):", Type = ParameterType.Number, Tooltip = "Quiet end-to-start time between consecutive small test pulses.", Section = "Small Stimulus" },
+                new() { Name = "GapBetweenSmallTestPulsesMs", DisplayName = "Gap Between Small Test Pulses (ms):", Type = ParameterType.Number, Tooltip = "End-to-start time between the active parts of consecutive small test pulses. When state readout is enabled, this interval must fit the post-read of one pulse and the pre-read of the next.", Section = "Small Stimulus" },
 
                 new() { Name = "LargePulseVoltage", DisplayName = "Large Pulse Voltage Contribution (V):", Type = ParameterType.Number, Tooltip = "Voltage contribution of the large/unconditioned stimulus. During overlap the applied voltage is Small + Large.", Section = "Large Stimulus" },
                 new() { Name = "LargePulseLengthMs", DisplayName = "Large Pulse Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of every large pulse.", Section = "Large Stimulus" },
-                new() { Name = "EnableLargePulseBaseline", DisplayName = "Measure Large-Pulse Baseline Once:", Type = ParameterType.Checkbox, Tooltip = "At the beginning of the entire measurement: reset, continuously sample one large pulse, optionally apply and continuously sample one monitoring pulse, then reset again.", Section = "Large Stimulus" },
+                new() { Name = "EnableLargePulseBaseline", DisplayName = "Measure Large-Pulse Baseline Once:", Type = ParameterType.Checkbox, Tooltip = "At the beginning of the entire measurement: reset, continuously sample pre-read + one large pulse + post-read, then reset again.", Section = "Large Stimulus" },
 
                 new() { Name = "NumberOfConditioningPairs", DisplayName = "Number of Conditioning Pairs:", Type = ParameterType.Number, Tooltip = "Number of small/large pairings in each conditioning block.", Section = "Conditioning" },
-                new() { Name = "GapBetweenConditioningPairsMs", DisplayName = "Gap Between Conditioning Pairs (ms):", Type = ParameterType.Number, Tooltip = "End-to-start time from the end of one complete pulse pair to the start of the next small pulse. The monitoring pulse must fit inside this interval.", Section = "Conditioning" },
+                new() { Name = "GapBetweenConditioningPairsMs", DisplayName = "Gap Between Conditioning Pairs (ms):", Type = ParameterType.Number, Tooltip = "End-to-start time from the active large-pulse end of one pair to the active small-pulse start of the next pair. It must fit the post-read and next pre-read when state readout is enabled.", Section = "Conditioning" },
                 new() { Name = "SmallLargeEndGapListMs", DisplayName = "Small-Large End Gaps (ms):", Type = ParameterType.Text, Tooltip = "Semicolon-separated list. Each value is large-pulse end minus small-pulse end. 0 means both pulses end together; values below the large-pulse length cause overlap.", Section = "Conditioning" },
                 new() { Name = "BlockRepetitionsPerGap", DisplayName = "Whole-Block Repetitions per Gap:", Type = ParameterType.Number, Tooltip = "Independent reset -> pre-test -> conditioning -> post-test repetitions for every selected small-large end gap. Error bars are calculated across these independent blocks.", Section = "Conditioning" },
 
-                new() { Name = "EnablePostPairReadout", DisplayName = "Enable Monitoring Pulse after Large Pulses:", Type = ParameterType.Checkbox, Tooltip = "After the optional large-only baseline and after every conditioning pair, apply one monitoring pulse and continuously sample current throughout it.", Section = "Monitoring Readout" },
-                new() { Name = "FirstReadoutDelayMs", DisplayName = "Monitoring Pulse Delay after Large End (ms):", Type = ParameterType.Number, Tooltip = "End-to-start delay between the large-pulse end and the single monitoring pulse.", Section = "Monitoring Readout" },
-                new() { Name = "ReadoutVoltage", DisplayName = "Monitoring Pulse Voltage (V):", Type = ParameterType.Number, Tooltip = "Voltage of the continuously sampled monitoring pulse.", Section = "Monitoring Readout" },
-                new() { Name = "ReadoutPulseLengthMs", DisplayName = "Monitoring Pulse Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of the single continuously sampled monitoring pulse.", Section = "Monitoring Readout" },
+                new() { Name = "EnableStateReadout", DisplayName = "Enable Pre/Post State Readout:", Type = ParameterType.Checkbox, Tooltip = "Wrap every baseline, Pre, conditioning-pair and Post stimulus in a continuously sampled low-voltage read window before and after the stimulus. Non-overlap gaps inside a conditioning pair are filled completely with the same read voltage.", Section = "State Readout" },
+                new() { Name = "StateReadVoltage", DisplayName = "State Read Voltage (V):", Type = ParameterType.Number, Tooltip = "Low voltage applied during the pre-stimulus, post-stimulus and non-overlap inter-pulse read sections.", Section = "State Readout" },
+                new() { Name = "StateReadDurationMs", DisplayName = "Pre/Post Read Duration (ms):", Type = ParameterType.Number, Tooltip = "Duration of the low-voltage read section immediately before and immediately after every pulse or pulse pair. The internal gap of a non-overlapping conditioning pair is always filled for its full duration.", Section = "State Readout" },
 
                 new() { Name = "ResetVoltage", DisplayName = "Reset Voltage (V):", Type = ParameterType.Number, Tooltip = "Reset pulse voltage used before every full block and around the optional large-pulse baseline.", Section = "Reset Settings" },
                 new() { Name = "ResetPulseLengthMs", DisplayName = "Reset Pulse Length (ms):", Type = ParameterType.Number, Tooltip = "Duration of one reset pulse.", Section = "Reset Settings" },
@@ -138,10 +135,9 @@ namespace SMU_Revamp.MeasurementPlans
                 { "SmallLargeEndGapListMs", "200;100;50;20;0" },
                 { "BlockRepetitionsPerGap", 3 },
 
-                { "EnablePostPairReadout", true },
-                { "FirstReadoutDelayMs", 20.0 },
-                { "ReadoutVoltage", 0.2 },
-                { "ReadoutPulseLengthMs", 20.0 },
+                { "EnableStateReadout", true },
+                { "StateReadVoltage", 0.2 },
+                { "StateReadDurationMs", 20.0 },
 
                 { "ResetVoltage", -1.0 },
                 { "ResetPulseLengthMs", 100.0 },
@@ -294,7 +290,7 @@ namespace SMU_Revamp.MeasurementPlans
             var lines = new List<string>
             {
                 "sep=\t",
-                "# Acquisition: E5263A instrument-buffered quasi-sampling during every small pulse, active conditioning-pair segment, optional large-only baseline pulse, and enabled monitoring pulse.",
+                "# Acquisition: E5263A instrument-buffered quasi-sampling across complete pre-read + stimulus + post-read envelopes for every small pulse, conditioning pair and optional large-only baseline pulse.",
                 "# Sampling: constant-voltage staircase sweeps with identical start/stop values are executed in SMU program memory. SampleActualTime_ms comes from the instrument timestamp, not host/GPIB timing.",
                 "# Section: Plotted summary - these are the same averaged Pre/Post curves and error bars shown in the measurement viewer"
             };
@@ -302,7 +298,7 @@ namespace SMU_Revamp.MeasurementPlans
             var plottedSeries = BuildAveragePlotSeries();
             if (plottedSeries.Count > 0)
             {
-                var summaryHeader = new List<string> { "TimeWithinSmallPulse_ms" };
+                var summaryHeader = new List<string> { "TimeRelativeToSmallPulseStart_ms" };
                 foreach (var plotSeries in plottedSeries)
                 {
                     summaryHeader.Add(Csv($"{plotSeries.Name} MeanCurrent_A"));
@@ -349,21 +345,22 @@ namespace SMU_Revamp.MeasurementPlans
             }
 
             lines.Add("# Section: Raw measurements - every current sample with its pulse, pair, block, timing and applied-voltage context");
-            lines.Add("# New sample RowTypes: LargeBaselinePulseSample, ConditioningPairSample, LargeBaselineReadoutSample, ConditioningReadoutSample. Existing SmallPulseSample and legacy summary RowTypes are retained.");
-            lines.Add("# Non-overlap quiet intervals remain high impedance (DZ) exactly as before and therefore do not produce ConditioningPairSample rows.");
+            lines.Add("# Complete envelope RowTypes: SmallPulseSample, LargeBaselinePulseSample and ConditioningPairSample. PulseSegment identifies PreRead, SmallOnly, Overlap, InterPulseRead, LargeOnly or PostRead.");
+            lines.Add("# LargeBaselineReadoutSample and ConditioningReadoutSample duplicate the PostRead section for compatibility with existing baseline-analysis scripts.");
+            lines.Add("# Non-overlap gaps inside conditioning pairs are continuously sampled at StateReadVoltage_V for their complete duration.");
 
             // The original columns are kept in their original order for backward
             // compatibility. New buffered-trace context columns are appended.
             lines.Add(
-                "RowType\tGapIndex\tSmallLargeEndGap_ms\tBlockRepetition\tPhase\tSmallPulseNumber\tSampleIndex\tSampleTargetTime_ms\tSampleActualTime_ms\tActualSmallPulseDuration_ms\tPairNumber\tLargeStartTarget_ms\tSmallEndTarget_ms\tLargeEndTarget_ms\tLargeStartActual_ms\tSmallEndActual_ms\tLargeEndActual_ms\tReadoutNumber\tReadoutTargetStartAfterLargeEnd_ms\tReadoutActualStartAfterLargeEnd_ms\tReadoutVoltage_V\tReadoutPulseLength_ms\tCurrent_A\tSmallPulseVoltage_V\tSmallPulseLength_ms\tLargePulseVoltageContribution_V\tLargePulseLength_ms\tNumberOfSmallTestPulses\tGapBetweenSmallTestPulses_ms\tSmallPulseSamplingInterval_ms\tNumberOfConditioningPairs\tGapBetweenConditioningPairs_ms\tBlockRepetitionsPerGap\tPostPairReadoutEnabled\tResetVoltage_V\tResetPulseLength_ms\tResetRepetitions\tResetRecovery_ms\tCompliance_A\tAppliedVoltage_V\tPulseSegment\tSmallPulseActive\tLargePulseActive\tActualTraceDuration_ms");
+                "RowType\tGapIndex\tSmallLargeEndGap_ms\tBlockRepetition\tPhase\tSmallPulseNumber\tSampleIndex\tSampleTargetTime_ms\tSampleActualTime_ms\tActualSmallPulseDuration_ms\tPairNumber\tLargeStartTarget_ms\tSmallEndTarget_ms\tLargeEndTarget_ms\tLargeStartActual_ms\tSmallEndActual_ms\tLargeEndActual_ms\tReadoutNumber\tReadoutTargetStartAfterLargeEnd_ms\tReadoutActualStartAfterLargeEnd_ms\tReadoutVoltage_V\tReadoutPulseLength_ms\tCurrent_A\tSmallPulseVoltage_V\tSmallPulseLength_ms\tLargePulseVoltageContribution_V\tLargePulseLength_ms\tNumberOfSmallTestPulses\tGapBetweenSmallTestPulses_ms\tSmallPulseSamplingInterval_ms\tNumberOfConditioningPairs\tGapBetweenConditioningPairs_ms\tBlockRepetitionsPerGap\tPostPairReadoutEnabled\tResetVoltage_V\tResetPulseLength_ms\tResetRepetitions\tResetRecovery_ms\tCompliance_A\tAppliedVoltage_V\tPulseSegment\tSmallPulseActive\tLargePulseActive\tActualTraceDuration_ms\tStateReadoutEnabled\tStateReadVoltage_V\tStateReadDuration_ms");
 
             var settings = ReadAndValidateSettings();
 
             if (LargePulseBaseline != null)
             {
-                // Preserve the legacy summary rows so existing analysis scripts can
-                // still identify the baseline/readout sequence. Continuous samples
-                // are exported additionally below.
+                // Export one explicitly named time-weighted summary row for the
+                // baseline monitoring trace. The complete continuously sampled
+                // trace is exported separately below.
                 if (LargePulseBaseline.Readouts.Count == 0)
                 {
                     lines.Add(BuildCsvRow(
@@ -383,7 +380,7 @@ namespace SMU_Revamp.MeasurementPlans
                     foreach (var readout in LargePulseBaseline.Readouts)
                     {
                         lines.Add(BuildCsvRow(
-                            rowType: "LargeBaselineReadout",
+                            rowType: "LargeBaselineReadoutSummary",
                             settings: settings,
                             currentA: CalculateTimeWeightedMeanCurrent(readout.Samples),
                             phase: "Baseline",
@@ -396,17 +393,17 @@ namespace SMU_Revamp.MeasurementPlans
                             readoutNumber: readout.ReadoutNumber,
                             readoutTargetMs: readout.TargetStartAfterLargeEndMs,
                             readoutActualMs: readout.ActualStartAfterLargeEndMs,
-                            readoutVoltage: settings.ReadoutVoltage,
-                            readoutLengthMs: settings.ReadoutPulseLengthMs,
-                            appliedVoltageV: settings.ReadoutVoltage,
-                            pulseSegment: "ReadoutSummary",
+                            readoutVoltage: settings.StateReadVoltage,
+                            readoutLengthMs: settings.StateReadDurationMs,
+                            appliedVoltageV: settings.StateReadVoltage,
+                            pulseSegment: "PostReadSummary",
                             smallPulseActive: false,
                             largePulseActive: false,
                             actualTraceDurationMs: readout.ActualPulseDurationMs));
                     }
                 }
 
-                foreach (var sample in LargePulseBaseline.LargePulseSamples)
+                foreach (var sample in LargePulseBaseline.EnvelopeSamples)
                 {
                     lines.Add(BuildCsvRow(
                         rowType: "LargeBaselinePulseSample",
@@ -423,10 +420,10 @@ namespace SMU_Revamp.MeasurementPlans
                         smallEndActualMs: double.NaN,
                         largeEndActualMs: LargePulseBaseline.ActualLargePulseDurationMs,
                         appliedVoltageV: sample.AppliedVoltageV,
-                        pulseSegment: "LargeOnly",
-                        smallPulseActive: false,
-                        largePulseActive: true,
-                        actualTraceDurationMs: LargePulseBaseline.ActualLargePulseDurationMs));
+                        pulseSegment: sample.PulseSegment,
+                        smallPulseActive: sample.SmallPulseActive,
+                        largePulseActive: sample.LargePulseActive,
+                        actualTraceDurationMs: LargePulseBaseline.ActualTraceDurationMs));
                 }
 
                 foreach (var readout in LargePulseBaseline.Readouts)
@@ -447,8 +444,9 @@ namespace SMU_Revamp.MeasurementPlans
 
                 foreach (var pair in block.ConditioningPairs)
                 {
-                    // Preserve the legacy one-row-per-pair/readout export while
-                    // adding the complete sampled traces below.
+                    // Export one explicitly named time-weighted summary row for each
+                    // conditioning monitoring trace. The complete continuously
+                    // sampled trace is exported separately below.
                     if (pair.Readouts.Count == 0)
                     {
                         lines.Add(BuildCsvRow(
@@ -466,14 +464,14 @@ namespace SMU_Revamp.MeasurementPlans
                             smallEndActualMs: pair.SmallEndActualMs,
                             largeEndActualMs: pair.LargeEndActualMs,
                             currentA: double.NaN,
-                            actualTraceDurationMs: pair.ActualPairDurationMs));
+                            actualTraceDurationMs: pair.ActualTraceDurationMs));
                     }
                     else
                     {
                         foreach (var readout in pair.Readouts)
                         {
                             lines.Add(BuildCsvRow(
-                                rowType: "ConditioningReadout",
+                                rowType: "ConditioningReadoutSummary",
                                 settings: settings,
                                 gapIndex: block.GapIndex,
                                 endGapMs: block.SmallLargeEndGapMs,
@@ -489,11 +487,11 @@ namespace SMU_Revamp.MeasurementPlans
                                 readoutNumber: readout.ReadoutNumber,
                                 readoutTargetMs: readout.TargetStartAfterLargeEndMs,
                                 readoutActualMs: readout.ActualStartAfterLargeEndMs,
-                                readoutVoltage: settings.ReadoutVoltage,
-                                readoutLengthMs: settings.ReadoutPulseLengthMs,
+                                readoutVoltage: settings.StateReadVoltage,
+                                readoutLengthMs: settings.StateReadDurationMs,
                                 currentA: CalculateTimeWeightedMeanCurrent(readout.Samples),
-                                appliedVoltageV: settings.ReadoutVoltage,
-                                pulseSegment: "ReadoutSummary",
+                                appliedVoltageV: settings.StateReadVoltage,
+                                pulseSegment: "PostReadSummary",
                                 smallPulseActive: false,
                                 largePulseActive: false,
                                 actualTraceDurationMs: readout.ActualPulseDurationMs));
@@ -524,7 +522,7 @@ namespace SMU_Revamp.MeasurementPlans
                             pulseSegment: sample.PulseSegment,
                             smallPulseActive: sample.SmallPulseActive,
                             largePulseActive: sample.LargePulseActive,
-                            actualTraceDurationMs: pair.ActualPairDurationMs));
+                            actualTraceDurationMs: pair.ActualTraceDurationMs));
                     }
 
                     foreach (var readout in pair.Readouts)
@@ -573,10 +571,10 @@ namespace SMU_Revamp.MeasurementPlans
                         actualSmallPulseDurationMs: trace.ActualPulseDurationMs,
                         currentA: sample.CurrentA,
                         appliedVoltageV: sample.AppliedVoltageV,
-                        pulseSegment: "SmallOnly",
-                        smallPulseActive: true,
-                        largePulseActive: false,
-                        actualTraceDurationMs: trace.ActualPulseDurationMs));
+                        pulseSegment: sample.PulseSegment,
+                        smallPulseActive: sample.SmallPulseActive,
+                        largePulseActive: sample.LargePulseActive,
+                        actualTraceDurationMs: trace.ActualTraceDurationMs));
                 }
             }
         }
@@ -615,11 +613,11 @@ namespace SMU_Revamp.MeasurementPlans
                     readoutNumber: readout.ReadoutNumber,
                     readoutTargetMs: readout.TargetStartAfterLargeEndMs,
                     readoutActualMs: readout.ActualStartAfterLargeEndMs,
-                    readoutVoltage: settings.ReadoutVoltage,
-                    readoutLengthMs: settings.ReadoutPulseLengthMs,
+                    readoutVoltage: settings.StateReadVoltage,
+                    readoutLengthMs: settings.StateReadDurationMs,
                     currentA: sample.CurrentA,
                     appliedVoltageV: sample.AppliedVoltageV,
-                    pulseSegment: "Readout",
+                    pulseSegment: "PostRead",
                     smallPulseActive: false,
                     largePulseActive: false,
                     actualTraceDurationMs: readout.ActualPulseDurationMs));
@@ -730,7 +728,7 @@ namespace SMU_Revamp.MeasurementPlans
                 settings.NumberOfConditioningPairs.ToString(CultureInfo.InvariantCulture),
                 settings.GapBetweenConditioningPairsMs.ToString("G9", CultureInfo.InvariantCulture),
                 settings.BlockRepetitionsPerGap.ToString(CultureInfo.InvariantCulture),
-                settings.EnablePostPairReadout ? "true" : "false",
+                settings.EnableStateReadout ? "true" : "false",
                 settings.ResetVoltage.ToString("G9", CultureInfo.InvariantCulture),
                 settings.ResetPulseLengthMs.ToString("G9", CultureInfo.InvariantCulture),
                 settings.ResetRepetitions.ToString(CultureInfo.InvariantCulture),
@@ -740,7 +738,10 @@ namespace SMU_Revamp.MeasurementPlans
                 Csv(pulseSegment),
                 B(smallPulseActive),
                 B(largePulseActive),
-                N(actualTraceDurationMs)
+                N(actualTraceDurationMs),
+                settings.EnableStateReadout ? "true" : "false",
+                settings.StateReadVoltage.ToString("G9", CultureInfo.InvariantCulture),
+                settings.StateReadDurationMs.ToString("G9", CultureInfo.InvariantCulture)
             });
         }
 
@@ -772,10 +773,9 @@ namespace SMU_Revamp.MeasurementPlans
                 SmallLargeEndGapsMs = ParseDoubleList(GetParamValueString("SmallLargeEndGapListMs"), "Small-Large End Gaps"),
                 BlockRepetitionsPerGap = GetParamValueInt("BlockRepetitionsPerGap"),
 
-                EnablePostPairReadout = GetParamValueBool("EnablePostPairReadout"),
-                FirstReadoutDelayMs = GetParamValueDouble("FirstReadoutDelayMs"),
-                ReadoutVoltage = GetParamValueDouble("ReadoutVoltage"),
-                ReadoutPulseLengthMs = GetParamValueDouble("ReadoutPulseLengthMs"),
+                EnableStateReadout = GetParamValueBool("EnableStateReadout"),
+                StateReadVoltage = GetParamValueDouble("StateReadVoltage"),
+                StateReadDurationMs = GetParamValueDouble("StateReadDurationMs"),
 
                 ResetVoltage = GetParamValueDouble("ResetVoltage"),
                 ResetPulseLengthMs = GetParamValueDouble("ResetPulseLengthMs"),
@@ -806,21 +806,27 @@ namespace SMU_Revamp.MeasurementPlans
                 }
             }
 
-            if (settings.EnablePostPairReadout)
+            if (settings.EnableStateReadout)
             {
-                if (settings.FirstReadoutDelayMs < 0)
-                    throw new InvalidOperationException("Monitoring-pulse delay must be >= 0 ms.");
-                if (settings.ReadoutPulseLengthMs <= 0)
-                    throw new InvalidOperationException("Monitoring-pulse length must be > 0 ms.");
+                if (!double.IsFinite(settings.StateReadVoltage))
+                    throw new InvalidOperationException("State-read voltage must be finite.");
+                if (settings.StateReadDurationMs <= 0)
+                    throw new InvalidOperationException("Pre/post state-read duration must be > 0 ms.");
 
-                double monitoringEnd =
-                    settings.FirstReadoutDelayMs + settings.ReadoutPulseLengthMs;
+                double requiredInterEventGap = 2.0 * settings.StateReadDurationMs;
 
-                if (monitoringEnd > settings.GapBetweenConditioningPairsMs)
+                if (settings.GapBetweenSmallTestPulsesMs + TimeEqualityToleranceMs < requiredInterEventGap)
                 {
                     throw new InvalidOperationException(
                         FormattableString.Invariant(
-                            $"The monitoring pulse ends {monitoringEnd:G9} ms after the large-pulse end, but the gap between conditioning pairs is only {settings.GapBetweenConditioningPairsMs:G9} ms. Increase the pair gap or shorten/disable the monitoring pulse."));
+                            $"The gap between small test pulses is {settings.GapBetweenSmallTestPulsesMs:G9} ms, but two state-read windows require at least {requiredInterEventGap:G9} ms. Increase the gap or shorten/disable the state readout."));
+                }
+
+                if (settings.GapBetweenConditioningPairsMs + TimeEqualityToleranceMs < requiredInterEventGap)
+                {
+                    throw new InvalidOperationException(
+                        FormattableString.Invariant(
+                            $"The gap between conditioning pairs is {settings.GapBetweenConditioningPairsMs:G9} ms, but the post-read of one pair and pre-read of the next event require at least {requiredInterEventGap:G9} ms. Increase the pair gap or shorten/disable the state readout."));
                 }
             }
 
@@ -873,14 +879,9 @@ namespace SMU_Revamp.MeasurementPlans
             _storedProgramNumbers.Clear();
             _pairPrograms.Clear();
 
-            _smallPulseProgram = BuildConstantPulseProgram(
+            _smallPulseProgram = BuildSmallPulseEnvelopeProgram(
                 SmallPulseProgramNumber,
-                settings,
-                voltage: settings.SmallPulseVoltage,
-                durationMs: settings.SmallPulseLengthMs,
-                segmentName: "SmallPulse",
-                smallActive: true,
-                largeActive: false);
+                settings);
 
             await StoreProgramAsync(smu, _smallPulseProgram);
 
@@ -959,32 +960,68 @@ namespace SMU_Revamp.MeasurementPlans
             _largeBaselineProgram = null;
         }
 
-        private BufferedProgramDefinition BuildConstantPulseProgram(
+        private BufferedProgramDefinition BuildSmallPulseEnvelopeProgram(
             int programNumber,
-            ConditioningSettings settings,
-            double voltage,
-            double durationMs,
-            string segmentName,
-            bool smallActive,
-            bool largeActive)
+            ConditioningSettings settings)
         {
             var program = new BufferedProgramDefinition(programNumber);
             program.Commands.Add("TSR");
 
-            var segment = AddBufferedSegment(
+            double nominalTimeMs = 0.0;
+            BufferedSegmentDefinition? previous = null;
+
+            if (settings.EnableStateReadout)
+            {
+                previous = AddBufferedSegment(
+                    program,
+                    settings,
+                    nominalStartMs: nominalTimeMs,
+                    durationMs: settings.StateReadDurationMs,
+                    voltage: settings.StateReadVoltage,
+                    segmentName: "PreRead",
+                    smallActive: false,
+                    largeActive: false);
+
+                nominalTimeMs += settings.StateReadDurationMs;
+            }
+
+            var smallSegment = AddBufferedSegment(
                 program,
                 settings,
-                nominalStartMs: 0.0,
-                durationMs: durationMs,
-                voltage: voltage,
-                segmentName: segmentName,
-                smallActive: smallActive,
-                largeActive: largeActive);
+                nominalStartMs: nominalTimeMs,
+                durationMs: settings.SmallPulseLengthMs,
+                voltage: settings.SmallPulseVoltage,
+                segmentName: "SmallOnly",
+                smallActive: true,
+                largeActive: false);
+
+            if (previous != null)
+                previous.EndMarkerName = smallSegment.StartMarkerName;
+
+            previous = smallSegment;
+            nominalTimeMs += settings.SmallPulseLengthMs;
+
+            if (settings.EnableStateReadout)
+            {
+                var postRead = AddBufferedSegment(
+                    program,
+                    settings,
+                    nominalStartMs: nominalTimeMs,
+                    durationMs: settings.StateReadDurationMs,
+                    voltage: settings.StateReadVoltage,
+                    segmentName: "PostRead",
+                    smallActive: false,
+                    largeActive: false);
+
+                previous.EndMarkerName = postRead.StartMarkerName;
+                previous = postRead;
+                nominalTimeMs += settings.StateReadDurationMs;
+            }
 
             program.Commands.Add($"DZ {settings.WriteChannel}");
-            string finalMarker = AddMarker(program, "PulseEnd");
-            segment.EndMarkerName = finalMarker;
-            program.NominalDurationMs = durationMs;
+            string finalMarker = AddMarker(program, "SmallEnvelopeEnd");
+            previous.EndMarkerName = finalMarker;
+            program.NominalDurationMs = nominalTimeMs;
             return program;
         }
 
@@ -995,50 +1032,61 @@ namespace SMU_Revamp.MeasurementPlans
             var program = new BufferedProgramDefinition(programNumber);
             program.Commands.Add("TSR");
 
+            double nominalTimeMs = 0.0;
+            BufferedSegmentDefinition? previous = null;
+
+            if (settings.EnableStateReadout)
+            {
+                previous = AddBufferedSegment(
+                    program,
+                    settings,
+                    nominalStartMs: nominalTimeMs,
+                    durationMs: settings.StateReadDurationMs,
+                    voltage: settings.StateReadVoltage,
+                    segmentName: "PreRead",
+                    smallActive: false,
+                    largeActive: false);
+
+                nominalTimeMs += settings.StateReadDurationMs;
+            }
+
             var largeSegment = AddBufferedSegment(
                 program,
                 settings,
-                nominalStartMs: 0.0,
+                nominalStartMs: nominalTimeMs,
                 durationMs: settings.LargePulseLengthMs,
                 voltage: settings.LargePulseVoltage,
                 segmentName: "LargeOnly",
                 smallActive: false,
                 largeActive: true);
 
-            program.Commands.Add($"DZ {settings.WriteChannel}");
-            string largeEndMarker = AddMarker(program, "LargeEnd");
-            largeSegment.EndMarkerName = largeEndMarker;
+            if (previous != null)
+                previous.EndMarkerName = largeSegment.StartMarkerName;
 
-            double nominalProgramEndMs = settings.LargePulseLengthMs;
+            previous = largeSegment;
+            nominalTimeMs += settings.LargePulseLengthMs;
 
-            if (settings.EnablePostPairReadout)
+            if (settings.EnableStateReadout)
             {
-                if (settings.FirstReadoutDelayMs > 0)
-                {
-                    AddPauseCommands(program, settings.FirstReadoutDelayMs);
-                }
-
-                var monitoringSegment = AddBufferedSegment(
+                var postRead = AddBufferedSegment(
                     program,
                     settings,
-                    nominalStartMs: settings.LargePulseLengthMs + settings.FirstReadoutDelayMs,
-                    durationMs: settings.ReadoutPulseLengthMs,
-                    voltage: settings.ReadoutVoltage,
-                    segmentName: "MonitoringReadout",
+                    nominalStartMs: nominalTimeMs,
+                    durationMs: settings.StateReadDurationMs,
+                    voltage: settings.StateReadVoltage,
+                    segmentName: "PostRead",
                     smallActive: false,
                     largeActive: false);
 
-                program.Commands.Add($"DZ {settings.WriteChannel}");
-                string monitoringEndMarker = AddMarker(program, "MonitoringEnd");
-                monitoringSegment.EndMarkerName = monitoringEndMarker;
-
-                nominalProgramEndMs =
-                    settings.LargePulseLengthMs +
-                    settings.FirstReadoutDelayMs +
-                    settings.ReadoutPulseLengthMs;
+                previous.EndMarkerName = postRead.StartMarkerName;
+                previous = postRead;
+                nominalTimeMs += settings.StateReadDurationMs;
             }
 
-            program.NominalDurationMs = nominalProgramEndMs;
+            program.Commands.Add($"DZ {settings.WriteChannel}");
+            string finalMarker = AddMarker(program, "LargeEnvelopeEnd");
+            previous.EndMarkerName = finalMarker;
+            program.NominalDurationMs = nominalTimeMs;
             return program;
         }
 
@@ -1047,32 +1095,57 @@ namespace SMU_Revamp.MeasurementPlans
             ConditioningSettings settings,
             double endGapMs)
         {
-            double smallEndMs = settings.SmallPulseLengthMs;
-            double largeEndMs = settings.SmallPulseLengthMs + endGapMs;
-            double largeStartMs = largeEndMs - settings.LargePulseLengthMs;
+            double pairTimeOffsetMs = settings.EnableStateReadout
+                ? settings.StateReadDurationMs
+                : 0.0;
+
+            double smallEndPairMs = settings.SmallPulseLengthMs;
+            double largeEndPairMs = settings.SmallPulseLengthMs + endGapMs;
+            double largeStartPairMs = largeEndPairMs - settings.LargePulseLengthMs;
+
+            double smallEndProgramMs = pairTimeOffsetMs + smallEndPairMs;
+            double largeStartProgramMs = pairTimeOffsetMs + largeStartPairMs;
+            double largeEndProgramMs = pairTimeOffsetMs + largeEndPairMs;
 
             var program = new BufferedProgramDefinition(programNumber);
             program.Commands.Add("TSR");
 
             BufferedSegmentDefinition? previous = null;
 
-            if (largeStartMs < smallEndMs - TimeEqualityToleranceMs)
+            if (settings.EnableStateReadout)
             {
                 previous = AddBufferedSegment(
                     program,
                     settings,
                     nominalStartMs: 0.0,
-                    durationMs: largeStartMs,
+                    durationMs: settings.StateReadDurationMs,
+                    voltage: settings.StateReadVoltage,
+                    segmentName: "PreRead",
+                    smallActive: false,
+                    largeActive: false);
+            }
+
+            if (largeStartPairMs < smallEndPairMs - TimeEqualityToleranceMs)
+            {
+                var smallOnly = AddBufferedSegment(
+                    program,
+                    settings,
+                    nominalStartMs: pairTimeOffsetMs,
+                    durationMs: largeStartPairMs,
                     voltage: settings.SmallPulseVoltage,
                     segmentName: "SmallOnly",
                     smallActive: true,
                     largeActive: false);
 
+                if (previous != null)
+                    previous.EndMarkerName = smallOnly.StartMarkerName;
+                previous = smallOnly;
+
                 var overlap = AddBufferedSegment(
                     program,
                     settings,
-                    nominalStartMs: largeStartMs,
-                    durationMs: smallEndMs - largeStartMs,
+                    nominalStartMs: largeStartProgramMs,
+                    durationMs: smallEndPairMs - largeStartPairMs,
                     voltage: settings.SmallPulseVoltage + settings.LargePulseVoltage,
                     segmentName: "Overlap",
                     smallActive: true,
@@ -1081,13 +1154,13 @@ namespace SMU_Revamp.MeasurementPlans
                 previous.EndMarkerName = overlap.StartMarkerName;
                 previous = overlap;
 
-                if (largeEndMs > smallEndMs + TimeEqualityToleranceMs)
+                if (largeEndPairMs > smallEndPairMs + TimeEqualityToleranceMs)
                 {
                     var largeOnly = AddBufferedSegment(
                         program,
                         settings,
-                        nominalStartMs: smallEndMs,
-                        durationMs: largeEndMs - smallEndMs,
+                        nominalStartMs: smallEndProgramMs,
+                        durationMs: largeEndPairMs - smallEndPairMs,
                         voltage: settings.LargePulseVoltage,
                         segmentName: "LargeOnly",
                         smallActive: false,
@@ -1099,30 +1172,52 @@ namespace SMU_Revamp.MeasurementPlans
             }
             else
             {
-                previous = AddBufferedSegment(
+                var smallOnly = AddBufferedSegment(
                     program,
                     settings,
-                    nominalStartMs: 0.0,
-                    durationMs: smallEndMs,
+                    nominalStartMs: pairTimeOffsetMs,
+                    durationMs: smallEndPairMs,
                     voltage: settings.SmallPulseVoltage,
                     segmentName: "SmallOnly",
                     smallActive: true,
                     largeActive: false);
 
-                double quietDurationMs = largeStartMs - smallEndMs;
-                if (quietDurationMs > TimeEqualityToleranceMs)
+                if (previous != null)
+                    previous.EndMarkerName = smallOnly.StartMarkerName;
+                previous = smallOnly;
+
+                double interPulseGapMs = largeStartPairMs - smallEndPairMs;
+                if (interPulseGapMs > TimeEqualityToleranceMs)
                 {
-                    program.Commands.Add($"DZ {settings.WriteChannel}");
-                    string quietStartMarker = AddMarker(program, "QuietStart");
-                    previous.EndMarkerName = quietStartMarker;
-                    AddPauseCommands(program, quietDurationMs);
+                    if (settings.EnableStateReadout)
+                    {
+                        var interPulseRead = AddBufferedSegment(
+                            program,
+                            settings,
+                            nominalStartMs: smallEndProgramMs,
+                            durationMs: interPulseGapMs,
+                            voltage: settings.StateReadVoltage,
+                            segmentName: "InterPulseRead",
+                            smallActive: false,
+                            largeActive: false);
+
+                        previous.EndMarkerName = interPulseRead.StartMarkerName;
+                        previous = interPulseRead;
+                    }
+                    else
+                    {
+                        program.Commands.Add($"DZ {settings.WriteChannel}");
+                        string quietStartMarker = AddMarker(program, "QuietStart");
+                        previous.EndMarkerName = quietStartMarker;
+                        AddPauseCommands(program, interPulseGapMs);
+                    }
                 }
 
                 var largeOnly = AddBufferedSegment(
                     program,
                     settings,
-                    nominalStartMs: largeStartMs,
-                    durationMs: largeEndMs - largeStartMs,
+                    nominalStartMs: largeStartProgramMs,
+                    durationMs: settings.LargePulseLengthMs,
                     voltage: settings.LargePulseVoltage,
                     segmentName: "LargeOnly",
                     smallActive: false,
@@ -1130,46 +1225,37 @@ namespace SMU_Revamp.MeasurementPlans
 
                 if (string.IsNullOrEmpty(previous.EndMarkerName))
                     previous.EndMarkerName = largeOnly.StartMarkerName;
+                else if (previous.SegmentName == "InterPulseRead")
+                    previous.EndMarkerName = largeOnly.StartMarkerName;
 
                 previous = largeOnly;
             }
 
             if (previous == null)
-                throw new InvalidOperationException("Conditioning-pair program contains no active segment.");
+                throw new InvalidOperationException("Conditioning-pair program contains no measurable segment.");
 
-            program.Commands.Add($"DZ {settings.WriteChannel}");
-            string largeEndMarker = AddMarker(program, "LargeEnd");
-            previous.EndMarkerName = largeEndMarker;
+            double nominalProgramEndMs = largeEndProgramMs;
 
-            double nominalProgramEndMs = largeEndMs;
-
-            if (settings.EnablePostPairReadout)
+            if (settings.EnableStateReadout)
             {
-                if (settings.FirstReadoutDelayMs > 0)
-                {
-                    AddPauseCommands(program, settings.FirstReadoutDelayMs);
-                }
-
-                var monitoringSegment = AddBufferedSegment(
+                var postRead = AddBufferedSegment(
                     program,
                     settings,
-                    nominalStartMs: largeEndMs + settings.FirstReadoutDelayMs,
-                    durationMs: settings.ReadoutPulseLengthMs,
-                    voltage: settings.ReadoutVoltage,
-                    segmentName: "MonitoringReadout",
+                    nominalStartMs: largeEndProgramMs,
+                    durationMs: settings.StateReadDurationMs,
+                    voltage: settings.StateReadVoltage,
+                    segmentName: "PostRead",
                     smallActive: false,
                     largeActive: false);
 
-                program.Commands.Add($"DZ {settings.WriteChannel}");
-                string monitoringEndMarker = AddMarker(program, "MonitoringEnd");
-                monitoringSegment.EndMarkerName = monitoringEndMarker;
-
-                nominalProgramEndMs =
-                    largeEndMs +
-                    settings.FirstReadoutDelayMs +
-                    settings.ReadoutPulseLengthMs;
+                previous.EndMarkerName = postRead.StartMarkerName;
+                previous = postRead;
+                nominalProgramEndMs += settings.StateReadDurationMs;
             }
 
+            program.Commands.Add($"DZ {settings.WriteChannel}");
+            string finalMarker = AddMarker(program, "PairEnvelopeEnd");
+            previous.EndMarkerName = finalMarker;
             program.NominalDurationMs = nominalProgramEndMs;
             return program;
         }
@@ -1351,24 +1437,35 @@ namespace SMU_Revamp.MeasurementPlans
             var largeSegment = execution.Segments
                 .Single(segment => segment.Definition.LargeActive);
 
+            double targetOriginMs = largeSegment.Definition.NominalStartMs;
+            double actualOriginMs = largeSegment.StartTimeMs;
+
+            var envelopeSamples = ConvertToEnvelopeSamples(
+                execution,
+                targetOriginMs,
+                actualOriginMs);
+
             var largeSamples = ConvertToContinuousPulseSamples(largeSegment);
             var readouts = new List<MonitoringReadoutTrace>();
 
-            var monitoringSegment = execution.Segments
+            var postReadSegment = execution.Segments
                 .SingleOrDefault(segment =>
-                    segment.Definition.SegmentName == "MonitoringReadout");
+                    segment.Definition.SegmentName == "PostRead");
 
-            if (monitoringSegment != null)
+            if (postReadSegment != null)
             {
                 readouts.Add(BuildMonitoringTrace(
-                    monitoringSegment,
+                    postReadSegment,
                     largeEndActualMs: largeSegment.EndTimeMs,
-                    targetStartAfterLargeEndMs: settings.FirstReadoutDelayMs));
+                    targetStartAfterLargeEndMs: 0.0));
             }
 
             return new LargePulseBaselineResult(
-                ActualLargePulseDurationMs: largeSegment.EndTimeMs - largeSegment.StartTimeMs,
+                ActualLargePulseDurationMs:
+                    largeSegment.EndTimeMs - largeSegment.StartTimeMs,
+                ActualTraceDurationMs: execution.ActualDurationMs,
                 LargePulseSamples: largeSamples,
+                EnvelopeSamples: envelopeSamples,
                 Readouts: readouts);
         }
 
@@ -1427,31 +1524,44 @@ namespace SMU_Revamp.MeasurementPlans
             if (_smallPulseProgram == null)
                 throw new InvalidOperationException("Small-pulse acquisition program was not prepared.");
 
-            var acquisition = await AcquireConstantPulseTraceAsync(
+            var execution = await ExecuteBufferedProgramAsync(
                 smu,
                 settings,
                 _smallPulseProgram,
                 ct,
-                externalReferenceClock: pulseCycleClock);
+                pulseCycleClock);
 
-            var samples = acquisition.Samples
+            var smallSegment = execution.Segments
+                .Single(segment =>
+                    segment.Definition.SmallActive &&
+                    !segment.Definition.LargeActive);
+
+            var samples = ConvertToEnvelopeSamples(
+                    execution,
+                    targetOriginMs: smallSegment.Definition.NominalStartMs,
+                    actualOriginMs: smallSegment.StartTimeMs)
                 .Select(sample => new SmallPulseSample(
                     SampleIndex: sample.SampleIndex,
                     TargetTimeMs: sample.TargetTimeMs,
                     ActualTimeMs: sample.ActualTimeMs,
                     AppliedVoltageV: sample.AppliedVoltageV,
-                    CurrentA: sample.CurrentA))
+                    CurrentA: sample.CurrentA,
+                    PulseSegment: sample.PulseSegment,
+                    SmallPulseActive: sample.SmallPulseActive,
+                    LargePulseActive: sample.LargePulseActive))
                 .ToList();
 
             var trace = new SmallPulseTrace(
                 PulseNumber: pulseNumber,
                 Phase: phase,
-                ActualPulseDurationMs: acquisition.ActualPulseDurationMs,
+                ActualPulseDurationMs:
+                    smallSegment.EndTimeMs - smallSegment.StartTimeMs,
+                ActualTraceDurationMs: execution.ActualDurationMs,
                 Samples: samples);
 
             return new SmallPulseMeasurementOutcome(
                 Trace: trace,
-                HostPulseStartMs: acquisition.HostStartOnExternalClockMs);
+                HostPulseStartMs: execution.HostStartOnExternalClockMs);
         }
 
         private async Task<List<ConditioningPairResult>> RunConditioningPhaseAsync(
@@ -1519,19 +1629,25 @@ namespace SMU_Revamp.MeasurementPlans
                     segment.Definition.LargeActive)
                 .ToList();
 
-            var samples = activeSegments
-                .SelectMany(segment => segment.Samples.Select(sample =>
-                    new ConditioningPairSample(
-                        SampleIndex: 0,
-                        TargetTimeMs: sample.TargetTimeMs,
-                        ActualTimeMs: sample.ActualTimeMs,
-                        AppliedVoltageV: segment.Definition.AppliedVoltageV,
-                        CurrentA: sample.CurrentA,
-                        PulseSegment: segment.Definition.SegmentName,
-                        SmallPulseActive: segment.Definition.SmallActive,
-                        LargePulseActive: segment.Definition.LargeActive)))
-                .OrderBy(sample => sample.ActualTimeMs)
-                .Select((sample, index) => sample with { SampleIndex = index + 1 })
+            var firstSmallSegment = activeSegments
+                .First(segment => segment.Definition.SmallActive);
+
+            double targetOriginMs = firstSmallSegment.Definition.NominalStartMs;
+            double actualOriginMs = firstSmallSegment.StartTimeMs;
+
+            var samples = ConvertToEnvelopeSamples(
+                    execution,
+                    targetOriginMs,
+                    actualOriginMs)
+                .Select(sample => new ConditioningPairSample(
+                    SampleIndex: sample.SampleIndex,
+                    TargetTimeMs: sample.TargetTimeMs,
+                    ActualTimeMs: sample.ActualTimeMs,
+                    AppliedVoltageV: sample.AppliedVoltageV,
+                    CurrentA: sample.CurrentA,
+                    PulseSegment: sample.PulseSegment,
+                    SmallPulseActive: sample.SmallPulseActive,
+                    LargePulseActive: sample.LargePulseActive))
                 .ToList();
 
             var firstLargeSegment = activeSegments
@@ -1543,21 +1659,21 @@ namespace SMU_Revamp.MeasurementPlans
             var lastLargeSegment = activeSegments
                 .Last(segment => segment.Definition.LargeActive);
 
-            double largeStartActual = firstLargeSegment.StartTimeMs;
-            double smallEndActual = lastSmallSegment.EndTimeMs;
-            double largeEndActual = lastLargeSegment.EndTimeMs;
+            double largeStartActual = firstLargeSegment.StartTimeMs - actualOriginMs;
+            double smallEndActual = lastSmallSegment.EndTimeMs - actualOriginMs;
+            double largeEndActual = lastLargeSegment.EndTimeMs - actualOriginMs;
 
             var readouts = new List<MonitoringReadoutTrace>();
-            var monitoringSegment = execution.Segments
+            var postReadSegment = execution.Segments
                 .SingleOrDefault(segment =>
-                    segment.Definition.SegmentName == "MonitoringReadout");
+                    segment.Definition.SegmentName == "PostRead");
 
-            if (monitoringSegment != null)
+            if (postReadSegment != null)
             {
                 readouts.Add(BuildMonitoringTrace(
-                    monitoringSegment,
-                    largeEndActual,
-                    settings.FirstReadoutDelayMs));
+                    postReadSegment,
+                    lastLargeSegment.EndTimeMs,
+                    targetStartAfterLargeEndMs: 0.0));
             }
 
             var pairResult = new ConditioningPairResult(
@@ -1569,6 +1685,7 @@ namespace SMU_Revamp.MeasurementPlans
                 SmallEndActualMs: smallEndActual,
                 LargeEndActualMs: largeEndActual,
                 ActualPairDurationMs: largeEndActual,
+                ActualTraceDurationMs: execution.ActualDurationMs,
                 Samples: samples,
                 Readouts: readouts);
 
@@ -1590,30 +1707,28 @@ namespace SMU_Revamp.MeasurementPlans
                     $"No buffered conditioning-pair program was prepared for end gap {endGapMs:G9} ms."));
         }
 
-        private async Task<ConstantPulseAcquisition> AcquireConstantPulseTraceAsync(
-            E5263_SMU smu,
-            ConditioningSettings settings,
-            BufferedProgramDefinition program,
-            CancellationToken ct,
-            Stopwatch? externalReferenceClock = null)
+        private static List<ContinuousEnvelopeSample> ConvertToEnvelopeSamples(
+            BufferedProgramExecution execution,
+            double targetOriginMs,
+            double actualOriginMs)
         {
-            var execution = await ExecuteBufferedProgramAsync(
-                smu,
-                settings,
-                program,
-                ct,
-                externalReferenceClock);
-
-            if (execution.Segments.Count != 1)
-                throw new InvalidOperationException("Constant-pulse program returned an unexpected segment count.");
-
-            var segment = execution.Segments[0];
-            var samples = ConvertToContinuousPulseSamples(segment);
-
-            return new ConstantPulseAcquisition(
-                HostStartOnExternalClockMs: execution.HostStartOnExternalClockMs,
-                ActualPulseDurationMs: segment.EndTimeMs - segment.StartTimeMs,
-                Samples: samples);
+            return execution.Segments
+                .SelectMany(segment => segment.Samples.Select(sample =>
+                    new ContinuousEnvelopeSample(
+                        SampleIndex: 0,
+                        TargetTimeMs: sample.TargetTimeMs - targetOriginMs,
+                        ActualTimeMs: sample.ActualTimeMs - actualOriginMs,
+                        AppliedVoltageV: segment.Definition.AppliedVoltageV,
+                        CurrentA: sample.CurrentA,
+                        PulseSegment: segment.Definition.SegmentName,
+                        SmallPulseActive: segment.Definition.SmallActive,
+                        LargePulseActive: segment.Definition.LargeActive)))
+                .OrderBy(sample => sample.ActualTimeMs)
+                .Select((sample, index) => sample with
+                {
+                    SampleIndex = index + 1
+                })
+                .ToList();
         }
 
         private static List<ContinuousPulseSample> ConvertToContinuousPulseSamples(
@@ -2216,10 +2331,9 @@ namespace SMU_Revamp.MeasurementPlans
             public List<double> SmallLargeEndGapsMs { get; init; } = new();
             public int BlockRepetitionsPerGap { get; init; }
 
-            public bool EnablePostPairReadout { get; init; }
-            public double FirstReadoutDelayMs { get; init; }
-            public double ReadoutVoltage { get; init; }
-            public double ReadoutPulseLengthMs { get; init; }
+            public bool EnableStateReadout { get; init; }
+            public double StateReadVoltage { get; init; }
+            public double StateReadDurationMs { get; init; }
 
             public double ResetVoltage { get; init; }
             public double ResetPulseLengthMs { get; init; }
@@ -2240,17 +2354,25 @@ namespace SMU_Revamp.MeasurementPlans
             ConditioningPairResult PairResult,
             double HostPairStartMs);
 
-        private sealed record ConstantPulseAcquisition(
-            double HostStartOnExternalClockMs,
-            double ActualPulseDurationMs,
-            List<ContinuousPulseSample> Samples);
-
         public sealed record SmallPulseSample(
             int SampleIndex,
             double TargetTimeMs,
             double ActualTimeMs,
             double AppliedVoltageV,
-            double CurrentA);
+            double CurrentA,
+            string PulseSegment,
+            bool SmallPulseActive,
+            bool LargePulseActive);
+
+        public sealed record ContinuousEnvelopeSample(
+            int SampleIndex,
+            double TargetTimeMs,
+            double ActualTimeMs,
+            double AppliedVoltageV,
+            double CurrentA,
+            string PulseSegment,
+            bool SmallPulseActive,
+            bool LargePulseActive);
 
         public sealed record ContinuousPulseSample(
             int SampleIndex,
@@ -2273,6 +2395,7 @@ namespace SMU_Revamp.MeasurementPlans
             int PulseNumber,
             string Phase,
             double ActualPulseDurationMs,
+            double ActualTraceDurationMs,
             List<SmallPulseSample> Samples);
 
         public sealed record MonitoringReadoutTrace(
@@ -2291,6 +2414,7 @@ namespace SMU_Revamp.MeasurementPlans
             double SmallEndActualMs,
             double LargeEndActualMs,
             double ActualPairDurationMs,
+            double ActualTraceDurationMs,
             List<ConditioningPairSample> Samples,
             List<MonitoringReadoutTrace> Readouts);
 
@@ -2304,7 +2428,9 @@ namespace SMU_Revamp.MeasurementPlans
 
         public sealed record LargePulseBaselineResult(
             double ActualLargePulseDurationMs,
+            double ActualTraceDurationMs,
             List<ContinuousPulseSample> LargePulseSamples,
+            List<ContinuousEnvelopeSample> EnvelopeSamples,
             List<MonitoringReadoutTrace> Readouts);
     }
 }
