@@ -764,13 +764,25 @@ public partial class MainWindowViewModel
     private void LoadAvailablePresets()
     {
         var config = ConfigurationService.Instance.GetConfig();
-        if (config.Presets != null)
+        var presets = config.Presets ?? new List<MeasurementPreset>();
+        var currentPresetName = _selectedPreset?.Name;
+
+        if (AvailablePresets == null)
         {
-            AvailablePresets = new ObservableCollection<MeasurementPreset>(config.Presets);
+            AvailablePresets = new ObservableCollection<MeasurementPreset>(presets);
         }
         else
         {
-            AvailablePresets = new ObservableCollection<MeasurementPreset>();
+            AvailablePresets.Clear();
+            foreach (var preset in presets)
+            {
+                AvailablePresets.Add(preset);
+            }
+        }
+
+        if (!string.IsNullOrEmpty(currentPresetName))
+        {
+            SelectedPreset = AvailablePresets.FirstOrDefault(p => p.Name == currentPresetName);
         }
     }
 
@@ -853,6 +865,8 @@ public partial class MainWindowViewModel
 
     private async void OnParameterPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (!IsConfigLoaded) return;
+
         if (e.PropertyName == nameof(MeasurementParameter.Value))
         {
             if (!_isLoadingPreset && SelectedPreset != null)
@@ -1009,6 +1023,7 @@ public partial class MainWindowViewModel
 
         LoadAvailablePresets();
         LoadLastConfig();
+        IsConfigLoaded = true;
     }
 
     private async Task SaveAutoSaveSettingAsync(bool value)

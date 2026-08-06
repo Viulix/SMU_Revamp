@@ -24,12 +24,22 @@
                                 <TextBlock Text="Scan Presets:" FontSize="14" FontWeight="SemiBold" />
                                 <Grid ColumnDefinitions="*,Auto">
                                     <ComboBox Grid.Column="0" ItemsSource="{Binding WaferScanPresetNames}" SelectedItem="{Binding SelectedWaferScanPreset}" HorizontalAlignment="Stretch" Margin="0,0,10,0" PlaceholderText="Select a preset..." />
-                                    <Button Grid.Column="1" Content="Delete" Command="{Binding DeleteWaferScanPresetCommand}" Classes="Danger" Width="80" Height="36" />
+                                    <Button Grid.Column="1" Content="Delete" Command="{Binding DeleteWaferScanPresetCommand}" Classes="Danger" Width="80" Height="36" IsEnabled="{Binding SelectedWaferScanPreset, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 </Grid>
                                 <Grid ColumnDefinitions="*,Auto">
                                     <TextBox Grid.Column="0" Text="{Binding NewWaferScanPresetName}" PlaceholderText="Preset Name" HorizontalAlignment="Stretch" Margin="0,0,10,0" Height="36" VerticalContentAlignment="Center" />
                                     <Button Grid.Column="1" Content="Save" Command="{Binding SaveWaferScanPresetCommand}" Classes="Primary" Width="80" Height="36" />
                                 </Grid>
+
+                                <!-- Delete Confirmation popup inline -->
+                                <Border Background="#FEE2E2" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,5,0,0" IsVisible="{Binding IsDeleteWaferScanPresetWarningVisible}">
+                                    <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Path Fill="#EF4444" Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                                        <TextBlock Text="Are you sure you want to delete this preset?" Foreground="#B91C1C" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,10,5" />
+                                        <Button Content="Yes" Command="{Binding ConfirmDeleteWaferScanPresetCommand}" Classes="Danger" Padding="10,3" Margin="0,0,10,5" />
+                                        <Button Content="No" Command="{Binding CancelDeleteWaferScanPresetCommand}" Classes="Secondary" Padding="10,3" Margin="0,0,0,5" />
+                                    </WrapPanel>
+                                </Border>
                             </StackPanel>
 
                             <!-- Movement Delay -->

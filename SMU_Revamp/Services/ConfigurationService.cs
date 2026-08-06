@@ -40,18 +40,19 @@ namespace SMU_Revamp.Services
                 // Fallback to temp directory if AppData is not accessible
                 _configPath = Path.Combine(Path.GetTempPath(), "SMU_Revamp_config.json");
             }
+            Load();
         }
 
         /// <summary>
-        /// Loads configuration from disk.
+        /// Loads configuration synchronously from disk.
         /// </summary>
-        public async Task LoadAsync()
+        public void Load()
         {
             try
             {
                 if (File.Exists(_configPath))
                 {
-                    var json = await File.ReadAllTextAsync(_configPath);
+                    var json = File.ReadAllText(_configPath);
                     _config = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
 
                     // Migrate PlanPresets to global Presets if Presets is empty and PlanPresets contains data
@@ -67,7 +68,7 @@ namespace SMU_Revamp.Services
                                 _config.Presets.Add(preset);
                             }
                         }
-                        await SaveAsync(_config);
+                        Save(_config);
                     }
                 }
                 else
@@ -84,22 +85,40 @@ namespace SMU_Revamp.Services
         }
 
         /// <summary>
-        /// Saves configuration to disk.
+        /// Loads configuration from disk asynchronously.
         /// </summary>
-        public async Task SaveAsync(AppConfig config)
+        public Task LoadAsync()
+        {
+            Load();
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Saves configuration synchronously to disk.
+        /// </summary>
+        public void Save(AppConfig config)
         {
             try
             {
                 _config = config;
                 var options = new JsonSerializerOptions { WriteIndented = true };
                 var json = JsonSerializer.Serialize(config, options);
-                await File.WriteAllTextAsync(_configPath, json);
+                File.WriteAllText(_configPath, json);
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[ConfigurationService] Save failed: {ex}");
                 System.Diagnostics.Debug.WriteLine($"[ConfigurationService] Save failed: {ex}");
             }
+        }
+
+        /// <summary>
+        /// Saves configuration to disk.
+        /// </summary>
+        public async Task SaveAsync(AppConfig config)
+        {
+            Save(config);
+            await Task.CompletedTask;
         }
 
         /// <summary>

@@ -52,6 +52,13 @@ public partial class MainWindowViewModel : ViewModelBase
         (_curvePoints != null && _curvePoints.Count > 0) ||
         (_plotSeries != null && _plotSeries.Any(s => s.Points.Count > 0));
 
+    private bool _isConfigLoaded;
+    public bool IsConfigLoaded
+    {
+        get => _isConfigLoaded;
+        set => SetProperty(ref _isConfigLoaded, value);
+    }
+
     private List<IMeasurementPlan> _measurementPlans = new();
     public List<IMeasurementPlan> MeasurementPlans
     {
@@ -537,6 +544,13 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _newWaferScanPresetName, value);
     }
 
+    private bool _isDeleteWaferScanPresetWarningVisible;
+    public bool IsDeleteWaferScanPresetWarningVisible
+    {
+        get => _isDeleteWaferScanPresetWarningVisible;
+        set => SetProperty(ref _isDeleteWaferScanPresetWarningVisible, value);
+    }
+
     public System.Collections.ObjectModel.ObservableCollection<ContactViewModel> Contacts { get; } = new();
 
     public ICommand SelectAllContactsCommand { get; }
@@ -690,7 +704,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
                 // Save immediately when preset is loaded so the new config becomes the "last" config
                 _ = SaveSettingsAndConfigurationAsync();
-                _isLoadingPreset = false;
+                
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    _isLoadingPreset = false;
+                });
             }
         }
     }
@@ -818,11 +836,13 @@ public partial class MainWindowViewModel : ViewModelBase
         ConfirmDeletePresetCommand = new AsyncRelayCommand(async () =>
         {
             if (SelectedPreset == null) return;
+            var targetPreset = SelectedPreset;
             var config = ConfigurationService.Instance.GetConfig();
             if (config.Presets != null)
             {
-                config.Presets.RemoveAll(p => p.Name == SelectedPreset.Name);
+                config.Presets.RemoveAll(p => p.Name.Equals(targetPreset.Name, StringComparison.OrdinalIgnoreCase));
                 await ConfigurationService.Instance.SaveAsync(config);
+                SelectedPreset = null;
                 LoadAvailablePresets();
             }
             IsDeleteWarningVisible = false;

@@ -133,25 +133,22 @@ public partial class MainWindowViewModel
     }
 
     [RelayCommand]
-    private async Task DeleteWaferScanPresetAsync()
+    private void DeleteWaferScanPreset()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedWaferScanPreset)) return;
+        IsDeleteWaferScanPresetWarningVisible = true;
+    }
+
+    [RelayCommand]
+    private async Task ConfirmDeleteWaferScanPresetAsync()
     {
         if (string.IsNullOrWhiteSpace(SelectedWaferScanPreset)) return;
 
         var config = ConfigurationService.Instance.GetConfig();
-        if (config.WaferScanPresets == null) return;
-
-        var preset = config.WaferScanPresets.FirstOrDefault(p => p.Name == SelectedWaferScanPreset);
-        if (preset != null)
+        if (config.WaferScanPresets != null)
         {
-            var dialog = new Views.SavePromptWindow("Delete Preset", $"Are you sure you want to delete the wafer scan preset '{SelectedWaferScanPreset}'?");
-            
-            bool result = false;
-            if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
-            {
-                result = await dialog.ShowDialog<bool>(desktop.MainWindow);
-            }
-            
-            if (result)
+            var preset = config.WaferScanPresets.FirstOrDefault(p => p.Name.Equals(SelectedWaferScanPreset, StringComparison.OrdinalIgnoreCase));
+            if (preset != null)
             {
                 config.WaferScanPresets.Remove(preset);
                 WaferScanPresetNames.Remove(SelectedWaferScanPreset);
@@ -161,6 +158,13 @@ public partial class MainWindowViewModel
                 NotificationRequested?.Invoke("Preset Deleted", "Wafer scan preset removed.", null);
             }
         }
+        IsDeleteWaferScanPresetWarningVisible = false;
+    }
+
+    [RelayCommand]
+    private void CancelDeleteWaferScanPreset()
+    {
+        IsDeleteWaferScanPresetWarningVisible = false;
     }
 
     private async Task GoToScanStartAsync()
