@@ -46,6 +46,11 @@ public class AppConfig
     public string SampleName { get; set; } = "";
 
     /// <summary>
+    /// Saved device/sample names for autocomplete.
+    /// </summary>
+    public System.Collections.Generic.List<string> SavedDeviceNames { get; set; } = new();
+
+    /// <summary>
     /// E5263 SMU GPIB resource string.
     /// </summary>
     public string SMUResource { get; set; } = "GPIB0::17::INSTR";

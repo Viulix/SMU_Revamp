@@ -59,6 +59,8 @@ public partial class MainWindowViewModel
         }
     }
 
+    public List<PlotSeries> WaferScanAccumulatedSeries { get; } = new();
+
     private void RefreshPlotDataFromPlottedPlan()
     {
         if (PlottedPlan == null)
@@ -68,10 +70,52 @@ public partial class MainWindowViewModel
             return;
         }
 
-        CurvePoints = new List<CurvePoint>(PlottedPlan.ResultPoints);
-        PlotSeries = PlottedPlan.PlotSeries
-            .Where(s => s.Points.Count > 0)
-            .ToList();
+        if (IsScanningWafer && WaferScanAccumulatedSeries.Count > 0)
+        {
+            var activeSeriesList = new List<PlotSeries>(WaferScanAccumulatedSeries);
+            
+            if (PlottedPlan.PlotSeries != null && PlottedPlan.PlotSeries.Count > 0)
+            {
+                foreach (var s in PlottedPlan.PlotSeries)
+                {
+                    activeSeriesList.Add(new PlotSeries($"Live {s.Name}", new List<CurvePoint>(s.Points)));
+                }
+            }
+            else if (PlottedPlan.ResultPoints != null && PlottedPlan.ResultPoints.Count > 0)
+            {
+                activeSeriesList.Add(new PlotSeries("Live", new List<CurvePoint>(PlottedPlan.ResultPoints)));
+            }
+
+            PlotSeries = activeSeriesList;
+            CurvePoints = Array.Empty<CurvePoint>();
+        }
+        else
+        {
+            CurvePoints = new List<CurvePoint>(PlottedPlan.ResultPoints);
+            PlotSeries = PlottedPlan.PlotSeries
+                .Where(s => s.Points.Count > 0)
+                .ToList();
+        }
     }
 
+    [RelayCommand]
+    private void OpenSelectedResultInViewer()
+    {
+        if (SelectedResultContact == null) return;
+
+        string title = SelectedResultContact.DisplayName ?? "I/V Curve";
+        if (SelectedResultCell != null && SelectedResultSubCell != null)
+        {
+            title = $"Cell: {SelectedResultCell.Id} | Sub: {SelectedResultSubCell.Id} | {title}";
+        }
+
+        CustomPlotTitle = title;
+        CurvePoints = new List<CurvePoint>(SelectedResultContact.CurveData);
+        PlotSeries = new List<PlotSeries>
+        {
+            new PlotSeries(title, SelectedResultContact.CurveData.ToList())
+        };
+
+        SelectedTabIndex = 0; // Switch to Viewer tab
+    }
 }

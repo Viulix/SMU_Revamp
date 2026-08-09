@@ -23,8 +23,8 @@
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="10">
-                <TextBlock Text="Sample Name:" Width="100" VerticalAlignment="Center" />
-                <TextBox x:Name="SampleNameTextBox" Width="260" PlaceholderText="e.g. Sample01" />
+                <TextBlock Text="Device / Sample:" Width="100" VerticalAlignment="Center" />
+                <AutoCompleteBox x:Name="SampleNameAutoCompleteBox" Width="260" PlaceholderText="e.g. Device_A" FilterMode="Contains" />
             </StackPanel>
 
             <Border Height="10" />

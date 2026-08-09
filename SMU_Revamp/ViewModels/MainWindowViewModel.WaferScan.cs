@@ -33,6 +33,20 @@ public partial class MainWindowViewModel
             {
                 SelectedWaferScanPreset = string.Empty;
             }
+
+            if (sender is WaferCellViewModel cell && cell.IsSelected)
+            {
+                TargetCell = cell.Id;
+            }
+            else if (sender is SubCellViewModel sub && sub.IsSelected)
+            {
+                TargetRow = sub.Row.ToString();
+                TargetColumn = sub.Column.ToString();
+            }
+            else if (sender is ContactViewModel contact && contact.IsSelected)
+            {
+                TargetContact = contact.Id.ToString();
+            }
         }
     }
 
@@ -198,6 +212,26 @@ public partial class MainWindowViewModel
     {
         if (IsScanningWafer) return;
 
+        if (AutoSaveMeasurements)
+        {
+            if (string.IsNullOrWhiteSpace(Settings.Profile) || string.IsNullOrWhiteSpace(Settings.SampleName))
+            {
+                if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+                {
+                    var promptWindow = new SMU_Revamp.Views.SavePromptWindow(Settings.Profile, Settings.SampleName, ExistingDeviceNames);
+                    var result = await promptWindow.ShowDialog<SMU_Revamp.Views.SavePromptResult>(desktop.MainWindow);
+                    if (result == null || result.Cancelled)
+                    {
+                        WaferScanLog = "Wafer scan aborted: Profile and Sample Name are required for auto-saving.";
+                        return;
+                    }
+                    Settings.Profile = result.Profile;
+                    Settings.SampleName = result.SampleName;
+                    await SaveSettingsAndConfigurationAsync();
+                }
+            }
+        }
+
         WaferScanLog = "Parsing target contacts...";
         WaferScanProgress = 0;
         
@@ -246,6 +280,7 @@ public partial class MainWindowViewModel
         IsScanningWafer = true;
         _scanCts = new System.Threading.CancellationTokenSource();
         _currentWaferScanFolderName = $"Scan_{DateTime.Now:yyyyMMdd_HHmmss}";
+        WaferScanAccumulatedSeries.Clear();
 
         try
         {
@@ -306,6 +341,24 @@ public partial class MainWindowViewModel
                 
                 // Trigger the actual measurement
                 await RunMeasurementAsync();
+                
+                string seriesName = $"C{cell} R{row}C{col} #{contact}";
+                
+                if (PlottedPlan != null)
+                {
+                    if (PlottedPlan.PlotSeries != null && PlottedPlan.PlotSeries.Count > 0)
+                    {
+                        foreach (var s in PlottedPlan.PlotSeries)
+                        {
+                            WaferScanAccumulatedSeries.Add(new PlotSeries($"{seriesName} {s.Name}", new List<CurvePoint>(s.Points)));
+                        }
+                    }
+                    else if (PlottedPlan.ResultPoints != null && PlottedPlan.ResultPoints.Count > 0)
+                    {
+                        WaferScanAccumulatedSeries.Add(new PlotSeries(seriesName, new List<CurvePoint>(PlottedPlan.ResultPoints)));
+                    }
+                }
+                RefreshPlotDataFromPlottedPlan();
                 
                 currentContact++;
                 WaferScanProgress = (double)currentContact / totalExpectedContacts * 100.0;
@@ -511,6 +564,36 @@ public partial class MainWindowViewModel
         {
             await SwitchMatrixService.Instance.ConnectAsync();
             await SwitchMatrixService.Instance.CreateConnectionAsync(advPathA, advPathB, overrideCheck: true);
+        }
+    }
+
+    [RelayCommand]
+    private async Task GoToTargetContactAsync()
+    {
+        ErrorMessage = string.Empty;
+        if (!TryParseTargetInputs(out string cellPosition, out int row, out int col, out int contact, out string error))
+        {
+            ErrorMessage = error;
+            NotificationRequested?.Invoke("Target Invalid", error, null);
+            return;
+        }
+
+        try
+        {
+            MeasurementStatus = $"Moving prober to Cell {cellPosition}, R{row}C{col}, Contact {contact}...";
+            await ProberService.Instance.ConnectAsync();
+            await ProberService.Instance.DisconnectChuckAsync();
+            await Task.Delay(100);
+            await ProberService.Instance.GoToWaferContactAsync(cellPosition, row, col, contact);
+            await Task.Delay(100);
+            await ProberService.Instance.ConnectChuckAsync();
+            MeasurementStatus = $"Prober moved to Cell {cellPosition}, R{row}C{col}, Contact {contact}.";
+            NotificationRequested?.Invoke("Prober Moved", $"Moved to Cell {cellPosition}, R{row}C{col}, Contact {contact}.", null);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error moving to target contact: {ex.Message}";
+            NotificationRequested?.Invoke("Movement Error", ex.Message, null);
         }
     }
 

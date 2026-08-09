@@ -551,6 +551,8 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _isDeleteWaferScanPresetWarningVisible, value);
     }
 
+    public ObservableCollection<string> ExistingDeviceNames { get; } = new();
+
     public System.Collections.ObjectModel.ObservableCollection<ContactViewModel> Contacts { get; } = new();
 
     public ICommand SelectAllContactsCommand { get; }
@@ -944,6 +946,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (e.PropertyName == nameof(SettingsViewModel.Profile) || e.PropertyName == nameof(SettingsViewModel.SampleName))
             {
                 await ConfigurationService.Instance.SaveAsync(ConfigurationService.Instance.GetConfig());
+                RefreshExistingDeviceNames();
             }
         };
 

@@ -28,9 +28,11 @@ public partial class MainWindowViewModel
         // Update the plotted plan to be the one we are running
         PlottedPlan = SelectedPlan;
 
-        // Immediately clear old measurement view
-        PlottedPlan.ResultPoints.Clear();
-        RefreshPlotDataFromPlottedPlan();
+        if (!IsScanningWafer)
+        {
+            PlottedPlan.ResultPoints.Clear();
+            RefreshPlotDataFromPlottedPlan();
+        }
 
         ErrorMessage = string.Empty;
         MeasurementStatus = "Starting...";
@@ -42,9 +44,20 @@ public partial class MainWindowViewModel
         {
             if (string.IsNullOrWhiteSpace(Settings.Profile) || string.IsNullOrWhiteSpace(Settings.SampleName))
             {
+                if (IsScanningWafer)
+                {
+                    MeasurementStatus = "Measurement aborted: Profile and Sample Name are required for auto-saving during a scan.";
+                    if (_scanCts != null)
+                    {
+                        _scanCts.Cancel();
+                    }
+                    IsMeasuring = false;
+                    return;
+                }
+
                 if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
                 {
-                    var promptWindow = new SMU_Revamp.Views.SavePromptWindow(Settings.Profile, Settings.SampleName);
+                    var promptWindow = new SMU_Revamp.Views.SavePromptWindow(Settings.Profile, Settings.SampleName, ExistingDeviceNames);
                     var result = await promptWindow.ShowDialog<SMU_Revamp.Views.SavePromptResult>(desktop.MainWindow);
                     if (result == null || result.Cancelled)
                     {
@@ -134,8 +147,27 @@ public partial class MainWindowViewModel
                 {
                     try
                     {
-                        var profile = Settings.Profile;
+                        var profile = string.IsNullOrWhiteSpace(Settings.Profile) ? "Default" : Settings.Profile.Trim();
                         var sampleName = Settings.SampleName;
+                        var deviceName = string.IsNullOrWhiteSpace(sampleName) ? "Empty Device" : sampleName.Trim();
+
+                        // Sanitize device name for file system path
+                        foreach (char c in System.IO.Path.GetInvalidFileNameChars())
+                        {
+                            deviceName = deviceName.Replace(c, '_');
+                        }
+
+                        // Save device name to configuration list if custom
+                        if (!string.IsNullOrWhiteSpace(sampleName) && !sampleName.Equals("Empty Device", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var cfg = ConfigurationService.Instance.GetConfig();
+                            if (cfg.SavedDeviceNames == null) cfg.SavedDeviceNames = new List<string>();
+                            if (!cfg.SavedDeviceNames.Contains(sampleName.Trim(), StringComparer.OrdinalIgnoreCase))
+                            {
+                                cfg.SavedDeviceNames.Add(sampleName.Trim());
+                                _ = ConfigurationService.Instance.SaveAsync(cfg);
+                            }
+                        }
                         
                         string folderName = "";
                         string folderPath;
@@ -145,11 +177,11 @@ public partial class MainWindowViewModel
                             if (IsScanningWafer)
                             {
                                 folderName = _currentWaferScanFolderName;
-                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, "Wafermaps", folderName);
+                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, "Wafermaps", deviceName, folderName);
                             }
                             else
                             {
-                                folderName = $"{sampleName}_{DateTime.Now:yyyyMMdd}";
+                                folderName = $"{deviceName}_{DateTime.Now:yyyyMMdd}";
                                 folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, folderName);
                             }
                         }
@@ -158,11 +190,11 @@ public partial class MainWindowViewModel
                             if (IsScanningWafer)
                             {
                                 folderName = _currentWaferScanFolderName;
-                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, "Wafermaps", folderName);
+                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, "Wafermaps", deviceName, folderName);
                             }
                             else
                             {
-                                folderName = $"{sampleName}_{DateTime.Now:yyyyMMdd}";
+                                folderName = $"{deviceName}_{DateTime.Now:yyyyMMdd}";
                                 folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, folderName);
                             }
                         }
@@ -1023,7 +1055,106 @@ public partial class MainWindowViewModel
 
         LoadAvailablePresets();
         LoadLastConfig();
+        RefreshExistingDeviceNames();
         IsConfigLoaded = true;
+    }
+
+    public void RefreshExistingDeviceNames()
+    {
+        try
+        {
+            var profile = string.IsNullOrWhiteSpace(Settings.Profile) ? "Default" : Settings.Profile.Trim();
+            var deviceNamesSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // 1. Load from AppConfig saved device names
+            var config = ConfigurationService.Instance.GetConfig();
+            if (config.SavedDeviceNames != null)
+            {
+                foreach (var name in config.SavedDeviceNames)
+                {
+                    if (!string.IsNullOrWhiteSpace(name)) deviceNamesSet.Add(name.Trim());
+                }
+            }
+
+            // Always include "Empty Device" in suggestions
+            deviceNamesSet.Add("Empty Device");
+
+            // 2. Scan disk folders under SMU_Measurements/<profile>/Wafermaps/
+            string[] basePaths = new[]
+            {
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                AppDomain.CurrentDomain.BaseDirectory
+            };
+
+            foreach (var basePath in basePaths)
+            {
+                try
+                {
+                    string wafermapsDir = System.IO.Path.Combine(basePath, "SMU_Measurements", profile, "Wafermaps");
+                    if (System.IO.Directory.Exists(wafermapsDir))
+                    {
+                        // First migrate any legacy Scan_* folders directly under Wafermaps/ into Wafermaps/Empty Device/
+                        MigrateLegacyWafermapFolders(wafermapsDir);
+
+                        // Scan device subdirectories
+                        var subDirs = System.IO.Directory.GetDirectories(wafermapsDir);
+                        foreach (var subDir in subDirs)
+                        {
+                            var dirName = System.IO.Path.GetFileName(subDir);
+                            if (!string.IsNullOrWhiteSpace(dirName))
+                            {
+                                deviceNamesSet.Add(dirName.Trim());
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            // Update collection
+            ExistingDeviceNames.Clear();
+            foreach (var devName in deviceNamesSet.OrderBy(n => n))
+            {
+                ExistingDeviceNames.Add(devName);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to refresh existing device names: {ex.Message}");
+        }
+    }
+
+    private void MigrateLegacyWafermapFolders(string wafermapsDir)
+    {
+        try
+        {
+            if (!System.IO.Directory.Exists(wafermapsDir)) return;
+
+            var directSubDirs = System.IO.Directory.GetDirectories(wafermapsDir);
+            string emptyDeviceDir = System.IO.Path.Combine(wafermapsDir, "Empty Device");
+
+            foreach (var dir in directSubDirs)
+            {
+                var dirName = System.IO.Path.GetFileName(dir);
+                // If direct subfolder is a legacy Scan_* folder, move it into Empty Device/
+                if (dirName.StartsWith("Scan_", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!System.IO.Directory.Exists(emptyDeviceDir))
+                    {
+                        System.IO.Directory.CreateDirectory(emptyDeviceDir);
+                    }
+                    string destPath = System.IO.Path.Combine(emptyDeviceDir, dirName);
+                    if (!System.IO.Directory.Exists(destPath))
+                    {
+                        System.IO.Directory.Move(dir, destPath);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to migrate legacy wafermap folders: {ex.Message}");
+        }
     }
 
     private async Task SaveAutoSaveSettingAsync(bool value)

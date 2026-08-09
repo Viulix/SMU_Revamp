@@ -95,8 +95,8 @@
                 <TextBlock Text="Profile:" VerticalAlignment="Center" FontWeight="SemiBold" />
                 <TextBox Text="{Binding Settings.Profile}" Width="150" Height="30" VerticalContentAlignment="Center" />
                 
-                <TextBlock Text="Sample:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="10,0,0,0" />
-                <TextBox Text="{Binding Settings.SampleName}" Width="150" Height="30" VerticalContentAlignment="Center" />
+                <TextBlock Text="Device:" VerticalAlignment="Center" FontWeight="SemiBold" Margin="10,0,0,0" />
+                <AutoCompleteBox Text="{Binding Settings.SampleName}" ItemsSource="{Binding ExistingDeviceNames}" FilterMode="Contains" PlaceholderText="e.g. Device_A" Width="160" Height="30" />
 
                 <Button Content="Settings" 
                         Click="SettingsButton_Click" 

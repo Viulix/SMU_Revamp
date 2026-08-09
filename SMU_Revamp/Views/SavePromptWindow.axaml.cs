@@ -18,16 +18,20 @@ namespace SMU_Revamp.Views
             InitializeComponent();
         }
 
-        public SavePromptWindow(string initialProfile, string initialSampleName) : this()
+        public SavePromptWindow(string initialProfile, string initialSampleName, System.Collections.Generic.IEnumerable<string>? existingDevices = null) : this()
         {
             var profileBox = this.FindControl<TextBox>("ProfileTextBox");
             if (profileBox != null)
             {
                 profileBox.Text = initialProfile;
             }
-            var sampleBox = this.FindControl<TextBox>("SampleNameTextBox");
+            var sampleBox = this.FindControl<AutoCompleteBox>("SampleNameAutoCompleteBox");
             if (sampleBox != null)
             {
+                if (existingDevices != null)
+                {
+                    sampleBox.ItemsSource = existingDevices;
+                }
                 sampleBox.Text = initialSampleName;
             }
         }
@@ -35,11 +39,10 @@ namespace SMU_Revamp.Views
         private void OkButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var profileText = this.FindControl<TextBox>("ProfileTextBox")?.Text ?? string.Empty;
-            var sampleText = this.FindControl<TextBox>("SampleNameTextBox")?.Text ?? string.Empty;
+            var sampleText = this.FindControl<AutoCompleteBox>("SampleNameAutoCompleteBox")?.Text ?? string.Empty;
 
-            if (string.IsNullOrWhiteSpace(profileText) || string.IsNullOrWhiteSpace(sampleText))
+            if (string.IsNullOrWhiteSpace(profileText))
             {
-                // Both fields are required to proceed
                 return;
             }
 
@@ -47,7 +50,7 @@ namespace SMU_Revamp.Views
             {
                 Cancelled = false,
                 Profile = profileText.Trim(),
-                SampleName = sampleText.Trim()
+                SampleName = string.IsNullOrWhiteSpace(sampleText) ? "Empty Device" : sampleText.Trim()
             });
         }
 

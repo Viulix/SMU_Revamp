@@ -118,6 +118,15 @@ namespace SMU_Revamp.Services
                     }
                     catch { /* Ignore */ }
 
+                    // Fill missing/blank SampleNames with 'Empty Device'
+                    try
+                    {
+                        using var updateSampleCmd = connection.CreateCommand();
+                        updateSampleCmd.CommandText = "UPDATE Measurements SET SampleName = 'Empty Device' WHERE SampleName IS NULL OR TRIM(SampleName) = '';";
+                        await updateSampleCmd.ExecuteNonQueryAsync();
+                    }
+                    catch { /* Ignore */ }
+
                     // Try to add FolderName column if it's missing
                     try
                     {
@@ -185,9 +194,10 @@ namespace SMU_Revamp.Services
                     INSERT INTO Measurements (ProfileName, PlanName, SampleName, Timestamp, FolderName, SourceFilename)
                     VALUES (@profileName, @planName, @sampleName, @timestamp, @folderName, @sourceFilename);
                     SELECT LAST_INSERT_ID();";
+                string effectiveSampleName = string.IsNullOrWhiteSpace(sampleName) ? "Empty Device" : sampleName.Trim();
                 cmd.Parameters.AddWithValue("@profileName", profileName);
                 cmd.Parameters.AddWithValue("@planName", plan.Name);
-                cmd.Parameters.AddWithValue("@sampleName", sampleName);
+                cmd.Parameters.AddWithValue("@sampleName", effectiveSampleName);
                 cmd.Parameters.AddWithValue("@timestamp", timestamp);
                 cmd.Parameters.AddWithValue("@folderName", folderName);
                 cmd.Parameters.AddWithValue("@sourceFilename", sourceFilename);

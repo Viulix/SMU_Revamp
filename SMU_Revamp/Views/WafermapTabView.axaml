@@ -48,6 +48,32 @@
                                 <TextBox Text="{Binding WaferScanDelayMs}" Width="120" HorizontalAlignment="Left" Height="32" VerticalContentAlignment="Center" />
                             </StackPanel>
 
+                            <!-- Single Contact Navigation -->
+                            <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,10,0,0">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Target Contact Navigation:" FontSize="13" FontWeight="SemiBold" Foreground="#374151" />
+                                    <Grid ColumnDefinitions="*,*,*,*" Margin="0,0,0,5">
+                                        <StackPanel Grid.Column="0" Spacing="2" Margin="0,0,4,0">
+                                            <TextBlock Text="Cell" FontSize="11" Foreground="#6B7280" />
+                                            <TextBox Text="{Binding TargetCell}" PlaceholderText="YYXX" Height="30" VerticalContentAlignment="Center" FontSize="12" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Spacing="2" Margin="0,0,4,0">
+                                            <TextBlock Text="Row" FontSize="11" Foreground="#6B7280" />
+                                            <TextBox Text="{Binding TargetRow}" PlaceholderText="1-5" Height="30" VerticalContentAlignment="Center" FontSize="12" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Spacing="2" Margin="0,0,4,0">
+                                            <TextBlock Text="Col" FontSize="11" Foreground="#6B7280" />
+                                            <TextBox Text="{Binding TargetColumn}" PlaceholderText="1-5" Height="30" VerticalContentAlignment="Center" FontSize="12" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3" Spacing="2">
+                                            <TextBlock Text="Contact" FontSize="11" Foreground="#6B7280" />
+                                            <TextBox Text="{Binding TargetContact}" PlaceholderText="1-6" Height="30" VerticalContentAlignment="Center" FontSize="12" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Button Content="Go to Contact" Command="{Binding GoToTargetContactCommand}" Classes="Primary" HorizontalAlignment="Stretch" Height="34" />
+                                </StackPanel>
+                            </Border>
+
                             <!-- Buttons -->
                             <StackPanel Spacing="10" Margin="0,10,0,0">
                                 <Button Content="Start Wafer Scan" Command="{Binding ScanWaferCommand}" Classes="Primary" HorizontalAlignment="Stretch" Height="36" />
