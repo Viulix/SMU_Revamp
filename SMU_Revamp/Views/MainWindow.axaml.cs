@@ -1,11 +1,13 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
 using SMU_Revamp.ViewModels;
 
 namespace SMU_Revamp.Views;
 
 public partial class MainWindow : Window
 {
-    private Avalonia.Controls.Notifications.WindowNotificationManager? _notificationManager;
+    private WindowNotificationManager? _topNotificationManager;
+    private WindowNotificationManager? _cornerNotificationManager;
 
     public MainWindow()
     {
@@ -16,9 +18,15 @@ public partial class MainWindow : Window
     {
         base.OnOpened(e);
 
-        _notificationManager = new Avalonia.Controls.Notifications.WindowNotificationManager(this)
+        _topNotificationManager = new WindowNotificationManager(this)
         {
-            Position = Avalonia.Controls.Notifications.NotificationPosition.BottomRight,
+            Position = NotificationPosition.TopCenter,
+            MaxItems = 3
+        };
+
+        _cornerNotificationManager = new WindowNotificationManager(this)
+        {
+            Position = NotificationPosition.BottomRight,
             MaxItems = 3
         };
 
@@ -37,15 +45,51 @@ public partial class MainWindow : Window
         base.OnUnloaded(e);
     }
 
-    private void ShowNotification(string title, string message, string? filePath)
+    private void ShowNotification(string title, string message, string? filePath, NotificationType? explicitType)
     {
-        if (_notificationManager == null) return;
+        NotificationType type;
+        if (explicitType.HasValue)
+        {
+            type = explicitType.Value;
+        }
+        else if (title.Contains("Error", System.StringComparison.OrdinalIgnoreCase) || 
+                 title.Contains("Fehler", System.StringComparison.OrdinalIgnoreCase) || 
+                 title.Contains("Invalid", System.StringComparison.OrdinalIgnoreCase) ||
+                 message.Contains("Error", System.StringComparison.OrdinalIgnoreCase))
+        {
+            type = NotificationType.Error;
+        }
+        else if (title.Contains("Warning", System.StringComparison.OrdinalIgnoreCase) || 
+                 title.Contains("Warnung", System.StringComparison.OrdinalIgnoreCase) || 
+                 title.Contains("Skipped", System.StringComparison.OrdinalIgnoreCase))
+        {
+            type = NotificationType.Warning;
+        }
+        else
+        {
+            type = NotificationType.Success;
+        }
 
-        _notificationManager.Show(new Avalonia.Controls.Notifications.Notification(
+        // Errors & Warnings -> TopCenter (zentral oberhalb des Screens)
+        // Success / Info (e.g. "Datei gespeichert", "Preset Loaded") -> BottomRight (in der Ecke)
+        var manager = (type == NotificationType.Error || type == NotificationType.Warning)
+            ? _topNotificationManager ?? _cornerNotificationManager
+            : _cornerNotificationManager ?? _topNotificationManager;
+
+        if (manager == null) return;
+
+        int displayDurationSeconds = type switch
+        {
+            NotificationType.Error => 8,
+            NotificationType.Warning => 6,
+            _ => 4
+        };
+
+        manager.Show(new Notification(
             title,
             message,
-            Avalonia.Controls.Notifications.NotificationType.Success,
-            System.TimeSpan.FromSeconds(6),
+            type,
+            System.TimeSpan.FromSeconds(displayDurationSeconds),
             onClick: () =>
             {
                 if (!string.IsNullOrWhiteSpace(filePath))

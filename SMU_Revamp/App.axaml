@@ -65,6 +65,7 @@
             <Setter Property="Padding" Value="16,8"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
         <Style Selector="Button.Primary:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="#333333"/> <!-- Dunkelgrau -->
@@ -89,6 +90,7 @@
             <Setter Property="Padding" Value="16,8"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
         <Style Selector="Button.Secondary:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="#F2F2F2"/> <!-- Helles Grau -->
@@ -112,6 +114,7 @@
             <Setter Property="Padding" Value="16,8"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
         <Style Selector="Button.Tertiary:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="#F2F2F2"/> <!-- Leichtes Grau als Highlight -->
@@ -134,6 +137,7 @@
             <Setter Property="Padding" Value="16,8"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
         <Style Selector="Button.Danger:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="#B71C1C"/>
@@ -159,5 +163,68 @@
             <Setter Property="Fill" Value="White" />
         </Style>
 
+        <!-- ========================================== -->
+        <!-- TOAST NOTIFICATION CARDS                   -->
+        <!-- ========================================== -->
+        <Style Selector="NotificationCard">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+
+        <!-- ERROR: Red Background & Accent -->
+        <Style Selector="NotificationCard:error">
+            <Setter Property="Background" Value="#FEE2E2" />
+            <Setter Property="BorderBrush" Value="#EF4444" />
+            <Setter Property="BorderThickness" Value="1.5" />
+        </Style>
+        <Style Selector="NotificationCard:error /template/ TextBlock#PART_Title">
+            <Setter Property="Foreground" Value="#991B1B" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style Selector="NotificationCard:error /template/ TextBlock#PART_Message">
+            <Setter Property="Foreground" Value="#B91C1C" />
+        </Style>
+
+        <!-- WARNING: Yellow/Amber Background & Accent -->
+        <Style Selector="NotificationCard:warning">
+            <Setter Property="Background" Value="#FEF3C7" />
+            <Setter Property="BorderBrush" Value="#F59E0B" />
+            <Setter Property="BorderThickness" Value="1.5" />
+        </Style>
+        <Style Selector="NotificationCard:warning /template/ TextBlock#PART_Title">
+            <Setter Property="Foreground" Value="#92400E" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style Selector="NotificationCard:warning /template/ TextBlock#PART_Message">
+            <Setter Property="Foreground" Value="#B45309" />
+        </Style>
+
+        <!-- SUCCESS: Green Background & Accent -->
+        <Style Selector="NotificationCard:success">
+            <Setter Property="Background" Value="#DCFCE7" />
+            <Setter Property="BorderBrush" Value="#22C55E" />
+            <Setter Property="BorderThickness" Value="1.5" />
+        </Style>
+        <Style Selector="NotificationCard:success /template/ TextBlock#PART_Title">
+            <Setter Property="Foreground" Value="#166534" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style Selector="NotificationCard:success /template/ TextBlock#PART_Message">
+            <Setter Property="Foreground" Value="#15803D" />
+        </Style>
+
+        <!-- INFORMATION: Blue Background & Accent -->
+        <Style Selector="NotificationCard:information">
+            <Setter Property="Background" Value="#E0F2FE" />
+            <Setter Property="BorderBrush" Value="#0284C7" />
+            <Setter Property="BorderThickness" Value="1.5" />
+        </Style>
+        <Style Selector="NotificationCard:information /template/ TextBlock#PART_Title">
+            <Setter Property="Foreground" Value="#075985" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style Selector="NotificationCard:information /template/ TextBlock#PART_Message">
+            <Setter Property="Foreground" Value="#0369A1" />
+        </Style>
     </Application.Styles>
 </Application>

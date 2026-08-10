@@ -465,7 +465,14 @@ public partial class MainWindowViewModel
         try
         {
             await ProberService.Instance.ConnectAsync();
+            await ProberService.Instance.DisconnectChuckAsync();
+            await Task.Delay(100);
             await ProberService.Instance.MoveProberAsync(MoveX, MoveY);
+            await Task.Delay(100);
+            if (ConnectChuckAfterMove)
+            {
+                await ProberService.Instance.ConnectChuckAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -479,7 +486,14 @@ public partial class MainWindowViewModel
         try
         {
             await ProberService.Instance.ConnectAsync();
+            await ProberService.Instance.DisconnectChuckAsync();
+            await Task.Delay(100);
             await ProberService.Instance.MoveProberAbsoluteAsync(MoveX, MoveY);
+            await Task.Delay(100);
+            if (ConnectChuckAfterMove)
+            {
+                await ProberService.Instance.ConnectChuckAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -557,7 +571,10 @@ public partial class MainWindowViewModel
             await Task.Delay(100); 
             await ProberService.Instance.GoToWaferContactAsync(cellPosition, row, col, contact);
             await Task.Delay(100);
-            await ProberService.Instance.ConnectChuckAsync();
+            if (ConnectChuckAfterMove)
+            {
+                await ProberService.Instance.ConnectChuckAsync();
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(advPathA) && !string.IsNullOrWhiteSpace(advPathB))
@@ -586,14 +603,42 @@ public partial class MainWindowViewModel
             await Task.Delay(100);
             await ProberService.Instance.GoToWaferContactAsync(cellPosition, row, col, contact);
             await Task.Delay(100);
-            await ProberService.Instance.ConnectChuckAsync();
-            MeasurementStatus = $"Prober moved to Cell {cellPosition}, R{row}C{col}, Contact {contact}.";
+            if (ConnectChuckAfterMove)
+            {
+                await ProberService.Instance.ConnectChuckAsync();
+                MeasurementStatus = $"Prober moved and contacted Cell {cellPosition}, R{row}C{col}, Contact {contact}.";
+            }
+            else
+            {
+                MeasurementStatus = $"Prober moved to Cell {cellPosition}, R{row}C{col}, Contact {contact} (chuck separated).";
+            }
             NotificationRequested?.Invoke("Prober Moved", $"Moved to Cell {cellPosition}, R{row}C{col}, Contact {contact}.", null);
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Error moving to target contact: {ex.Message}";
             NotificationRequested?.Invoke("Movement Error", ex.Message, null);
+        }
+    }
+
+    [RelayCommand]
+    private async Task GoHomeAsync()
+    {
+        ErrorMessage = string.Empty;
+        try
+        {
+            MeasurementStatus = "Separating chuck and returning prober to Home position...";
+            await ProberService.Instance.ConnectAsync();
+            await ProberService.Instance.DisconnectChuckAsync();
+            await Task.Delay(100);
+            await ProberService.Instance.ProberGoHomeAsync();
+            MeasurementStatus = "Prober returned to Home position (chuck separated).";
+            NotificationRequested?.Invoke("Prober Home", "Prober returned to Home position.", null);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error going to home position: {ex.Message}";
+            NotificationRequested?.Invoke("Prober Error", ex.Message, null);
         }
     }
 

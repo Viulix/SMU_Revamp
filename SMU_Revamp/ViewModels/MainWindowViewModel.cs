@@ -15,9 +15,11 @@ using SMU_Revamp.Interfaces;
 
 namespace SMU_Revamp.ViewModels;
 
+public delegate void NotificationRequestedEventHandler(string title, string message, string? filePath = null, Avalonia.Controls.Notifications.NotificationType? type = null);
+
 public partial class MainWindowViewModel : ViewModelBase
 {
-    public event Action<string, string, string?>? NotificationRequested;
+    public event NotificationRequestedEventHandler? NotificationRequested;
 
     public string Greeting { get; } = "Welcome to Avalonia!";
 
@@ -487,6 +489,22 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private bool _connectChuckAfterMove = true;
+    public bool ConnectChuckAfterMove
+    {
+        get => _connectChuckAfterMove;
+        set => SetProperty(ref _connectChuckAfterMove, value);
+    }
+
+    private bool _isWaferScanGuideVisible = true;
+    public bool IsWaferScanGuideVisible
+    {
+        get => _isWaferScanGuideVisible;
+        set => SetProperty(ref _isWaferScanGuideVisible, value);
+    }
+
+    public ICommand ToggleWaferScanGuideCommand { get; }
+
     public System.Collections.ObjectModel.ObservableCollection<WaferCellViewModel> WaferCells { get; } = new();
     public System.Collections.ObjectModel.ObservableCollection<SubCellViewModel> SubCells { get; } = new();
 
@@ -910,6 +928,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RequestStopScanCommand = new RelayCommand(() => IsCancelPromptVisible = true, () => IsScanningWafer);
         ConfirmStopScanCommand = new RelayCommand(ConfirmStopWaferScan);
         CancelStopRequestCommand = new RelayCommand(() => IsCancelPromptVisible = false);
+        ToggleWaferScanGuideCommand = new RelayCommand(() => IsWaferScanGuideVisible = !IsWaferScanGuideVisible);
 
         CloseErrorPopupCommand = new RelayCommand(() => IsErrorPopupVisible = false);
         ProceedWithScanCommand = new AsyncRelayCommand(async () =>

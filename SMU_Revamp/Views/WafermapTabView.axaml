@@ -14,9 +14,51 @@
             <Grid RowDefinitions="Auto,Auto,*" Margin="0,0,10,0">
                 <!-- Top: Settings and Buttons -->
                 <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" Margin="10,10,10,5" BoxShadow="0 4 15 0 #15000000" VerticalAlignment="Top">
-                    <StackPanel Spacing="20">
-                        <TextBlock Text="Automatic Wafer Scan" FontSize="20" FontWeight="Bold" Margin="0,0,0,0" TextWrapping="Wrap" />
-                        <TextBlock Text="Note: The automatic wafer scan will execute the measurement plan currently selected in the 'Measurements' tab at each target contact." FontStyle="Italic" TextWrapping="Wrap" Foreground="#666666" Margin="0,0,0,10" />
+                    <StackPanel Spacing="15">
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,5">
+                            <TextBlock Grid.Column="0" Text="Automatic Wafer Scan" FontSize="20" FontWeight="Bold" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <Button Grid.Column="1" 
+                                    Content="ⓘ Workflow Guide" 
+                                    Command="{Binding ToggleWaferScanGuideCommand}" 
+                                    Classes="Secondary" 
+                                    Padding="10,4" 
+                                    FontSize="12" 
+                                    VerticalAlignment="Center" 
+                                    ToolTip.Tip="Toggle workflow guide visibility" />
+                        </Grid>
+                        
+                        <!-- Workflow Info Guide Box (Collapsible / Hideable) -->
+                        <Border Background="#F0F9FF" 
+                                BorderBrush="#BAE6FD" 
+                                BorderThickness="1" 
+                                CornerRadius="8" 
+                                Padding="14" 
+                                Margin="0,0,0,5" 
+                                IsVisible="{Binding IsWaferScanGuideVisible}">
+                            <Grid RowDefinitions="Auto,Auto">
+                                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                        <Path Fill="#0284C7" Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" Width="18" Height="18" Stretch="Uniform" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Automatic Wafer Scan Workflow:" FontWeight="Bold" Foreground="#0369A1" FontSize="13" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" 
+                                            Content="✕" 
+                                            Command="{Binding ToggleWaferScanGuideCommand}" 
+                                            Classes="Tertiary" 
+                                            Padding="6,2" 
+                                            FontSize="12" 
+                                            Foreground="#0369A1" 
+                                            VerticalAlignment="Center" 
+                                            ToolTip.Tip="Hide guide" />
+                                </Grid>
+                                <StackPanel Grid.Row="1" Spacing="5" Margin="26,0,0,0">
+                                    <TextBlock Text="1. Set Measurement Plan: Select or build the measurement plan in the 'Measurements' tab." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
+                                    <TextBlock Text="2. Select Target Contacts: Mark Target Cells (16x16), Global Sub-cells (5x5), and Contacts (1-6)." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
+                                    <TextBlock Text="3. Start &amp; Align: Click 'Start Wafer Scan' and confirm prober alignment at Home position (0101, Sub 1,1, Contact 1)." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
+                                    <TextBlock Text="4. Automated Scan: Prober moves to each target point, executes the measurement plan, and saves CSV results." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
 
                         <StackPanel Spacing="15" IsEnabled="{Binding !IsScanningWafer}">
                             <!-- Scan Presets -->
@@ -47,32 +89,6 @@
                                 <TextBlock Text="Movement Delay (ms):" FontSize="14" FontWeight="SemiBold" />
                                 <TextBox Text="{Binding WaferScanDelayMs}" Width="120" HorizontalAlignment="Left" Height="32" VerticalContentAlignment="Center" />
                             </StackPanel>
-
-                            <!-- Single Contact Navigation -->
-                            <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,10,0,0">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Target Contact Navigation:" FontSize="13" FontWeight="SemiBold" Foreground="#374151" />
-                                    <Grid ColumnDefinitions="*,*,*,*" Margin="0,0,0,5">
-                                        <StackPanel Grid.Column="0" Spacing="2" Margin="0,0,4,0">
-                                            <TextBlock Text="Cell" FontSize="11" Foreground="#6B7280" />
-                                            <TextBox Text="{Binding TargetCell}" PlaceholderText="YYXX" Height="30" VerticalContentAlignment="Center" FontSize="12" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1" Spacing="2" Margin="0,0,4,0">
-                                            <TextBlock Text="Row" FontSize="11" Foreground="#6B7280" />
-                                            <TextBox Text="{Binding TargetRow}" PlaceholderText="1-5" Height="30" VerticalContentAlignment="Center" FontSize="12" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2" Spacing="2" Margin="0,0,4,0">
-                                            <TextBlock Text="Col" FontSize="11" Foreground="#6B7280" />
-                                            <TextBox Text="{Binding TargetColumn}" PlaceholderText="1-5" Height="30" VerticalContentAlignment="Center" FontSize="12" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="3" Spacing="2">
-                                            <TextBlock Text="Contact" FontSize="11" Foreground="#6B7280" />
-                                            <TextBox Text="{Binding TargetContact}" PlaceholderText="1-6" Height="30" VerticalContentAlignment="Center" FontSize="12" />
-                                        </StackPanel>
-                                    </Grid>
-                                    <Button Content="Go to Contact" Command="{Binding GoToTargetContactCommand}" Classes="Primary" HorizontalAlignment="Stretch" Height="34" />
-                                </StackPanel>
-                            </Border>
 
                             <!-- Buttons -->
                             <StackPanel Spacing="10" Margin="0,10,0,0">
