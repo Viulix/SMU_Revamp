@@ -1,9 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="SMU_Revamp.Views.Controls.ResultEmptyStateControl">
-    <Border Background="#F9FAFB"
-            BorderBrush="#E5E7EB"
-            BorderThickness="1"
+    <Border Background="#FFFFFF"
+            BorderBrush="Transparent"
+            BorderThickness="0"
             CornerRadius="12"
             Padding="40"
             Margin="30"

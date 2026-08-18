@@ -278,7 +278,7 @@ namespace SMU_Revamp.Services
                             foreach (var contact in targetContacts)
                             {
                                 ct.ThrowIfCancellationRequested();
-                                await DisconnectChuckAsync();
+                                try { await DisconnectChuckAsync(); } catch { }
                                 if (delayMs > 0) await Task.Delay(delayMs, ct);
                                 
                                 await GoToWaferContactAsync(cell, row, col, contact);
@@ -287,7 +287,14 @@ namespace SMU_Revamp.Services
                                 await ConnectChuckAsync();
                                 if (delayMs > 0) await Task.Delay(delayMs, ct);
                                 
-                                await onContactReached(cell, row, col, contact);
+                                try
+                                {
+                                    await onContactReached(cell, row, col, contact);
+                                }
+                                finally
+                                {
+                                    try { await DisconnectChuckAsync(); } catch { }
+                                }
                             }
                         }
                     }

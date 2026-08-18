@@ -172,6 +172,11 @@ public class AppConfig
     public string SelectedResultMetric { get; set; } = "Average Resistance";
     public double GapTargetVoltage { get; set; } = 1.0;
     public bool UseAverageForMemristorCheck { get; set; } = false;
+
+    /// <summary>
+    /// Stores the last measured duration in seconds for each plan, keyed by PlanName.
+    /// </summary>
+    public System.Collections.Generic.Dictionary<string, double> LastPlanDurations { get; set; } = new();
 }
 
 /// <summary>
@@ -182,6 +187,11 @@ public class MeasurementPreset
     public string Name { get; set; } = string.Empty;
     public string PlanName { get; set; } = string.Empty;
     public System.Collections.Generic.Dictionary<string, string> Parameters { get; set; } = new();
+
+    /// <summary>
+    /// Last measured duration for this preset in seconds.
+    /// </summary>
+    public double LastDurationSeconds { get; set; } = 0.0;
 }
 
 /// <summary>

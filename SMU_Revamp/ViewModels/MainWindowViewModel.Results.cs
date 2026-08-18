@@ -338,4 +338,87 @@ public partial class MainWindowViewModel
         return double.NaN;
     }
 
+    public void NavigateResultSubCell(int dRow, int dCol)
+    {
+        if (!IsResultFolderLoaded) return;
+
+        if (SelectedResultCell == null)
+        {
+            SelectedResultCell = ResultCells.FirstOrDefault(c => c.IsValid && c.SubCells.Any()) 
+                              ?? ResultCells.FirstOrDefault(c => c.IsValid);
+        }
+
+        if (SelectedResultCell == null || SelectedResultCell.SubCells.Count == 0) return;
+
+        if (SelectedResultSubCell == null)
+        {
+            SelectedResultSubCell = SelectedResultCell.SubCells.FirstOrDefault(s => s.IsValid) 
+                                 ?? SelectedResultCell.SubCells.FirstOrDefault();
+            return;
+        }
+
+        int targetRow = SelectedResultSubCell.Row + dRow;
+        int targetCol = SelectedResultSubCell.Col + dCol;
+
+        // SubCell grid is 5x5 (rows 1..5, cols 1..5)
+        while (targetRow >= 1 && targetRow <= 5 && targetCol >= 1 && targetCol <= 5)
+        {
+            var candidate = SelectedResultCell.SubCells.FirstOrDefault(s => s.Row == targetRow && s.Col == targetCol && s.IsValid);
+            if (candidate != null)
+            {
+                SelectedResultSubCell = candidate;
+                return;
+            }
+            targetRow += dRow;
+            targetCol += dCol;
+        }
+    }
+
+    public void NavigateResultWaferCell(int dRow, int dCol)
+    {
+        if (!IsResultFolderLoaded) return;
+
+        if (SelectedResultCell == null)
+        {
+            SelectedResultCell = ResultCells.FirstOrDefault(c => c.IsValid && c.SubCells.Any()) 
+                              ?? ResultCells.FirstOrDefault(c => c.IsValid);
+            return;
+        }
+
+        int targetRow = SelectedResultCell.Row + dRow;
+        int targetCol = SelectedResultCell.Col + dCol;
+
+        // Wafer grid is 16x16 (rows 1..16, cols 1..16)
+        while (targetRow >= 1 && targetRow <= 16 && targetCol >= 1 && targetCol <= 16)
+        {
+            var candidate = ResultCells.FirstOrDefault(c => c.Row == targetRow && c.Col == targetCol && c.IsValid);
+            if (candidate != null)
+            {
+                SelectedResultCell = candidate;
+                return;
+            }
+            targetRow += dRow;
+            targetCol += dCol;
+        }
+    }
+
+    public void NavigateResultContact(int delta)
+    {
+        if (!IsResultFolderLoaded) return;
+        if (SelectedResultSubCell == null || SelectedResultSubCell.Contacts.Count == 0) return;
+
+        var contacts = SelectedResultSubCell.Contacts;
+        int currentIndex = SelectedResultContact != null ? contacts.IndexOf(SelectedResultContact) : -1;
+
+        if (currentIndex == -1)
+        {
+            SelectedResultContact = contacts.FirstOrDefault();
+            return;
+        }
+
+        int nextIndex = Math.Clamp(currentIndex + delta, 0, contacts.Count - 1);
+        SelectedResultContact = contacts[nextIndex];
+    }
+
 }
+

@@ -96,6 +96,7 @@ public partial class MainWindowViewModel
         // Persist measurement settings automatically when running
         await SaveMeasurementConfigAsync();
 
+        var singleMeasurementStopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             // Connect to SMU
@@ -122,6 +123,32 @@ public partial class MainWindowViewModel
                 }
             });
             await PlottedPlan.RunMeasurementAsync(smu, progressReporter);
+            singleMeasurementStopwatch.Stop();
+
+            double actualDurationSeconds = singleMeasurementStopwatch.Elapsed.TotalSeconds;
+
+            if (SelectedPreset != null)
+            {
+                SelectedPreset.LastDurationSeconds = actualDurationSeconds;
+            }
+
+            var durationConfig = ConfigurationService.Instance.GetConfig();
+            if (durationConfig.LastPlanDurations == null) durationConfig.LastPlanDurations = new Dictionary<string, double>();
+            if (PlottedPlan != null && !string.IsNullOrWhiteSpace(PlottedPlan.Name))
+            {
+                durationConfig.LastPlanDurations[PlottedPlan.Name] = actualDurationSeconds;
+            }
+
+            if (SelectedPreset != null && durationConfig.Presets != null)
+            {
+                var targetPreset = durationConfig.Presets.FirstOrDefault(p => p.Name == SelectedPreset.Name);
+                if (targetPreset != null)
+                {
+                    targetPreset.LastDurationSeconds = actualDurationSeconds;
+                }
+            }
+            await ConfigurationService.Instance.SaveAsync(durationConfig);
+            NotifyDurationPropertiesChanged();
 
             // Final update of viewer data to ensure we didn't miss anything.
             RefreshPlotDataFromPlottedPlan();
@@ -199,11 +226,13 @@ public partial class MainWindowViewModel
                             }
                         }
                         
+                        if (PlottedPlan == null) return;
+
                         if (!System.IO.Directory.Exists(folderPath))
                         {
                             System.IO.Directory.CreateDirectory(folderPath);
                         }
-                        
+
                         var planName = PlottedPlan.Name.Replace(" ", "_").Replace("-", "_");
                         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                         
@@ -289,8 +318,11 @@ public partial class MainWindowViewModel
         }
         finally
         {
-            // Close sessions
-            try { await E5263_SMU.Instance.DisconnectAsync(); } catch { }
+            // Close session for single measurements (during a wafer scan, ExecuteWaferScanAsync manages the persistent session)
+            if (!IsScanningWafer)
+            {
+                try { await E5263_SMU.Instance.DisconnectAsync(); } catch { }
+            }
             IsMeasuring = false;
             MeasurementProgress = 100;
             IsProgressIndeterminate = false;
@@ -870,7 +902,8 @@ public partial class MainWindowViewModel
         var newPreset = new MeasurementPreset 
         { 
             Name = name,
-            PlanName = SelectedPlan.Name
+            PlanName = SelectedPlan.Name,
+            LastDurationSeconds = GetLastDurationForCurrentPlan()
         };
         foreach (var param in SelectedPlan.Parameters)
         {

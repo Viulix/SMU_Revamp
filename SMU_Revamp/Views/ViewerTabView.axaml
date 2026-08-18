@@ -11,9 +11,9 @@
     <Grid>
         <!-- Empty State Placeholder (No Data Loaded) -->
         <Border IsVisible="{Binding !IsPlottedPlanLoaded}"
-                Background="#F9FAFB"
-                BorderBrush="#E5E7EB"
-                BorderThickness="1"
+                Background="#FFFFFF"
+                BorderBrush="Transparent"
+                BorderThickness="0"
                 CornerRadius="12"
                 Padding="40"
                 Margin="30"
@@ -57,7 +57,7 @@
         <!-- Normal Viewer UI -->
         <Grid IsVisible="{Binding IsPlottedPlanLoaded}" Margin="20" RowDefinitions="Auto, *">
             <!-- Top Bar / Plot Settings Container -->
-            <Border Grid.Row="0" Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8" Padding="20" Margin="0,0,0,20">
+            <Border Grid.Row="0" Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8" Padding="20" Margin="5,5,5,20">
                 <StackPanel Spacing="15">
                     <TextBlock Text="Plot Settings" FontSize="18" FontWeight="SemiBold" />
                     
@@ -84,8 +84,6 @@
                                     Height="32"
                                     Padding="15,0"
                                     VerticalContentAlignment="Center" Margin="0,0,15,10" />
-
-                            <CheckBox Content="Logarithmic X" IsChecked="{Binding IsViewerLogarithmicX}" VerticalAlignment="Center" Foreground="#4B5563" FontWeight="SemiBold" Margin="0,0,15,10"/>
                         </WrapPanel>
 
                         <!-- Right: Action Buttons -->
@@ -106,14 +104,6 @@
 
                             <Button Content="Export" 
                                     Click="ExportCsvButton_Click"
-                                    IsEnabled="{Binding HasCurvePoints}"
-                                    Classes="Secondary" 
-                                    Height="32"
-                                    Padding="15,0"
-                                    VerticalContentAlignment="Center" Margin="0,0,15,10" />
-
-                            <Button Content="Upload to DB" 
-                                    Click="UploadToDatabaseButton_Click"
                                     IsEnabled="{Binding HasCurvePoints}"
                                     Classes="Secondary" 
                                     Height="32"

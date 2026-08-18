@@ -50,12 +50,15 @@ public partial class MainWindowViewModel
         CustomYMax = null;
         AutoFitDataX = false;
         AutoFitDataY = false;
+        IsViewerLogarithmicX = false;
         CustomAspectRatioString = null;
         
         var defaultColors = new[] { "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf" };
         for (int i = 0; i < SeriesSettings.Count; i++)
         {
             SeriesSettings[i].ColorHex = defaultColors[i % defaultColors.Length];
+            SeriesSettings[i].LineWidth = 2.0;
+            SeriesSettings[i].LineStyle = "Solid";
         }
     }
 
@@ -109,12 +112,23 @@ public partial class MainWindowViewModel
             title = $"Cell: {SelectedResultCell.Id} | Sub: {SelectedResultSubCell.Id} | {title}";
         }
 
+        var plan = new PulseSweepMeasurementPlan();
+        plan.ResultPoints.Clear();
+        plan.ResultPoints.AddRange(SelectedResultContact.CurveData);
+
         CustomPlotTitle = title;
+        PlottedPlan = plan;
         CurvePoints = new List<CurvePoint>(SelectedResultContact.CurveData);
         PlotSeries = new List<PlotSeries>
         {
             new PlotSeries(title, SelectedResultContact.CurveData.ToList())
         };
+
+        CustomXAxisTitle = null;
+        CustomYAxisTitle = null;
+        OnPropertyChanged(nameof(XAxisTitle));
+        OnPropertyChanged(nameof(YAxisTitle));
+        OnPropertyChanged(nameof(IsPlottedPlanLoaded));
 
         SelectedTabIndex = 0; // Switch to Viewer tab
     }

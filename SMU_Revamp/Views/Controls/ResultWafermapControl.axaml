@@ -5,7 +5,12 @@
              x:DataType="vm:MainWindowViewModel">
     <Border Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8" Padding="20" Margin="0,0,20,0" VerticalAlignment="Top">
         <StackPanel Spacing="10">
-            <TextBlock Text="Wafer Cells (16x16)" FontSize="16" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="Wafer Cells (16x16)" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Border Grid.Column="1" Background="#F3F4F6" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" ToolTip.Tip="Use Ctrl + Arrow Keys (or Cmd + Arrows on Mac) to navigate between Wafer Cells">
+                    <TextBlock Text="Ctrl + ↑↓←→" FontSize="11" FontWeight="SemiBold" Foreground="#4B5563" />
+                </Border>
+            </Grid>
             <Viewbox Stretch="Uniform" HorizontalAlignment="Left" StretchDirection="DownOnly" MaxWidth="700">
                 <Border Background="#F3F4F6" Padding="15" CornerRadius="8">
                     <ItemsControl ItemsSource="{Binding ResultCells}">

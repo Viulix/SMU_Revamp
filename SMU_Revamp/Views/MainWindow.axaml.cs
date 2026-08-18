@@ -1,5 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using SMU_Revamp.ViewModels;
 
 namespace SMU_Revamp.Views;
@@ -12,7 +15,53 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        AddHandler(InputElement.KeyDownEvent, MainWindow_KeyDown, RoutingStrategies.Tunnel);
     }
+
+    private void MainWindow_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm)
+        {
+            // Only active on Result Tab (TabIndex == 3) and when result folder is loaded
+            if (vm.SelectedTabIndex == 3 && vm.IsResultFolderLoaded && !vm.IsLoadingResultData)
+            {
+                // Do not intercept if user is currently typing in an editable text/numeric control
+                if (e.Source is TextBox || e.Source is NumericUpDown)
+                {
+                    return;
+                }
+
+                if (e.Key == Key.Up || e.Key == Key.Down || e.Key == Key.Left || e.Key == Key.Right)
+                {
+                    bool isCtrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || 
+                                  (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX) && e.KeyModifiers.HasFlag(KeyModifiers.Meta));
+                    bool isAlt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+
+                    if (isAlt)
+                    {
+                        int delta = (e.Key == Key.Down || e.Key == Key.Right) ? 1 : -1;
+                        vm.NavigateResultContact(delta);
+                        e.Handled = true;
+                    }
+                    else if (isCtrl)
+                    {
+                        int dRow = e.Key == Key.Up ? -1 : (e.Key == Key.Down ? 1 : 0);
+                        int dCol = e.Key == Key.Left ? -1 : (e.Key == Key.Right ? 1 : 0);
+                        vm.NavigateResultWaferCell(dRow, dCol);
+                        e.Handled = true;
+                    }
+                    else
+                    {
+                        int dRow = e.Key == Key.Up ? -1 : (e.Key == Key.Down ? 1 : 0);
+                        int dCol = e.Key == Key.Left ? -1 : (e.Key == Key.Right ? 1 : 0);
+                        vm.NavigateResultSubCell(dRow, dCol);
+                        e.Handled = true;
+                    }
+                }
+            }
+        }
+    }
+
 
     protected override void OnOpened(System.EventArgs e)
     {

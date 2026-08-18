@@ -189,6 +189,19 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Global Progress Bar Demo Card -->
+                        <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="16" Background="#F9FAFB">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="Global Progress Bar Demo" FontSize="14" FontWeight="SemiBold" Foreground="#1F2937" />
+                                <TextBlock Text="Test the visual appearance, pulsing animations, and layout of the top global progress bar." FontSize="12" Foreground="#666666" TextWrapping="Wrap" />
+                                
+                                <WrapPanel Orientation="Horizontal">
+                                    <Button Content="Play Demo Progress (10s)" Click="PlayProgressDemo_Click" Classes="Primary" Padding="15,8" Margin="0,0,10,0" />
+                                    <Button Content="Toggle Indeterminate Demo" Click="ToggleIndeterminateDemo_Click" Classes="Secondary" Padding="15,8" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

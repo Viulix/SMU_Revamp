@@ -73,8 +73,8 @@ namespace SMU_Revamp.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[ProberService] Error during connect: {ex.Message}");
-                throw new InvalidOperationException("Failed to connect to prober. Check resource string and connection.", ex);
+                System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Error during connect: {ex.Message}");
+                throw new InvalidOperationException("Failed to connect to Switch Matrix. Check resource string and connection.", ex);
             }
         }
 
@@ -94,7 +94,7 @@ namespace SMU_Revamp.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[ProberService] Error during disconnect: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Error during disconnect: {ex.Message}");
             }
         }
 

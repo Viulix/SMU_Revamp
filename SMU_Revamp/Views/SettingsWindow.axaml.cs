@@ -151,4 +151,20 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private async void PlayProgressDemo_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            await vm.StartDemoProgressAsync();
+        }
+    }
+
+    private void ToggleIndeterminateDemo_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            vm.ToggleIndeterminateDemoProgress();
+        }
+    }
+
 }

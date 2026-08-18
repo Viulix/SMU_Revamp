@@ -26,11 +26,13 @@
 
             <Separator Background="#E5E7EB" Margin="0,5" />
 
-            <Grid ColumnDefinitions="*, Auto, Auto">
-                <TextBlock Grid.Column="0" Text="Axis Limits &amp; Sizing" FontWeight="SemiBold" FontSize="16" Foreground="#1F2937" VerticalAlignment="Center"/>
-                <CheckBox Grid.Column="1" Content="Auto-Fit X" IsChecked="{Binding AutoFitDataX}" FontWeight="SemiBold" Foreground="#1F2937" Margin="0,0,10,0"/>
-                <CheckBox Grid.Column="2" Content="Auto-Fit Y" IsChecked="{Binding AutoFitDataY}" FontWeight="SemiBold" Foreground="#1F2937" />
-            </Grid>
+            <TextBlock Text="Axis Limits &amp; Sizing" FontWeight="SemiBold" FontSize="16" Foreground="#1F2937" />
+
+            <StackPanel Orientation="Horizontal" Spacing="20" Margin="0,0,0,5">
+                <CheckBox Content="Logarithmic X" IsChecked="{Binding IsViewerLogarithmicX}" FontWeight="SemiBold" Foreground="#1F2937" />
+                <CheckBox Content="Auto-Fit X" IsChecked="{Binding AutoFitDataX}" FontWeight="SemiBold" Foreground="#1F2937" />
+                <CheckBox Content="Auto-Fit Y" IsChecked="{Binding AutoFitDataY}" FontWeight="SemiBold" Foreground="#1F2937" />
+            </StackPanel>
             
             <Grid ColumnDefinitions="*, *" RowDefinitions="Auto, Auto" Margin="0,5">
                 <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,10">

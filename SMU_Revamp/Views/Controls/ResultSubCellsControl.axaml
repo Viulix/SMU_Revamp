@@ -6,7 +6,12 @@
     <Border Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8" Padding="20" Margin="0,0,20,0" VerticalAlignment="Top">
         <StackPanel Spacing="20">
             <StackPanel Spacing="10">
-                <TextBlock Text="Sub-Cells (5x5)" FontSize="16" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="Sub-Cells" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Border Grid.Column="1" Background="#F3F4F6" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" ToolTip.Tip="Use Arrow Keys (↑ / ↓ / ← / →) to navigate Sub-Cell Rows and Columns">
+                        <TextBlock Text="↑↓←→" FontSize="11" FontWeight="SemiBold" Foreground="#4B5563" />
+                    </Border>
+                </Grid>
                 <TextBlock Text="Select a cell on the left first." IsVisible="{Binding SelectedResultCell, Converter={x:Static ObjectConverters.IsNull}}" FontStyle="Italic" Foreground="Gray" />
                 
                 <Viewbox Stretch="Uniform" HorizontalAlignment="Left" StretchDirection="DownOnly" MaxWidth="350" IsVisible="{Binding SelectedResultCell, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -50,7 +55,12 @@
             </StackPanel>
 
             <StackPanel Spacing="10" IsVisible="{Binding SelectedResultSubCell, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <TextBlock Text="Contacts" FontSize="16" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="Contacts" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Border Grid.Column="1" Background="#F3F4F6" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" ToolTip.Tip="Use Alt + Arrow Keys (↑ / ↓) to navigate between Contacts">
+                        <TextBlock Text="Alt + ↑↓" FontSize="11" FontWeight="SemiBold" Foreground="#4B5563" />
+                    </Border>
+                </Grid>
                 <ListBox ItemsSource="{Binding SelectedResultSubCell.Contacts}"
                          SelectedItem="{Binding SelectedResultContact}"
                          Background="Transparent"

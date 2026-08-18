@@ -32,6 +32,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (SetProperty(ref _curvePoints, value))
             {
                 OnPropertyChanged(nameof(HasCurvePoints));
+                OnPropertyChanged(nameof(IsPlottedPlanLoaded));
             }
         }
     }
@@ -45,6 +46,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (SetProperty(ref _plotSeries, value))
             {
                 OnPropertyChanged(nameof(HasCurvePoints));
+                OnPropertyChanged(nameof(IsPlottedPlanLoaded));
                 InitializeSeriesSettings();
             }
         }
@@ -143,7 +145,7 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
 
-    public bool IsPlottedPlanLoaded => PlottedPlan != null;
+    public bool IsPlottedPlanLoaded => PlottedPlan != null || HasCurvePoints;
 
     public string PlotTitle => !string.IsNullOrWhiteSpace(CustomPlotTitle) ? CustomPlotTitle : (PlottedPlan?.PlotTitle ?? "Measurement Data");
     public string LinearPlotTitle => !string.IsNullOrWhiteSpace(CustomPlotTitle) ? CustomPlotTitle : $"{PlotTitle} - Linear";
@@ -684,8 +686,11 @@ public partial class MainWindowViewModel : ViewModelBase
         get => _selectedPreset;
         set
         {
-            if (SetProperty(ref _selectedPreset, value) && value != null)
+            if (SetProperty(ref _selectedPreset, value))
             {
+                NotifyDurationPropertiesChanged();
+                if (value != null)
+                {
                 _isLoadingPreset = true;
                 
                 // 1. Switch the plan if needed
@@ -732,6 +737,7 @@ public partial class MainWindowViewModel : ViewModelBase
             }
         }
     }
+}
 
     private string _newPresetName = string.Empty;
     public string NewPresetName
@@ -1529,18 +1535,226 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // --- Global Progress Properties ---
 
-    public bool IsGlobalProgressVisible => IsMeasuring || IsScanningWafer;
+    private bool _isDemoProgressActive;
+    public bool IsDemoProgressActive
+    {
+        get => _isDemoProgressActive;
+        set
+        {
+            if (SetProperty(ref _isDemoProgressActive, value))
+            {
+                NotifyGlobalProgressPropertiesChanged();
+            }
+        }
+    }
+
+    private double _demoProgressValue;
+    public double DemoProgressValue
+    {
+        get => _demoProgressValue;
+        set
+        {
+            if (SetProperty(ref _demoProgressValue, value))
+            {
+                NotifyGlobalProgressPropertiesChanged();
+            }
+        }
+    }
+
+    private bool _isDemoIndeterminate;
+    public bool IsDemoIndeterminate
+    {
+        get => _isDemoIndeterminate;
+        set
+        {
+            if (SetProperty(ref _isDemoIndeterminate, value))
+            {
+                NotifyGlobalProgressPropertiesChanged();
+            }
+        }
+    }
+
+    private string _demoStatusText = "Wafer Scan Demo (Simulated)";
+    public string DemoStatusText
+    {
+        get => _demoStatusText;
+        set
+        {
+            if (SetProperty(ref _demoStatusText, value))
+            {
+                NotifyGlobalProgressPropertiesChanged();
+            }
+        }
+    }
+
+    public async Task StartDemoProgressAsync()
+    {
+        IsDemoIndeterminate = false;
+        DemoProgressValue = 0;
+        DemoStatusText = $"Initializing simulated scan... | {FormatEstimatedFinish(DateTime.Now.AddMinutes(45))}";
+        IsDemoProgressActive = true;
+
+        for (int i = 1; i <= 10; i++)
+        {
+            if (!IsDemoProgressActive) break;
+            await Task.Delay(800);
+            DemoProgressValue = i * 10;
+            DateTime demoEta = (i == 9) ? DateTime.Now.AddDays(1).AddHours(3) : DateTime.Now.AddMinutes((10 - i) * 5);
+            DemoStatusText = $"Cell {i}/10, R{i}C1 | Measuring... ({i * 10}%) | {FormatEstimatedFinish(demoEta)}";
+        }
+
+        if (IsDemoProgressActive)
+        {
+            DemoStatusText = $"Simulation complete! | {FormatEstimatedFinish(DateTime.Now)}";
+            await Task.Delay(1500);
+            IsDemoProgressActive = false;
+        }
+    }
+
+    public void ToggleIndeterminateDemoProgress()
+    {
+        if (IsDemoProgressActive && IsDemoIndeterminate)
+        {
+            IsDemoProgressActive = false;
+            IsDemoIndeterminate = false;
+        }
+        else
+        {
+            IsDemoProgressActive = true;
+            IsDemoIndeterminate = true;
+            DemoStatusText = "Searching for prober home position...";
+        }
+    }
+
+    public bool IsGlobalProgressVisible => IsMeasuring || IsScanningWafer || IsDemoProgressActive;
     
-    public double GlobalProgressValue => IsScanningWafer ? WaferScanProgress : MeasurementProgress;
+    public double GlobalProgressValue => IsScanningWafer ? WaferScanProgress : (IsDemoProgressActive ? DemoProgressValue : MeasurementProgress);
     
-    public bool IsGlobalProgressIndeterminate => !IsScanningWafer && IsProgressIndeterminate;
+    public double GlobalProgressRemainingValue => Math.Max(0.001, 100.0 - GlobalProgressValue);
+
+    public static string FormatEstimatedFinish(DateTime finishTime)
+    {
+        DateTime now = DateTime.Now;
+        DateTime today = now.Date;
+        DateTime finishDate = finishTime.Date;
+
+        if (finishDate == today)
+        {
+            return $"Est. Finish: Today at {finishTime:HH:mm}";
+        }
+        else if (finishDate == today.AddDays(1))
+        {
+            return $"Est. Finish: Tomorrow at {finishTime:HH:mm}";
+        }
+        else
+        {
+            return $"Est. Finish: {finishTime:dd.MM.yyyy} at {finishTime:HH:mm}";
+        }
+    }
+
+    public static string FormatDurationSeconds(double totalSeconds)
+    {
+        if (totalSeconds <= 0) return "0s";
+        TimeSpan ts = TimeSpan.FromSeconds(totalSeconds);
+        if (ts.TotalDays >= 1)
+        {
+            return $"{(int)ts.TotalDays}d {ts.Hours}h {ts.Minutes}m";
+        }
+        if (ts.TotalHours >= 1)
+        {
+            return $"{ts.Hours}h {ts.Minutes}m";
+        }
+        if (ts.TotalMinutes >= 1)
+        {
+            return $"{ts.Minutes}m {ts.Seconds}s";
+        }
+        return $"{totalSeconds:F1}s";
+    }
+
+    public double GetLastDurationForCurrentPlan()
+    {
+        if (SelectedPreset != null && SelectedPreset.LastDurationSeconds > 0)
+        {
+            return SelectedPreset.LastDurationSeconds;
+        }
+
+        var planName = PlottedPlan?.Name ?? SelectedPlan?.Name;
+        if (!string.IsNullOrWhiteSpace(planName))
+        {
+            var config = ConfigurationService.Instance.GetConfig();
+            if (config.LastPlanDurations != null && config.LastPlanDurations.TryGetValue(planName, out var dur) && dur > 0)
+            {
+                return dur;
+            }
+        }
+
+        return 0.0; // 0 indicates no previous measurement has been run yet
+    }
+
+    public string SingleMeasurementDurationText
+    {
+        get
+        {
+            double dur = GetLastDurationForCurrentPlan();
+            if (dur > 0)
+            {
+                return $"~{FormatDurationSeconds(dur)}";
+            }
+            return "No previous measurement";
+        }
+    }
+
+    public string WaferScanPreEstimationText
+    {
+        get
+        {
+            int cellCount = WaferCells?.Count(c => c.IsValid && c.IsSelected) ?? 0;
+            int subCellCount = SubCells?.Count(sc => sc.IsValid && sc.IsSelected) ?? 0;
+            int contactCount = Contacts?.Count(c => c.IsSelected && int.TryParse(c.Id, out _)) ?? 0;
+            if (cellCount == 0 || subCellCount == 0 || contactCount == 0)
+            {
+                return "Select target cells, sub-cells, and contacts to view estimation.";
+            }
+
+            int totalPoints = cellCount * subCellCount * contactCount;
+
+            double singleDuration = GetLastDurationForCurrentPlan();
+            if (singleDuration <= 0)
+            {
+                return $"Total Points: {totalPoints} | Est. Duration: No previous measurement recorded for plan";
+            }
+
+            double delaySec = WaferScanDelayMs / 1000.0;
+
+            double stageOverheadSec = 1.2; // Chuck separation + move + contact + VISA communication
+            double totalEstimatedSec = totalPoints * (singleDuration + delaySec + stageOverheadSec);
+
+            DateTime estimatedFinish = DateTime.Now.AddSeconds(totalEstimatedSec);
+            string durationStr = FormatDurationSeconds(totalEstimatedSec);
+            string finishStr = FormatEstimatedFinish(estimatedFinish);
+
+            return $"Total Points: {totalPoints} | Est. Duration: ~{durationStr} | {finishStr}";
+        }
+    }
+
+    public void NotifyDurationPropertiesChanged()
+    {
+        OnPropertyChanged(nameof(SingleMeasurementDurationText));
+        OnPropertyChanged(nameof(WaferScanPreEstimationText));
+    }
     
-    public string GlobalProgressTitle => IsScanningWafer ? "Wafer Scan in progress" : $"Measurement: {SelectedPlan?.Name}";
+    public bool IsGlobalProgressIndeterminate => IsDemoProgressActive ? IsDemoIndeterminate : (!IsScanningWafer && IsProgressIndeterminate);
+    
+    public string GlobalProgressTitle => IsDemoProgressActive ? "Wafer Scan Demo (Simulation)" : (IsScanningWafer ? "Wafer Scan in progress" : $"Measurement: {SelectedPlan?.Name}");
     
     public string GlobalProgressStatusText
     {
         get
         {
+            if (IsDemoProgressActive)
+            {
+                return DemoStatusText;
+            }
             if (IsScanningWafer)
             {
                 var parts = new System.Collections.Generic.List<string>();

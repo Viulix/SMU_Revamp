@@ -29,6 +29,7 @@ public partial class MainWindowViewModel
     {
         if (e.PropertyName == "IsSelected")
         {
+            NotifyDurationPropertiesChanged();
             if (!_isLoadingWaferScanPreset && !string.IsNullOrEmpty(SelectedWaferScanPreset))
             {
                 SelectedWaferScanPreset = string.Empty;
@@ -220,14 +221,23 @@ public partial class MainWindowViewModel
                 {
                     var promptWindow = new SMU_Revamp.Views.SavePromptWindow(Settings.Profile, Settings.SampleName, ExistingDeviceNames);
                     var result = await promptWindow.ShowDialog<SMU_Revamp.Views.SavePromptResult>(desktop.MainWindow);
-                    if (result == null || result.Cancelled)
+                    if (result == null || result.Cancelled || string.IsNullOrWhiteSpace(result.Profile) || string.IsNullOrWhiteSpace(result.SampleName))
                     {
-                        WaferScanLog = "Wafer scan aborted: Profile and Sample Name are required for auto-saving.";
+                        WaferScanLog = "Wafer scan aborted: Profile and Device Name are required for auto-saving.";
+                        PopupErrorMessage = "Profile and Device Name are required for auto-saving measurements.";
+                        IsErrorPopupVisible = true;
                         return;
                     }
                     Settings.Profile = result.Profile;
                     Settings.SampleName = result.SampleName;
                     await SaveSettingsAndConfigurationAsync();
+                }
+                else
+                {
+                    WaferScanLog = "Wafer scan aborted: Profile and Device Name are required for auto-saving.";
+                    PopupErrorMessage = "Profile and Device Name are required for auto-saving measurements.";
+                    IsErrorPopupVisible = true;
+                    return;
                 }
             }
         }
@@ -277,6 +287,14 @@ public partial class MainWindowViewModel
 
     private async Task ExecuteWaferScanAsync()
     {
+        if (AutoSaveMeasurements && (string.IsNullOrWhiteSpace(Settings.Profile) || string.IsNullOrWhiteSpace(Settings.SampleName)))
+        {
+            WaferScanLog = "Wafer scan aborted: Profile and Device Name are required for auto-saving.";
+            PopupErrorMessage = "Profile and Device Name are required for auto-saving measurements.";
+            IsErrorPopupVisible = true;
+            return;
+        }
+
         IsScanningWafer = true;
         _scanCts = new System.Threading.CancellationTokenSource();
         _currentWaferScanFolderName = $"Scan_{DateTime.Now:yyyyMMdd_HHmmss}";
@@ -284,8 +302,14 @@ public partial class MainWindowViewModel
 
         try
         {
-            WaferScanLog = "Connecting to Prober...";
+            WaferScanLog = "Connecting to Prober and SMU...";
             await ProberService.Instance.ConnectAsync();
+            
+            var config = ConfigurationService.Instance.GetConfig();
+            var smu = E5263_SMU.Instance;
+            smu.ResourceString = config.SMUResource;
+            smu.SetTimeout(config.SMUTimeoutMs);
+            await smu.ConnectAsync();
             
             var targetCells = new System.Collections.Generic.HashSet<string>();
             foreach (var cell in WaferCells)
@@ -307,8 +331,7 @@ public partial class MainWindowViewModel
 
             int totalExpectedContacts = _totalExpectedCells * _totalExpectedSubCells * _parsedScanContacts.Count;
             int currentContact = 0;
-            var scanStepDurations = new System.Collections.Generic.Queue<TimeSpan>();
-            var stepStopwatch = new System.Diagnostics.Stopwatch();
+            var scanTotalStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             WaferScanCountText = $"0 / {totalExpectedContacts}";
             WaferScanEstimatedFinish = string.Empty;
@@ -317,19 +340,15 @@ public partial class MainWindowViewModel
             
             await ProberService.Instance.ScanWaferAsync(targetCells, targetSubCells, _parsedScanContacts, WaferScanDelayMs, async (cell, row, col, contact) =>
             {
-                if (stepStopwatch.IsRunning)
+                currentContact++;
+                if (currentContact > 1)
                 {
-                    stepStopwatch.Stop();
-                    scanStepDurations.Enqueue(stepStopwatch.Elapsed);
-                    if (scanStepDurations.Count > 5) scanStepDurations.Dequeue();
-                    
-                    double avgMs = System.Linq.Enumerable.Average(scanStepDurations, ts => ts.TotalMilliseconds);
-                    int remaining = totalExpectedContacts - currentContact;
+                    double avgMs = scanTotalStopwatch.Elapsed.TotalMilliseconds / (currentContact - 1);
+                    int remaining = Math.Max(0, totalExpectedContacts - currentContact + 1);
                     TimeSpan estimatedRemaining = TimeSpan.FromMilliseconds(avgMs * remaining);
                     DateTime finishTime = DateTime.Now + estimatedRemaining;
-                    WaferScanEstimatedFinish = $"Est. Finish: {finishTime:HH:mm:ss}";
+                    WaferScanEstimatedFinish = FormatEstimatedFinish(finishTime);
                 }
-                stepStopwatch.Restart();
 
                 WaferScanLog = $"Measuring Cell: {cell}, Row: {row}, Col: {col}, Contact: {contact}";
                 
@@ -339,28 +358,39 @@ public partial class MainWindowViewModel
                 TargetColumn = col.ToString();
                 TargetContact = contact.ToString();
                 
-                // Trigger the actual measurement
-                await RunMeasurementAsync();
-                
-                string seriesName = $"C{cell} R{row}C{col} #{contact}";
-                
-                if (PlottedPlan != null)
+                try
                 {
-                    if (PlottedPlan.PlotSeries != null && PlottedPlan.PlotSeries.Count > 0)
+                    // Trigger the actual measurement
+                    await RunMeasurementAsync();
+                    
+                    string seriesName = $"C{cell} R{row}C{col} #{contact}";
+                    
+                    if (PlottedPlan != null)
                     {
-                        foreach (var s in PlottedPlan.PlotSeries)
+                        if (PlottedPlan.PlotSeries != null && PlottedPlan.PlotSeries.Count > 0)
                         {
-                            WaferScanAccumulatedSeries.Add(new PlotSeries($"{seriesName} {s.Name}", new List<CurvePoint>(s.Points)));
+                            foreach (var s in PlottedPlan.PlotSeries)
+                            {
+                                WaferScanAccumulatedSeries.Add(new PlotSeries($"{seriesName} {s.Name}", new List<CurvePoint>(s.Points)));
+                            }
+                        }
+                        else if (PlottedPlan.ResultPoints != null && PlottedPlan.ResultPoints.Count > 0)
+                        {
+                            WaferScanAccumulatedSeries.Add(new PlotSeries(seriesName, new List<CurvePoint>(PlottedPlan.ResultPoints)));
                         }
                     }
-                    else if (PlottedPlan.ResultPoints != null && PlottedPlan.ResultPoints.Count > 0)
-                    {
-                        WaferScanAccumulatedSeries.Add(new PlotSeries(seriesName, new List<CurvePoint>(PlottedPlan.ResultPoints)));
-                    }
+                    RefreshPlotDataFromPlottedPlan();
                 }
-                RefreshPlotDataFromPlottedPlan();
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception measEx)
+                {
+                    WaferScanLog = $"Warning: Measurement on Cell {cell} R{row}C{col} #{contact} failed: {measEx.Message}";
+                    System.Diagnostics.Debug.WriteLine($"[WaferScan] Error on Cell {cell} R{row}C{col} #{contact}: {measEx}");
+                }
                 
-                currentContact++;
                 WaferScanProgress = (double)currentContact / totalExpectedContacts * 100.0;
                 WaferScanCountText = $"{currentContact} / {totalExpectedContacts}";
             }, _scanCts.Token);
@@ -379,14 +409,42 @@ public partial class MainWindowViewModel
         }
         finally
         {
+            WaferScanLog = "Separating chuck...";
             try 
             {
-                WaferScanLog = "Separating and returning to home...";
                 await ProberService.Instance.DisconnectChuckAsync();
-                await ProberService.Instance.ProberGoHomeAsync();
-                WaferScanLog = "Wafer scan finished.";
+                await Task.Delay(200);
             }
-            catch { }
+            catch (Exception discEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WaferScan] Error disconnecting chuck in finally: {discEx.Message}");
+            }
+
+            try
+            {
+                WaferScanLog = "Returning prober to Home position...";
+                await ProberService.Instance.ProberGoHomeAsync();
+            }
+            catch (Exception homeEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WaferScan] Error returning prober home in finally: {homeEx.Message}");
+            }
+
+            // Close SMU session properly when wafer scan completes, is canceled, or fails
+            try
+            {
+                await E5263_SMU.Instance.DisconnectAsync();
+            }
+            catch (Exception smuEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WaferScan] Error disconnecting SMU in finally: {smuEx.Message}");
+            }
+
+            // Ensure Prober and Switch Matrix sessions are closed
+            try { await ProberService.Instance.DisconnectAsync(); } catch { }
+            try { await SwitchMatrixService.Instance.DisconnectAsync(); } catch { }
+
+            WaferScanLog = WaferScanLog == "Wafer scan canceled." ? "Wafer scan canceled." : "Wafer scan finished.";
 
             IsScanningWafer = false;
             _scanCts?.Dispose();
