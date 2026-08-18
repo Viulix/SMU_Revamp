@@ -144,6 +144,15 @@ namespace SMU_Revamp.Services
                         await indexCmd.ExecuteNonQueryAsync();
                     }
                     catch { /* Ignore if it already exists */ }
+
+                    // Try to add index on composite lookup for sync
+                    try
+                    {
+                        using var indexSyncCmd = connection.CreateCommand();
+                        indexSyncCmd.CommandText = "CREATE INDEX idx_measurements_sync ON Measurements (ProfileName(50), FolderName(100), SourceFilename(150));";
+                        await indexSyncCmd.ExecuteNonQueryAsync();
+                    }
+                    catch { /* Ignore if it already exists */ }
                 }
 
                 return true;
@@ -153,6 +162,35 @@ namespace SMU_Revamp.Services
                 System.Diagnostics.Debug.WriteLine($"Database connection test failed: {ex.Message}");
                 return false;
             }
+        }
+
+        public static string BuildCompositeKey(string? profileName, string? folderName, string? sourceFilename)
+        {
+            var p = (profileName ?? "").Trim().ToLowerInvariant();
+            var f = (folderName ?? "").Trim().ToLowerInvariant();
+            var s = (sourceFilename ?? "").Trim().ToLowerInvariant();
+            return $"{p}|{f}|{s}";
+        }
+
+        public async Task<HashSet<string>> GetExistingMeasurementKeysAsync()
+        {
+            await EnsureSchemaUpdatedAsync();
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using var connection = new MySqlConnection(GetCurrentConnectionString());
+            await connection.OpenAsync();
+
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT ProfileName, FolderName, SourceFilename FROM Measurements WHERE SourceFilename IS NOT NULL AND SourceFilename != ''";
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                string profile = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                string folder = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                string filename = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                set.Add(BuildCompositeKey(profile, folder, filename));
+            }
+            return set;
         }
 
         public async Task<bool> IsMeasurementUploadedAsync(string sourceFilename)
@@ -178,7 +216,7 @@ namespace SMU_Revamp.Services
             }
         }
 
-        public async Task<int> SaveMeasurementAsync(IMeasurementPlan plan, string profileName, string sampleName, DateTime timestamp, string folderName, string? sourceFilename = null)
+        public async Task<int> SaveMeasurementRawAsync(string profileName, string planName, string sampleName, DateTime timestamp, string folderName, string sourceFilename, Dictionary<string, string>? parameters, List<CurvePoint>? points)
         {
             await EnsureSchemaUpdatedAsync();
             using var connection = new MySqlConnection(GetCurrentConnectionString());
@@ -187,7 +225,6 @@ namespace SMU_Revamp.Services
 
             try
             {
-                // Insert Measurement
                 using var cmd = connection.CreateCommand();
                 cmd.Transaction = transaction;
                 cmd.CommandText = @"
@@ -195,17 +232,16 @@ namespace SMU_Revamp.Services
                     VALUES (@profileName, @planName, @sampleName, @timestamp, @folderName, @sourceFilename);
                     SELECT LAST_INSERT_ID();";
                 string effectiveSampleName = string.IsNullOrWhiteSpace(sampleName) ? "Empty Device" : sampleName.Trim();
-                cmd.Parameters.AddWithValue("@profileName", profileName);
-                cmd.Parameters.AddWithValue("@planName", plan.Name);
+                cmd.Parameters.AddWithValue("@profileName", string.IsNullOrWhiteSpace(profileName) ? "Default" : profileName.Trim());
+                cmd.Parameters.AddWithValue("@planName", string.IsNullOrWhiteSpace(planName) ? "Measurement" : planName.Trim());
                 cmd.Parameters.AddWithValue("@sampleName", effectiveSampleName);
                 cmd.Parameters.AddWithValue("@timestamp", timestamp);
-                cmd.Parameters.AddWithValue("@folderName", folderName);
-                cmd.Parameters.AddWithValue("@sourceFilename", sourceFilename);
+                cmd.Parameters.AddWithValue("@folderName", folderName ?? string.Empty);
+                cmd.Parameters.AddWithValue("@sourceFilename", sourceFilename ?? string.Empty);
 
                 int measurementId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
 
-                // Insert Parameters
-                if (plan.Parameters != null && plan.Parameters.Count > 0)
+                if (parameters != null && parameters.Count > 0)
                 {
                     using var paramCmd = connection.CreateCommand();
                     paramCmd.Transaction = transaction;
@@ -213,33 +249,27 @@ namespace SMU_Revamp.Services
                     paramCmd.Parameters.Add("@mId", MySqlDbType.Int32);
                     paramCmd.Parameters.Add("@name", MySqlDbType.VarChar);
                     paramCmd.Parameters.Add("@val", MySqlDbType.VarChar);
-
                     paramCmd.Prepare();
 
-                    foreach (var param in plan.Parameters)
+                    foreach (var kvp in parameters)
                     {
                         paramCmd.Parameters["@mId"].Value = measurementId;
-                        paramCmd.Parameters["@name"].Value = param.Name;
-                        paramCmd.Parameters["@val"].Value = param.GetValueAsString();
+                        paramCmd.Parameters["@name"].Value = kvp.Key;
+                        paramCmd.Parameters["@val"].Value = kvp.Value;
                         await paramCmd.ExecuteNonQueryAsync();
                     }
                 }
 
-                // Insert Points
-                if (plan.ResultPoints != null && plan.ResultPoints.Count > 0)
+                if (points != null && points.Count > 0)
                 {
-                    // Batch insert using a single query string for better performance
                     using var pointCmd = connection.CreateCommand();
                     pointCmd.Transaction = transaction;
-                    
                     var values = new List<string>();
-                    for (int i = 0; i < plan.ResultPoints.Count; i++)
+                    for (int i = 0; i < points.Count; i++)
                     {
-                        var point = plan.ResultPoints[i];
+                        var point = points[i];
                         values.Add($"({measurementId}, {point.X.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {point.Y.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
-                        
-                        // Execute in batches of 1000 to avoid query size limits
-                        if (values.Count >= 1000 || i == plan.ResultPoints.Count - 1)
+                        if (values.Count >= 1000 || i == points.Count - 1)
                         {
                             pointCmd.CommandText = $"INSERT INTO MeasurementPoints (MeasurementId, X, Y) VALUES {string.Join(",", values)}";
                             await pointCmd.ExecuteNonQueryAsync();
@@ -256,6 +286,19 @@ namespace SMU_Revamp.Services
                 await transaction.RollbackAsync();
                 throw;
             }
+        }
+
+        public async Task<int> SaveMeasurementAsync(IMeasurementPlan plan, string profileName, string sampleName, DateTime timestamp, string folderName, string? sourceFilename = null)
+        {
+            var parametersDict = new Dictionary<string, string>();
+            if (plan.Parameters != null)
+            {
+                foreach (var p in plan.Parameters)
+                {
+                    parametersDict[p.Name] = p.GetValueAsString();
+                }
+            }
+            return await SaveMeasurementRawAsync(profileName, plan.Name, sampleName, timestamp, folderName, sourceFilename ?? string.Empty, parametersDict, plan.ResultPoints);
         }
         
         public class MeasurementSummary

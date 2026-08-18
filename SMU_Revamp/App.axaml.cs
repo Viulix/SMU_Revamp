@@ -58,6 +58,9 @@ public partial class App : Application
                 vm.LoadConfigState();
                 vm.SelectedPlan?.LoadDefaults();
             }
+
+            // Start background database synchronization (startup sync + daily timer)
+            DatabaseSyncService.Instance.StartBackgroundTimer();
         }
         catch (Exception ex)
         {

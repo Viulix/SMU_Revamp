@@ -978,6 +978,9 @@ public partial class MainWindowViewModel : ViewModelBase
         DisconnectRouteCommand = new AsyncRelayCommand(DisconnectRouteAsync);
         ClearAllMatrixCommand = new AsyncRelayCommand(ClearAllMatrixAsync);
 
+        SyncDatabaseCommand = new AsyncRelayCommand(SyncDatabaseAsync);
+        DatabaseSyncService.Instance.SyncCompleted += OnDatabaseSyncCompleted;
+
         InitializeWaferCells();
         InitializeSubCells();
         SubscribeToWaferMapChanges();
@@ -985,16 +988,56 @@ public partial class MainWindowViewModel : ViewModelBase
         ScanWaferCommand = new AsyncRelayCommand(StartWaferScanAsync, () => !IsScanningWafer);
     }
 
+    private void OnDatabaseSyncCompleted(DatabaseSyncResult result)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (!result.Success)
+            {
+                IsDbSyncWarningVisible = true;
+                DbSyncWarningTooltip = $"{result.Message} (Click to retry)";
+            }
+            else
+            {
+                IsDbSyncWarningVisible = false;
+                DbSyncWarningTooltip = string.Empty;
+            }
+        });
+    }
 
+    public async Task SyncDatabaseAsync()
+    {
+        MeasurementStatus = "Synchronizing database...";
+        var result = await DatabaseSyncService.Instance.SyncNowAsync();
+        if (result.Success)
+        {
+            MeasurementStatus = result.Message;
+            NotificationRequested?.Invoke("Database Sync", result.Message, null);
+        }
+        else
+        {
+            MeasurementStatus = $"Sync failed: {result.Message}";
+            NotificationRequested?.Invoke("Database Sync Failed", result.Message, null);
+        }
+    }
 
+    private bool _isDbSyncWarningVisible;
+    public bool IsDbSyncWarningVisible
+    {
+        get => _isDbSyncWarningVisible;
+        set => SetProperty(ref _isDbSyncWarningVisible, value);
+    }
 
+    private string _dbSyncWarningTooltip = string.Empty;
+    public string DbSyncWarningTooltip
+    {
+        get => _dbSyncWarningTooltip;
+        set => SetProperty(ref _dbSyncWarningTooltip, value);
+    }
 
-
-
+    public IAsyncRelayCommand SyncDatabaseCommand { get; }
     
     public ICommand GoToScanStartCommand { get; }
-
-
     public ICommand RequestStopScanCommand { get; }
     public ICommand ConfirmStopScanCommand { get; }
     public ICommand CancelStopRequestCommand { get; }

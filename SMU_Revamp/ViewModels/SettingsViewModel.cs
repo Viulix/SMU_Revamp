@@ -131,6 +131,34 @@ namespace SMU_Revamp.ViewModels
             set => SetProperty(ref _saveToDatabase, value);
         }
 
+        private bool _autoSyncDatabase = true;
+        public bool AutoSyncDatabase
+        {
+            get => _autoSyncDatabase;
+            set => SetProperty(ref _autoSyncDatabase, value);
+        }
+
+        private System.DateTime? _lastDatabaseSyncTimestamp;
+        public System.DateTime? LastDatabaseSyncTimestamp
+        {
+            get => _lastDatabaseSyncTimestamp;
+            set => SetProperty(ref _lastDatabaseSyncTimestamp, value);
+        }
+
+        private string _syncStatusMessage = string.Empty;
+        public string SyncStatusMessage
+        {
+            get => _syncStatusMessage;
+            set => SetProperty(ref _syncStatusMessage, value);
+        }
+
+        private bool _isSyncingDatabase = false;
+        public bool IsSyncingDatabase
+        {
+            get => _isSyncingDatabase;
+            set => SetProperty(ref _isSyncingDatabase, value);
+        }
+
         public SettingsViewModel()
         {
             // Get singleton instances
@@ -158,6 +186,36 @@ namespace SMU_Revamp.ViewModels
             DbPassword = config.DbPassword;
             DbName = config.DbName;
             SaveToDatabase = config.SaveToDatabase;
+            AutoSyncDatabase = config.AutoSyncDatabase;
+            LastDatabaseSyncTimestamp = config.LastDatabaseSyncTimestamp;
+            UpdateSyncStatusSummary();
+
+            DatabaseSyncService.Instance.SyncCompleted += OnSyncCompleted;
+        }
+
+        private void OnSyncCompleted(DatabaseSyncResult result)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                var config = _configService.GetConfig();
+                LastDatabaseSyncTimestamp = config.LastDatabaseSyncTimestamp;
+                if (!IsSyncingDatabase)
+                {
+                    SyncStatusMessage = result.Success ? result.Message : $"Sync failed: {result.Message}";
+                }
+            });
+        }
+
+        private void UpdateSyncStatusSummary()
+        {
+            if (LastDatabaseSyncTimestamp.HasValue)
+            {
+                SyncStatusMessage = $"Last synced: {LastDatabaseSyncTimestamp.Value:yyyy-MM-dd HH:mm:ss}";
+            }
+            else
+            {
+                SyncStatusMessage = "No synchronization recorded yet.";
+            }
         }
 
         /// <summary>
@@ -188,6 +246,7 @@ namespace SMU_Revamp.ViewModels
             config.DbPassword = DbPassword;
             config.DbName = DbName;
             config.SaveToDatabase = SaveToDatabase;
+            config.AutoSyncDatabase = AutoSyncDatabase;
 
             await _configService.SaveAsync(config);
             ApplyStatusMessage = "Settings saved.";
@@ -215,6 +274,9 @@ namespace SMU_Revamp.ViewModels
             DbPassword = config.DbPassword;
             DbName = config.DbName;
             SaveToDatabase = config.SaveToDatabase;
+            AutoSyncDatabase = config.AutoSyncDatabase;
+            LastDatabaseSyncTimestamp = config.LastDatabaseSyncTimestamp;
+            UpdateSyncStatusSummary();
         }
 
         public async Task TestDbConnectionAsync()
@@ -229,6 +291,30 @@ namespace SMU_Revamp.ViewModels
             {
                 ApplyStatusMessage = "Database connection failed. Check credentials.";
             }
+        }
+
+        public async Task SyncDatabaseNowAsync()
+        {
+            if (IsSyncingDatabase) return;
+
+            IsSyncingDatabase = true;
+            SyncStatusMessage = "Starting synchronization...";
+            var progress = new System.Progress<string>(msg =>
+            {
+                if (IsSyncingDatabase)
+                {
+                    SyncStatusMessage = msg;
+                }
+            });
+
+            var result = await DatabaseSyncService.Instance.SyncNowAsync(progress);
+            IsSyncingDatabase = false;
+            
+            var config = _configService.GetConfig();
+            LastDatabaseSyncTimestamp = config.LastDatabaseSyncTimestamp;
+
+            SyncStatusMessage = result.Success ? result.Message : $"Sync failed: {result.Message}";
+            ApplyStatusMessage = result.Success ? result.Message : $"Sync error: {result.Message}";
         }
     }
 }

@@ -121,6 +121,16 @@ public class AppConfig
     public bool SaveToDatabase { get; set; } = false;
 
     /// <summary>
+    /// Flag to automatically synchronize local measurements to MySQL database daily and on startup.
+    /// </summary>
+    public bool AutoSyncDatabase { get; set; } = true;
+
+    /// <summary>
+    /// Timestamp of last successful database synchronization.
+    /// </summary>
+    public System.DateTime? LastDatabaseSyncTimestamp { get; set; }
+
+    /// <summary>
     /// MySQL Database IP/Address.
     /// </summary>
     public string DbAddress { get; set; } = "134.245.242.39";

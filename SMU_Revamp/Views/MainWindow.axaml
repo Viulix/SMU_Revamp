@@ -120,6 +120,24 @@
                         Spacing="10" 
                         Margin="0,28,45,0"
                         Height="36">
+                <!-- DB Sync Offline Warning Badge (Visible when DB sync fails / unreachable) -->
+                <Button IsVisible="{Binding IsDbSyncWarningVisible}"
+                        Command="{Binding SyncDatabaseCommand}"
+                        Background="#FEF2F2"
+                        BorderBrush="#EF4444"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="10,0"
+                        Height="30"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="{Binding DbSyncWarningTooltip}">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Text="⚠️" FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock Text="DB Sync Offline" Foreground="#DC2626" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Text="(Retry)" Foreground="#991B1B" FontSize="11" VerticalAlignment="Center" TextDecorations="Underline" />
+                    </StackPanel>
+                </Button>
+
                 <TextBlock Text="Profile:" VerticalAlignment="Center" FontWeight="SemiBold" />
                 <TextBox Text="{Binding Settings.Profile}" Width="150" Height="30" VerticalContentAlignment="Center" />
                 

@@ -286,7 +286,12 @@
             <StackPanel Orientation="Vertical" Spacing="10" Margin="20,0,0,0">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Text="Save to Database:" Width="120" VerticalAlignment="Center" />
-                    <CheckBox IsChecked="{Binding Settings.SaveToDatabase}" />
+                    <CheckBox IsChecked="{Binding Settings.SaveToDatabase}" Content="Save every measurement immediately" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Auto-Sync:" Width="120" VerticalAlignment="Center" />
+                    <CheckBox IsChecked="{Binding Settings.AutoSyncDatabase}" Content="Synchronize missing data daily and on startup" />
                 </StackPanel>
                 
                 <StackPanel Orientation="Horizontal" Spacing="10">
@@ -309,7 +314,23 @@
                     <TextBox Text="{Binding Settings.DbName}" Width="200" />
                 </StackPanel>
                 
-                <Button Content="Test Connection" Click="TestDbConnectionButton_Click" HorizontalAlignment="Left" Margin="130,5,0,0" />
+                <StackPanel Orientation="Horizontal" Spacing="10" Margin="130,5,0,0">
+                    <Button Content="Test Connection" Click="TestDbConnectionButton_Click" />
+                    <Button Content="Sync Database Now" Click="SyncDbNowButton_Click" Classes="Secondary" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding Settings.SyncStatusMessage}"
+                           Foreground="#4B5563"
+                           FontSize="12"
+                           Margin="130,2,0,0"
+                           TextWrapping="Wrap"
+                           MaxWidth="350" />
+                <ProgressBar IsIndeterminate="True" 
+                             IsVisible="{Binding Settings.IsSyncingDatabase}" 
+                             Height="4" 
+                             Margin="130,2,0,0" 
+                             Width="200" 
+                             HorizontalAlignment="Left" />
             </StackPanel>
 
             <!-- Spacer -->

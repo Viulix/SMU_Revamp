@@ -62,6 +62,7 @@ namespace SMU_Revamp.ViewModels
 
         public IAsyncRelayCommand LoadCommand { get; }
         public IAsyncRelayCommand LoadWafermapCommand { get; }
+        public IAsyncRelayCommand SyncNowCommand { get; }
 
         public Action<int>? RequestLoadMeasurement { get; set; }
         public Action<System.Collections.Generic.List<DatabaseService.MeasurementSummary>>? RequestLoadWafermap { get; set; }
@@ -72,7 +73,24 @@ namespace SMU_Revamp.ViewModels
             _dbService = DatabaseService.Instance;
             LoadCommand = new AsyncRelayCommand(LoadSelectedMeasurementAsync, () => SelectedNode?.Measurement != null);
             LoadWafermapCommand = new AsyncRelayCommand(LoadSelectedWafermapAsync, () => SelectedNode?.IsFolderNode == true);
+            SyncNowCommand = new AsyncRelayCommand(SyncNowAsync);
             _ = LoadRecentMeasurementsAsync();
+        }
+
+        private async Task SyncNowAsync()
+        {
+            if (IsLoading) return;
+            IsLoading = true;
+            StatusMessage = "Starting synchronization...";
+            bool isSyncRunning = true;
+            var progress = new System.Progress<string>(msg =>
+            {
+                if (isSyncRunning) StatusMessage = msg;
+            });
+            var result = await DatabaseSyncService.Instance.SyncNowAsync(progress);
+            isSyncRunning = false;
+            StatusMessage = result.Message;
+            await LoadRecentMeasurementsAsync();
         }
 
         private async Task LoadSelectedWafermapAsync()

@@ -151,6 +151,14 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private async void SyncDbNowButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            await vm.Settings.SyncDatabaseNowAsync();
+        }
+    }
+
     private async void PlayProgressDemo_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is ViewModels.MainWindowViewModel vm)
