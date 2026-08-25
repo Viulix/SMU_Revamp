@@ -262,6 +262,15 @@
             <!-- Separator -->
             <Separator Margin="0,10" />
 
+            <!-- Simulation Section -->
+            <TextBlock Text="Simulation" FontSize="16" FontWeight="Bold" />
+
+            <StackPanel Orientation="Vertical" Spacing="10" Margin="20,0,0,0">
+                <CheckBox IsChecked="{Binding Settings.SimulationMode}" Content="Simulation mode (no hardware required)" />
+                <TextBlock Text="Simulates SMU, prober, and switch matrix in software. Measurements generate plausible synthetic data; disconnect/reconnect devices after changing this setting."
+                           FontSize="11" Foreground="#888888" TextWrapping="Wrap" MaxWidth="420" />
+            </StackPanel>
+
             <!-- E5263 SMU Section -->
             <TextBlock Text="E5263 SMU" FontSize="16" FontWeight="Bold" />
 

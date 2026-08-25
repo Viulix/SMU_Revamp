@@ -16,6 +16,12 @@ namespace SMU_Revamp.Services
         private string _resourceString = "GPIB0::22::INSTR";
         private bool _isConnected;
         private MessageBasedSession? _session; // NI VISA session for the prober
+        private bool _simulationActive;
+
+        /// <summary>
+        /// Whether the prober connection is currently simulated in software.
+        /// </summary>
+        public bool IsSimulationActive => _simulationActive;
 
         // Constants based on the original source code
         private const int AlignContactDelayMs = 100;
@@ -70,8 +76,16 @@ namespace SMU_Revamp.Services
         {
             try
             {
-                if (_isConnected && _session != null)
+                if (_isConnected && (_session != null || _simulationActive))
                     return;
+
+                if (ConfigurationService.Instance.GetConfig().SimulationMode)
+                {
+                    _simulationActive = true;
+                    _isConnected = true;
+                    return;
+                }
+
                 await Task.Run(() => 
                 {
                     var rm = new ResourceManager();
@@ -111,6 +125,11 @@ namespace SMU_Revamp.Services
         /// </summary>
         public async Task DisconnectAsync()
         {
+            if (_simulationActive)
+            {
+                _isConnected = false;
+                return;
+            }
             try
             {
                 await Task.Run(() => 
@@ -308,6 +327,13 @@ namespace SMU_Revamp.Services
 
             try
             {
+                if (_simulationActive)
+                {
+                    // Simulated prober acknowledges every command successfully.
+                    await Task.Delay(10);
+                    return "OK";
+                }
+
                 if (!_isConnected)
                 {
                     throw new InvalidOperationException("Not connected to prober. Call ConnectAsync first.");

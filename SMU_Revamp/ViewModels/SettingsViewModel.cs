@@ -101,6 +101,24 @@ namespace SMU_Revamp.ViewModels
             set => SetProperty(ref _showAlignmentWarning, value);
         }
 
+        private bool _simulationMode = false;
+        /// <summary>
+        /// Runs all instrument connections in software simulation (no hardware).
+        /// </summary>
+        public bool SimulationMode
+        {
+            get => _simulationMode;
+            set
+            {
+                if (SetProperty(ref _simulationMode, value))
+                {
+                    // Apply immediately so ConnectAsync picks it up without waiting
+                    // for the next settings save.
+                    E5263_SMU.Instance.SetSimulationMode(value);
+                }
+            }
+        }
+
         public string DbAddress
         {
             get => _dbAddress;
@@ -180,6 +198,7 @@ namespace SMU_Revamp.ViewModels
             Profile = string.Empty;
             SampleName = string.Empty;
             ShowAlignmentWarning = config.ShowAlignmentWarning;
+            SimulationMode = config.SimulationMode;
 
             DbAddress = config.DbAddress;
             DbUser = config.DbUser;
@@ -240,6 +259,7 @@ namespace SMU_Revamp.ViewModels
             config.SMUResource = SMUResource;
             config.SMUTimeoutMs = SMUTimeoutMs;
             config.ShowAlignmentWarning = ShowAlignmentWarning;
+            config.SimulationMode = SimulationMode;
 
             config.DbAddress = DbAddress;
             config.DbUser = DbUser;
@@ -268,6 +288,7 @@ namespace SMU_Revamp.ViewModels
             Profile = string.Empty;
             SampleName = string.Empty;
             ShowAlignmentWarning = config.ShowAlignmentWarning;
+            SimulationMode = config.SimulationMode;
 
             DbAddress = config.DbAddress;
             DbUser = config.DbUser;

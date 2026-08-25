@@ -25,6 +25,12 @@ namespace SMU_Revamp.Services
         private bool _isConnected = false;
         private int _timeoutMilliseconds = 5000;
         private string _resourceString = DefaultResource;
+        private bool _simulationActive;
+
+        /// <summary>
+        /// Whether the switch matrix connection is currently simulated in software.
+        /// </summary>
+        public bool IsSimulationActive => _simulationActive;
 
         /// <summary>
         /// Default resource string used by the VB example.
@@ -63,8 +69,16 @@ namespace SMU_Revamp.Services
         {
             try
             {
-                if (_isConnected && _session != null)
+                if (_isConnected && (_session != null || _simulationActive))
                     return;
+
+                if (ConfigurationService.Instance.GetConfig().SimulationMode)
+                {
+                    _simulationActive = true;
+                    _isConnected = true;
+                    return;
+                }
+
                 await Task.Run(() => 
                 {
                     _session = CreateSession();
@@ -83,6 +97,11 @@ namespace SMU_Revamp.Services
         /// </summary>
         public async Task DisconnectAsync()
         {
+            if (_simulationActive)
+            {
+                _isConnected = false;
+                return;
+            }
             try
             {
                 await Task.Run(() => 
@@ -104,6 +123,11 @@ namespace SMU_Revamp.Services
         /// </summary>
         public async Task SendWriteCommandAsync(string command)
         {
+            if (_simulationActive)
+            {
+                await Task.CompletedTask;
+                return;
+            }
             if (!IsConnected || _session == null)
                 throw new InvalidOperationException("Not connected to switch matrix.");
             try
@@ -122,6 +146,12 @@ namespace SMU_Revamp.Services
         /// </summary>
         public async Task<string> SendReadCommandAsync(string command, int readBufferChars = 50, int postWriteDelayMs = 0)
         {
+            if (_simulationActive)
+            {
+                // Simulated matrix acknowledges queries (e.g. *OPC?) with "1".
+                await Task.Delay(5);
+                return "1";
+            }
             if (!IsConnected || _session == null)
                 throw new InvalidOperationException("Not connected to switch matrix.");
             try

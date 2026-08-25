@@ -16,6 +16,12 @@ public class AppConfig
     public bool ShowAlignmentWarning { get; set; } = true;
 
     /// <summary>
+    /// Runs all instrument connections (SMU, prober, switch matrix) in software
+    /// simulation instead of talking to real hardware.
+    /// </summary>
+    public bool SimulationMode { get; set; } = false;
+
+    /// <summary>
     /// Prober GPIB resource string.
     /// </summary>
     public string ProberResource { get; set; } = "GPIB0::22::INSTR";
