@@ -92,7 +92,6 @@ namespace SMU_Revamp.Tests
         public void InstallConsoleTee_CapturesConsoleLinesIntoLog()
         {
             var log = LogService.Instance;
-            TextReader? originalIn = null;
             var originalOut = Console.Out;
             try
             {

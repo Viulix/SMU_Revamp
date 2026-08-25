@@ -40,7 +40,7 @@ public partial class MainWindowViewModel
 
         if (!IsScanningWafer)
         {
-            PlottedPlan.ResultPoints.Clear();
+            PlottedPlan!.ResultPoints.Clear();
             RefreshPlotDataFromPlottedPlan();
         }
 
@@ -121,7 +121,7 @@ public partial class MainWindowViewModel
 
             await smu.ConnectAsync();
 
-            MeasurementStatus = $"Executing plan {PlottedPlan.Name}...";
+            MeasurementStatus = $"Executing plan {PlottedPlan!.Name}...";
             int lastPointCount = 0;
             var progressReporter = new Progress<double>(p =>
             {
