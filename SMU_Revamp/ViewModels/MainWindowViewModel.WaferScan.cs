@@ -310,6 +310,11 @@ public partial class MainWindowViewModel
 
         IsScanningWafer = true;
         _scanCts = new System.Threading.CancellationTokenSource();
+
+        int selectedCellCount = WaferCells.Count(c => c.IsValid && c.IsSelected);
+        int selectedSubCellCount = SubCells.Count(c => c.IsValid && c.IsSelected);
+        LogService.Instance.Session(
+            $"Wafer scan started | Cells: {selectedCellCount} | Sub-cells: {selectedSubCellCount} | Contacts: [{string.Join(",", _parsedScanContacts)}] | Delay: {WaferScanDelayMs} ms");
         _currentWaferScanFolderName = $"Scan_{DateTime.Now:yyyyMMdd_HHmmss}";
         WaferScanAccumulatedSeries.Clear();
 
@@ -415,10 +420,12 @@ public partial class MainWindowViewModel
             if (failedContacts > 0)
             {
                 WaferScanLog = $"Wafer scan finished. {currentContact - failedContacts} / {totalExpectedContacts} contacts measured successfully, {failedContacts} failed.";
+                LogService.Instance.Warning(WaferScanLog);
             }
             else
             {
                 WaferScanLog = "Wafer scan completed.";
+                LogService.Instance.Info(WaferScanLog);
             }
             WaferScanProgress = 100;
             WaferScanCountText = failedContacts > 0
@@ -428,10 +435,12 @@ public partial class MainWindowViewModel
         catch (OperationCanceledException)
         {
             WaferScanLog = "Wafer scan canceled.";
+            LogService.Instance.Warning("Wafer scan canceled by user.");
         }
         catch (Exception ex)
         {
             WaferScanLog = $"Error during scan: {ex.Message}";
+            LogService.Instance.Error("Wafer scan failed", ex);
         }
         finally
         {

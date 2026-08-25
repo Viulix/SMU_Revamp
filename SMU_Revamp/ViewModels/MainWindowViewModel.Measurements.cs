@@ -34,6 +34,10 @@ public partial class MainWindowViewModel
         // Update the plotted plan to be the one we are running
         PlottedPlan = SelectedPlan;
 
+        LogService.Instance.Session(
+            $"Measurement '{PlottedPlan?.Name}' | Profile: {Settings.Profile} | Device: {Settings.SampleName}" +
+            (IsScanningWafer ? $" | Wafer scan contact TargetCell={TargetCell} R{TargetRow}C{TargetColumn} #{TargetContact}" : string.Empty));
+
         if (!IsScanningWafer)
         {
             PlottedPlan.ResultPoints.Clear();
@@ -316,12 +320,15 @@ public partial class MainWindowViewModel
             {
                 SelectedTabIndex = 0; // Auto switch to Viewer tab
             }
+
+            LogService.Instance.Info($"Measurement finished ({(PlottedPlan?.ResultPoints.Count ?? 0)} result points).");
         }
         catch (OperationCanceledException)
         {
             // Rethrow so a wafer scan aborts cleanly instead of accumulating
             // partially measured data for this contact point.
             MeasurementStatus = IsScanningWafer ? "Measurement canceled by stop request." : "Measurement canceled.";
+            LogService.Instance.Warning(MeasurementStatus);
             throw;
         }
         catch (Exception ex)
@@ -329,6 +336,7 @@ public partial class MainWindowViewModel
             ErrorMessage = $"Error during measurement: {ex.Message}";
             MeasurementStatus = $"Error: {ex.Message}";
             Console.WriteLine($"Error running measurement: {ex.Message}");
+            LogService.Instance.Error($"Measurement of plan '{PlottedPlan?.Name}' failed", ex);
             if (IsScanningWafer)
             {
                 // Surface the failure to the wafer-scan callback instead of

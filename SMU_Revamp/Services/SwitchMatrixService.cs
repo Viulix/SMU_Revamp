@@ -76,6 +76,7 @@ namespace SMU_Revamp.Services
                 {
                     _simulationActive = true;
                     _isConnected = true;
+                    LogService.Instance.Info("Switch matrix connected (software simulation).");
                     return;
                 }
 
@@ -84,10 +85,15 @@ namespace SMU_Revamp.Services
                     _session = CreateSession();
                     _isConnected = _session != null;
                 });
+
+                LogService.Instance.Info(_isConnected
+                    ? $"Switch matrix connected ({_resourceString})."
+                    : $"Switch matrix connection returned no session ({_resourceString}).");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Error during connect: {ex.Message}");
+                LogService.Instance.Error("Switch matrix connection failed", ex);
                 throw new InvalidOperationException("Failed to connect to Switch Matrix. Check resource string and connection.", ex);
             }
         }

@@ -102,6 +102,7 @@ namespace SMU_Revamp.Services
                         _simulator.Reset();
                         _isConnected = true;
                     });
+                    LogService.Instance.Info("SMU connected (software simulation).");
                     return;
                 }
 
@@ -118,10 +119,15 @@ namespace SMU_Revamp.Services
                 {
                     _ioLock.Release();
                 }
+
+                LogService.Instance.Info(_isConnected
+                    ? $"SMU connected ({_resourceString})."
+                    : $"SMU connection returned no session ({_resourceString}).");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[E5263_SMU] Error during connect: {ex.Message}");
+                LogService.Instance.Error("SMU connection failed", ex);
                 throw new InvalidOperationException("Failed to connect to E5263 SMU. Check resource string and connection.", ex);
             }
         }
@@ -134,6 +140,7 @@ namespace SMU_Revamp.Services
             if (_simulationActive)
             {
                 _isConnected = false;
+                LogService.Instance.Info("SMU disconnected (software simulation).");
                 return;
             }
             try
@@ -156,6 +163,7 @@ namespace SMU_Revamp.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[E5263_SMU] Error during disconnect: {ex.Message}");
+                LogService.Instance.Warning($"SMU disconnect error: {ex.Message}");
             }
         }
 
@@ -167,6 +175,7 @@ namespace SMU_Revamp.Services
             if (_simulationActive)
             {
                 await Task.Run(() => _simulator.Execute(command));
+                LogService.Instance.Debug($"SMU >> {LogService.Truncate(command)}");
                 return;
             }
             if (!IsConnected || _session == null)
@@ -176,6 +185,7 @@ namespace SMU_Revamp.Services
             {
                 var session = _session ?? throw new InvalidOperationException("Not connected to E5263 SMU.");
                 await Task.Run(() => session.RawIO.Write(command + "\n"));
+                LogService.Instance.Debug($"SMU >> {LogService.Truncate(command)}");
             }
             catch (Exception ex)
             {
@@ -195,7 +205,9 @@ namespace SMU_Revamp.Services
         {
             if (_simulationActive)
             {
-                return await Task.Run(() => _simulator.Read());
+                string simResponse = await Task.Run(() => _simulator.Read());
+                LogService.Instance.Debug($"SMU << {LogService.Truncate(simResponse)}");
+                return simResponse;
             }
             if (!IsConnected || _session == null)
                 throw new InvalidOperationException("Not connected to E5263 SMU.");
@@ -203,7 +215,9 @@ namespace SMU_Revamp.Services
             try
             {
                 var session = _session ?? throw new InvalidOperationException("Not connected to E5263 SMU.");
-                return await Task.Run(() => session.RawIO.ReadString(readBufferChars));
+                string response = await Task.Run(() => session.RawIO.ReadString(readBufferChars));
+                LogService.Instance.Debug($"SMU << {LogService.Truncate(response)}");
+                return response;
             }
             catch (Exception ex)
             {

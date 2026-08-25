@@ -20,6 +20,10 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Start logging as early as possible and capture console output.
+        LogService.Instance.InstallConsoleTee();
+        LogService.Instance.Info($"Application starting. Logs: {LogService.Instance.LogDirectory}");
+
         // Load configuration from disk before initializing ViewModels
         ConfigurationService.Instance.Load();
 
@@ -65,6 +69,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Configuration loading error: {ex.Message}");
+            LogService.Instance.Error("Configuration loading failed, continuing with defaults", ex);
             // Continue with defaults if config fails to load
         }
     }

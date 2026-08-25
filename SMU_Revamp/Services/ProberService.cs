@@ -83,10 +83,11 @@ namespace SMU_Revamp.Services
                 {
                     _simulationActive = true;
                     _isConnected = true;
+                    LogService.Instance.Info("Prober connected (software simulation).");
                     return;
                 }
 
-                await Task.Run(() => 
+                await Task.Run(() =>
                 {
                     var rm = new ResourceManager();
                     _session = rm.Open(_resourceString) as MessageBasedSession;
@@ -96,6 +97,10 @@ namespace SMU_Revamp.Services
                         _isConnected = true;
                     }
                 });
+
+                LogService.Instance.Info(_isConnected
+                    ? $"Prober connected ({_resourceString})."
+                    : $"Prober connection returned no session ({_resourceString}).");
 
                 if (_isConnected)
                 {
@@ -116,6 +121,7 @@ namespace SMU_Revamp.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[ProberService] Error during connect: {ex.Message}");
+                LogService.Instance.Error("Prober connection failed", ex);
                 throw new InvalidOperationException($"Failed to connect to prober. Check resource string and connection. Details: {ex.Message}", ex);
             }
         }
@@ -129,8 +135,7 @@ namespace SMU_Revamp.Services
             {
                 _isConnected = false;
                 return;
-            }
-            try
+            }            try
             {
                 await Task.Run(() => 
                 {
@@ -367,6 +372,7 @@ namespace SMU_Revamp.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[ProberService] Exception in SendProberAsync for command '{command}': {ex.Message}");
+                LogService.Instance.Error($"Prober command failed: {LogService.Truncate(command)}", ex);
                 // Allow a brief cooling down period, fully async without blocking the thread
                 await Task.Delay(1000);
                 throw;
