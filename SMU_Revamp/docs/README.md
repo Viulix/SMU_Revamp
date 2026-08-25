@@ -22,7 +22,16 @@ The documentation is split into multiple files for easier reading:
    Explains how settings are loaded and saved to the `config.json` file in AppData using the `ConfigurationService`.
 
 6. **[Measurement Plans](Measurement_Plans.md)**
-   A guide on how to add a new measurement plan by extending `MeasurementPlanBase` using the reflection-based `MeasurementPlanLoader`.
+    A guide on how to add a new measurement plan by extending `MeasurementPlanBase` using the reflection-based `MeasurementPlanLoader`.
+
+7. **[Testing](Testing.md)**
+    How to run and extend the xUnit test suite: parser unit tests, simulator tests, and end-to-end plan runs without hardware.
+
+8. **[Simulation Mode](Simulation_Mode.md)**
+    Running SMU, prober, and switch matrix in software: capabilities of the E5263 emulator, device model, and limitations.
+
+9. **[Logging](Logging.md)**
+    Daily log files, line format, what is recorded (instrument traffic, session banners, failures), and how to use `LogService`.
 
 ---
 
