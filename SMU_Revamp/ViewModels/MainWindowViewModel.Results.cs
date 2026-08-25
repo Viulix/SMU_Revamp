@@ -59,6 +59,7 @@ public partial class MainWindowViewModel
             var regex = new Regex(@"Cell(?<cR>\d{2})(?<cC>\d{2})_R(?<sR>\d)C(?<sC>\d)_Contact(?<cont>\d)");
 
             bool filesFound = false;
+            int loadedCount = 0;
             foreach (var file in csvFiles)
             {
                 var filename = Path.GetFileName(file);
@@ -91,13 +92,14 @@ public partial class MainWindowViewModel
 
                 // Read points
                 contactVm.CurveData = ParseCsvPoints(file);
+                loadedCount++;
             }
 
             if (filesFound)
             {
                 RecalculateResultMetrics();
                 IsResultFolderLoaded = true;
-                NotificationRequested?.Invoke("Success", $"Loaded {csvFiles.Length} measurements.", null);
+                NotificationRequested?.Invoke("Success", $"Loaded {loadedCount} measurements.", null);
             }
             else
             {

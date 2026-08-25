@@ -72,7 +72,7 @@ namespace SMU_Revamp.MeasurementPlans
             }
         }
 
-        private double ParseReading(string rawData, bool invertCurrent)
+        internal double ParseReading(string rawData, bool invertCurrent)
         {
             if (string.IsNullOrWhiteSpace(rawData)) return 0.0;
             var items = rawData.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
@@ -91,7 +91,7 @@ namespace SMU_Revamp.MeasurementPlans
             return 0.0;
         }
 
-        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             ResultPoints.Clear();
             progress?.Report(0);
@@ -109,7 +109,7 @@ namespace SMU_Revamp.MeasurementPlans
             double treadPD = GetParamValueDouble("treadPD");
             double waitBR = GetParamValueDouble("WaitBeforeRead");
             double compliance = GetParamValueDouble("Compliance");
-            
+
             int cyclesPot = GetParamValueInt("CyclesPot");
             int cyclesDep = GetParamValueInt("CyclesDep");
             int cyclesRep = GetParamValueInt("CyclesRep");
@@ -132,88 +132,103 @@ namespace SMU_Revamp.MeasurementPlans
             await smu.SendCommandAsync($"RI {channel},0");
             await smu.SendCommandAsync("FMT 1,0");
             await smu.SendCommandAsync($"DZ {channel}");
-            
+
             var setupError = await smu.CheckErrorAsync();
             if (setupError != null) throw new InvalidOperationException($"SMU setup error: {setupError}");
 
             int cycleGlobal = 1;
-            using var cts = new CancellationTokenSource();
-            
-            for (int rep = 1; rep <= cyclesRep; rep++)
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
             {
-                // Potentiation
-                for (int cyc = 1; cyc <= cyclesPot; cyc++)
+                for (int rep = 1; rep <= cyclesRep; rep++)
                 {
-                    cts.Token.ThrowIfCancellationRequested();
-                    
-                    await smu.SendCommandAsync($"DZ {channel}");
-                    await smu.SendCommandAsync(System.FormattableString.Invariant($"DV {channel},0,{vpot},{compliance}"));
-                    await WaitMillisecondsAccurateAsync(tpot, cts.Token);
-                    await smu.SendCommandAsync($"DZ {channel}");
-
-                    if (waitBR > 0) await WaitMillisecondsAccurateAsync(waitBR, cts.Token);
-
-                    await WaitMillisecondsAccurateAsync(1, cts.Token);
-                    await smu.SendCommandAsync(System.FormattableString.Invariant($"DV {channel},0,{vreadPD},{compliance}"));
-                    await WaitMillisecondsAccurateAsync(5, cts.Token);
-                    
-                    await smu.SendCommandAsync("XE");
-                    await WaitMillisecondsAccurateAsync(treadPD, cts.Token);
-                    await WaitMillisecondsAccurateAsync(10, cts.Token);
-                    
-                    string resp = await smu.ReadResponseAsync(100);
-                    double iRead = ParseReading(resp, invertCurrent);
-                    await smu.SendCommandAsync($"DZ {channel}");
-
-                    ResultPoints.Add(new CurvePoint(cycleGlobal, iRead));
-                    progress?.Report(cycleGlobal * 100.0 / totalCycles);
-                    cycleGlobal++;
-
-                    var loopError = await smu.CheckErrorAsync();
-                    if (loopError != null)
+                    // Potentiation
+                    for (int cyc = 1; cyc <= cyclesPot; cyc++)
                     {
-                        await smu.SendCommandAsync("DZ");
-                        throw new InvalidOperationException($"SMU error during Potentiation: {loopError}");
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        await smu.SendCommandAsync($"DZ {channel}");
+                        await smu.SendCommandAsync(System.FormattableString.Invariant($"DV {channel},0,{vpot},{compliance}"));
+                        await WaitMillisecondsAccurateAsync(tpot, cancellationToken);
+                        await smu.SendCommandAsync($"DZ {channel}");
+
+                        if (waitBR > 0) await WaitMillisecondsAccurateAsync(waitBR, cancellationToken);
+
+                        await WaitMillisecondsAccurateAsync(1, cancellationToken);
+                        await smu.SendCommandAsync(System.FormattableString.Invariant($"DV {channel},0,{vreadPD},{compliance}"));
+                        await WaitMillisecondsAccurateAsync(5, cancellationToken);
+
+                        await smu.SendCommandAsync("XE");
+                        await WaitMillisecondsAccurateAsync(treadPD, cancellationToken);
+                        await WaitMillisecondsAccurateAsync(10, cancellationToken);
+
+                        string resp = await smu.ReadResponseAsync(100);
+                        double iRead = ParseReading(resp, invertCurrent);
+                        await smu.SendCommandAsync($"DZ {channel}");
+
+                        ResultPoints.Add(new CurvePoint(cycleGlobal, iRead));
+                        progress?.Report(cycleGlobal * 100.0 / totalCycles);
+                        cycleGlobal++;
+
+                        var loopError = await smu.CheckErrorAsync();
+                        if (loopError != null)
+                        {
+                            throw new InvalidOperationException($"SMU error during Potentiation: {loopError}");
+                        }
+                    }
+
+                    // Depression
+                    for (int cyc = 1; cyc <= cyclesDep; cyc++)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        await smu.SendCommandAsync($"DZ {channel}");
+                        await smu.SendCommandAsync(System.FormattableString.Invariant($"DV {channel},0,{vdep},{compliance}"));
+                        await WaitMillisecondsAccurateAsync(tdep, cancellationToken);
+                        await smu.SendCommandAsync($"DZ {channel}");
+
+                        if (waitBR > 0) await WaitMillisecondsAccurateAsync(waitBR, cancellationToken);
+
+                        await WaitMillisecondsAccurateAsync(1, cancellationToken);
+                        await smu.SendCommandAsync(System.FormattableString.Invariant($"DV {channel},0,{vreadPD},{compliance}"));
+                        await WaitMillisecondsAccurateAsync(5, cancellationToken);
+
+                        await smu.SendCommandAsync("XE");
+                        await WaitMillisecondsAccurateAsync(treadPD, cancellationToken);
+                        await WaitMillisecondsAccurateAsync(10, cancellationToken);
+
+                        string resp = await smu.ReadResponseAsync(100);
+                        double iRead = ParseReading(resp, invertCurrent);
+                        await smu.SendCommandAsync($"DZ {channel}");
+
+                        ResultPoints.Add(new CurvePoint(cycleGlobal, iRead));
+                        progress?.Report(cycleGlobal * 100.0 / totalCycles);
+                        cycleGlobal++;
+
+                        var loopError = await smu.CheckErrorAsync();
+                        if (loopError != null)
+                        {
+                            throw new InvalidOperationException($"SMU error during Depression: {loopError}");
+                        }
                     }
                 }
-
-                // Depression
-                for (int cyc = 1; cyc <= cyclesDep; cyc++)
-                {
-                    cts.Token.ThrowIfCancellationRequested();
-
-                    await smu.SendCommandAsync($"DZ {channel}");
-                    await smu.SendCommandAsync(System.FormattableString.Invariant($"DV {channel},0,{vdep},{compliance}"));
-                    await WaitMillisecondsAccurateAsync(tdep, cts.Token);
-                    await smu.SendCommandAsync($"DZ {channel}");
-
-                    if (waitBR > 0) await WaitMillisecondsAccurateAsync(waitBR, cts.Token);
-
-                    await WaitMillisecondsAccurateAsync(1, cts.Token);
-                    await smu.SendCommandAsync(System.FormattableString.Invariant($"DV {channel},0,{vreadPD},{compliance}"));
-                    await WaitMillisecondsAccurateAsync(5, cts.Token);
-                    
-                    await smu.SendCommandAsync("XE");
-                    await WaitMillisecondsAccurateAsync(treadPD, cts.Token);
-                    await WaitMillisecondsAccurateAsync(10, cts.Token);
-
-                    string resp = await smu.ReadResponseAsync(100);
-                    double iRead = ParseReading(resp, invertCurrent);
-                    await smu.SendCommandAsync($"DZ {channel}");
-
-                    ResultPoints.Add(new CurvePoint(cycleGlobal, iRead));
-                    progress?.Report(cycleGlobal * 100.0 / totalCycles);
-                    cycleGlobal++;
-
-                    var loopError = await smu.CheckErrorAsync();
-                    if (loopError != null)
-                    {
-                        await smu.SendCommandAsync("DZ");
-                        throw new InvalidOperationException($"SMU error during Depression: {loopError}");
-                    }
             }
+            catch (OperationCanceledException)
+            {
+                try { await smu.SendCommandAsync("AB"); } catch { }
+                throw;
+            }
+            finally
+            {
+                // A cancellation between DV and the next DZ would leave the read or
+                // write voltage applied; always zero every output before leaving.
+                try { await smu.SendCommandAsync("DZ"); } catch { }
+                try { await smu.SendCommandAsync(readingChannel == channel ? $"CL {channel}" : $"CL {channel},{readingChannel}"); } catch { }
+            }
+
+            progress?.Report(100);
         }
-    }
 
         public IReadOnlyList<string> GetCsvLines()
         {

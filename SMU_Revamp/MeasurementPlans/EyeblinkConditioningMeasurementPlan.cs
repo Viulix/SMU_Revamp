@@ -146,7 +146,7 @@ namespace SMU_Revamp.MeasurementPlans
             };
         }
 
-        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             ResultPoints.Clear();
             BlockResults.Clear();
@@ -164,7 +164,7 @@ namespace SMU_Revamp.MeasurementPlans
                 await PrepareBufferedProgramsAsync(smu, settings);
                 progress?.Report(2.0);
 
-                using var cts = new CancellationTokenSource();
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 int completedUnits = 0;
                 int totalUnits =
                     (settings.EnableLargePulseBaseline ? 1 : 0) +
@@ -255,6 +255,11 @@ namespace SMU_Revamp.MeasurementPlans
 
                 progress?.Report(100.0);
                 completedSuccessfully = true;
+            }
+            catch (OperationCanceledException)
+            {
+                // Propagate cancellations unwrapped so callers can recognize a stop request.
+                throw;
             }
             catch (Exception ex)
             {

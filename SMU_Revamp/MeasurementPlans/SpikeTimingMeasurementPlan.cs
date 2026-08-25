@@ -119,7 +119,7 @@ namespace SMU_Revamp.MeasurementPlans
             };
         }
 
-        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             ResultPoints.Clear();
             TrialResults.Clear();
@@ -142,7 +142,7 @@ namespace SMU_Revamp.MeasurementPlans
 
             int totalTrials = schedule.Count;
             int trialIndex = 1;
-            using var cts = new CancellationTokenSource();
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
             void ReportTrialProgress(double fractionWithinTrial)
             {

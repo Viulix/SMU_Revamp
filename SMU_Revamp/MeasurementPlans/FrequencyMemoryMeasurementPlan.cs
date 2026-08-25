@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using SMU_Revamp.Interfaces;
 using SMU_Revamp.Models;
@@ -96,7 +97,7 @@ namespace SMU_Revamp.MeasurementPlans
             };
         }
 
-        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             ResultPoints.Clear();
             TrialResults.Clear();
@@ -108,15 +109,19 @@ namespace SMU_Revamp.MeasurementPlans
             int completedTrials = 0;
             int trialIndex = 0;
 
-            await InitializeSmuAsync(smu, settings);
-            await PerformResetSweepAsync(smu, settings);
-
             try
             {
+                // Initialization stays inside the try so a failure here still runs
+                // the finally cleanup below instead of leaving channels enabled.
+                await InitializeSmuAsync(smu, settings);
+                await PerformResetSweepAsync(smu, settings);
+
                 for (int rep = 1; rep <= settings.RepetitionsPerInterval; rep++)
                 {
                     for (int intervalIndex = 0; intervalIndex < intervals.Count; intervalIndex++)
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         double intervalMs = intervals[intervalIndex];
                         trialIndex++;
                         double trialStartProgress = 100.0 * completedTrials / Math.Max(1, totalTrials);
@@ -181,9 +186,16 @@ namespace SMU_Revamp.MeasurementPlans
                     }
                 }
             }
+            catch (OperationCanceledException)
+            {
+                // AB interrupts an active acquisition before the cleanup below.
+                try { await smu.SendCommandAsync("AB"); } catch { }
+                throw;
+            }
             finally
             {
                 try { await smu.SendCommandAsync("DZ"); } catch { }
+                try { await smu.SendCommandAsync(settings.ReadingChannel == settings.WriteChannel ? $"CL {settings.WriteChannel}" : $"CL {settings.WriteChannel},{settings.ReadingChannel}"); } catch { }
             }
 
             RebuildMeanPlotPoints(settings.BaselineReadEnabled);

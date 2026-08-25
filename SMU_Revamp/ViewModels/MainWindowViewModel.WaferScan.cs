@@ -89,26 +89,31 @@ public partial class MainWindowViewModel
 
             foreach (var c in SubCells)
             {
-            if (!c.IsValid) continue;
-            c.IsSelected = preset.SelectedSubCells.Contains(c.Id);
-        }
-
-        foreach (var c in Contacts)
-        {
-            if (int.TryParse(c.Id, out int cId))
-            {
-                c.IsSelected = preset.SelectedContacts.Contains(cId);
+                if (!c.IsValid) continue;
+                c.IsSelected = preset.SelectedSubCells.Contains(c.Id);
             }
-        }
 
-        foreach (var c in WaferCells)
-        {
-            if (!c.IsValid) continue;
-            c.IsSelected = preset.SelectedWaferCells.Contains(c.Id);
+            foreach (var c in Contacts)
+            {
+                if (int.TryParse(c.Id, out int cId))
+                {
+                    c.IsSelected = preset.SelectedContacts.Contains(cId);
+                }
+            }
+
+            foreach (var c in WaferCells)
+            {
+                if (!c.IsValid) continue;
+                c.IsSelected = preset.SelectedWaferCells.Contains(c.Id);
+            }
+
+            NewWaferScanPresetName = presetName;
+            NotificationRequested?.Invoke("Preset Loaded", $"Wafer scan preset '{presetName}' loaded.", null);
         }
-        
-        NewWaferScanPresetName = presetName;
-        NotificationRequested?.Invoke("Preset Loaded", $"Wafer scan preset '{presetName}' loaded.", null);
+        catch (Exception ex)
+        {
+            NotificationRequested?.Invoke("Error", $"Failed to load wafer scan preset '{presetName}': {ex.Message}", null);
+            System.Diagnostics.Debug.WriteLine($"[WaferScan] Failed to load preset '{presetName}': {ex}");
         }
         finally
         {
@@ -282,7 +287,15 @@ public partial class MainWindowViewModel
             return;
         }
 
-        IsAlignmentWarningVisible = true;
+        // Respect the "Show alignment warning" setting (Settings window).
+        if (ConfigurationService.Instance.GetConfig().ShowAlignmentWarning)
+        {
+            IsAlignmentWarningVisible = true;
+        }
+        else
+        {
+            await ExecuteWaferScanAsync();
+        }
     }
 
     private async Task ExecuteWaferScanAsync()
@@ -331,6 +344,7 @@ public partial class MainWindowViewModel
 
             int totalExpectedContacts = _totalExpectedCells * _totalExpectedSubCells * _parsedScanContacts.Count;
             int currentContact = 0;
+            int failedContacts = 0;
             var scanTotalStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             WaferScanCountText = $"0 / {totalExpectedContacts}";
@@ -387,17 +401,29 @@ public partial class MainWindowViewModel
                 }
                 catch (Exception measEx)
                 {
+                    failedContacts++;
                     WaferScanLog = $"Warning: Measurement on Cell {cell} R{row}C{col} #{contact} failed: {measEx.Message}";
                     System.Diagnostics.Debug.WriteLine($"[WaferScan] Error on Cell {cell} R{row}C{col} #{contact}: {measEx}");
                 }
                 
                 WaferScanProgress = (double)currentContact / totalExpectedContacts * 100.0;
-                WaferScanCountText = $"{currentContact} / {totalExpectedContacts}";
+                WaferScanCountText = failedContacts > 0
+                    ? $"{currentContact - failedContacts} / {totalExpectedContacts} ({failedContacts} failed)"
+                    : $"{currentContact} / {totalExpectedContacts}";
             }, _scanCts.Token);
 
-            WaferScanLog = "Wafer scan completed.";
+            if (failedContacts > 0)
+            {
+                WaferScanLog = $"Wafer scan finished. {currentContact - failedContacts} / {totalExpectedContacts} contacts measured successfully, {failedContacts} failed.";
+            }
+            else
+            {
+                WaferScanLog = "Wafer scan completed.";
+            }
             WaferScanProgress = 100;
-            WaferScanCountText = $"{totalExpectedContacts} / {totalExpectedContacts}";
+            WaferScanCountText = failedContacts > 0
+                ? $"{currentContact - failedContacts} / {totalExpectedContacts} ({failedContacts} failed)"
+                : $"{totalExpectedContacts} / {totalExpectedContacts}";
         }
         catch (OperationCanceledException)
         {

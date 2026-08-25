@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using SMU_Revamp.Models;
 using SMU_Revamp.Services;
@@ -46,7 +47,7 @@ namespace SMU_Revamp.MeasurementPlans
             };
         }
 
-        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             ResultPoints.Clear();
             progress?.Report(0);
@@ -62,101 +63,119 @@ namespace SMU_Revamp.MeasurementPlans
             double pulsePeriod = GetParamValueDouble("PulsePeriod");
             double compliance = GetParamValueDouble("Compliance");
 
-            progress?.Report(10);
-            await smu.SendCommandAsync("*RST");
-            await smu.SendCommandAsync("FMT 1");
-            await smu.SendCommandAsync("TSC 1");
-            if (readingChannel != channel)
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
             {
-                await smu.SendCommandAsync($"CN {channel},{readingChannel}");
-            }
-            else
-            {
-                await smu.SendCommandAsync($"CN {channel}");
-            }
-            
-            progress?.Report(20);
-
-            var ptCommand = System.FormattableString.Invariant($"PT {holdTime},{pulseWidth},{pulsePeriod}");
-            await smu.SendCommandAsync(ptCommand);
-            
-            var ptError = await smu.CheckErrorAsync();
-            if (ptError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected PT command parameters: {ptError}");
-            }
-
-            progress?.Report(30);
-
-            var pvCommand = System.FormattableString.Invariant($"PV {channel},0,{baseVoltage},{pulseVoltage},{compliance}");
-            await smu.SendCommandAsync(pvCommand);
-
-            var pvError = await smu.CheckErrorAsync();
-            if (pvError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected PV command parameters: {pvError}");
-            }
-            progress?.Report(40);
-
-            await smu.SendCommandAsync($"MM 3,{readingChannel}");
-            var mmError = await smu.CheckErrorAsync();
-            if (mmError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected MM command: {mmError}");
-            }
-            progress?.Report(50);
-
-            await smu.SendCommandAsync($"CMM {readingChannel},1");
-            var cmmError = await smu.CheckErrorAsync();
-            if (cmmError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected CMM command: {cmmError}");
-            }
-            progress?.Report(60);
-
-            await smu.SendCommandAsync("TSR");
-            await smu.SendCommandAsync("XE");
-            progress?.Report(70);
-
-            await smu.SendCommandAsync("TSQ");
-            progress?.Report(80);
-
-            // Read the single-point response block
-            string rawData = await smu.ReadResponseAsync(100);
-            progress?.Report(90);
-
-            // Read the TSQ response block to clear it from the session output queue
-            string tsqResponse = await smu.ReadResponseAsync(50);
-
-            var parsed = ParseSmuData(rawData, pulseVoltage);
-            ResultPoints.AddRange(parsed);
-            progress?.Report(95);
-
-            var finalError = await smu.CheckErrorAsync();
-            if (finalError != null)
-            {
-                throw new InvalidOperationException($"SMU Error during measurement: {finalError}");
-            }
-            progress?.Report(100);
-            
-            if (parsed.Count > 0)
-            {
-                foreach (var pt in parsed)
+                progress?.Report(10);
+                await smu.SendCommandAsync("*RST");
+                await smu.SendCommandAsync("FMT 1");
+                await smu.SendCommandAsync("TSC 1");
+                if (readingChannel != channel)
                 {
-                    var msg = System.FormattableString.Invariant($"[Pulse Spot] Channel: {channel}, Reading Channel: {readingChannel}, Pulse Voltage: {pulseVoltage:F4} V, Measured Voltage: {pt.Voltage:F6} V, Measured Current: {pt.Current:E6} A");
-                    Console.WriteLine(msg);
-                    System.Diagnostics.Debug.WriteLine(msg);
+                    await smu.SendCommandAsync($"CN {channel},{readingChannel}");
+                }
+                else
+                {
+                    await smu.SendCommandAsync($"CN {channel}");
+                }
+
+                progress?.Report(20);
+
+                var ptCommand = System.FormattableString.Invariant($"PT {holdTime},{pulseWidth},{pulsePeriod}");
+                await smu.SendCommandAsync(ptCommand);
+
+                var ptError = await smu.CheckErrorAsync();
+                if (ptError != null)
+                {
+                    throw new InvalidOperationException($"SMU rejected PT command parameters: {ptError}");
+                }
+
+                progress?.Report(30);
+
+                var pvCommand = System.FormattableString.Invariant($"PV {channel},0,{baseVoltage},{pulseVoltage},{compliance}");
+                await smu.SendCommandAsync(pvCommand);
+
+                var pvError = await smu.CheckErrorAsync();
+                if (pvError != null)
+                {
+                    throw new InvalidOperationException($"SMU rejected PV command parameters: {pvError}");
+                }
+                progress?.Report(40);
+
+                await smu.SendCommandAsync($"MM 3,{readingChannel}");
+                var mmError = await smu.CheckErrorAsync();
+                if (mmError != null)
+                {
+                    throw new InvalidOperationException($"SMU rejected MM command: {mmError}");
+                }
+                progress?.Report(50);
+
+                await smu.SendCommandAsync($"CMM {readingChannel},1");
+                var cmmError = await smu.CheckErrorAsync();
+                if (cmmError != null)
+                {
+                    throw new InvalidOperationException($"SMU rejected CMM command: {cmmError}");
+                }
+                progress?.Report(60);
+
+                // Observe a pending stop request before triggering hardware output.
+                cancellationToken.ThrowIfCancellationRequested();
+
+                await smu.SendCommandAsync("TSR");
+                await smu.SendCommandAsync("XE");
+                progress?.Report(70);
+
+                await smu.SendCommandAsync("TSQ");
+                progress?.Report(80);
+
+                // Read the single-point response block
+                string rawData = await smu.ReadResponseAsync(100);
+                progress?.Report(90);
+
+                // Read the TSQ response block to clear it from the session output queue
+                string tsqResponse = await smu.ReadResponseAsync(50);
+
+                var parsed = ParseSmuData(rawData, pulseVoltage);
+                ResultPoints.AddRange(parsed);
+                progress?.Report(95);
+
+                var finalError = await smu.CheckErrorAsync();
+                if (finalError != null)
+                {
+                    throw new InvalidOperationException($"SMU Error during measurement: {finalError}");
+                }
+                progress?.Report(100);
+
+                if (parsed.Count > 0)
+                {
+                    foreach (var pt in parsed)
+                    {
+                        var msg = System.FormattableString.Invariant($"[Pulse Spot] Channel: {channel}, Reading Channel: {readingChannel}, Pulse Voltage: {pulseVoltage:F4} V, Measured Voltage: {pt.Voltage:F6} V, Measured Current: {pt.Current:E6} A");
+                        Console.WriteLine(msg);
+                        System.Diagnostics.Debug.WriteLine(msg);
+                    }
+                }
+                else
+                {
+                    var errMsg = $"[Pulse Spot] Error: No data points parsed. Raw data received: '{rawData}'";
+                    Console.WriteLine(errMsg);
+                    System.Diagnostics.Debug.WriteLine(errMsg);
                 }
             }
-            else
+            catch (OperationCanceledException)
             {
-                var errMsg = $"[Pulse Spot] Error: No data points parsed. Raw data received: '{rawData}'";
-                Console.WriteLine(errMsg);
-                System.Diagnostics.Debug.WriteLine(errMsg);
+                try { await smu.SendCommandAsync("AB"); } catch { }
+                throw;
+            }
+            finally
+            {
+                try { await smu.SendCommandAsync("DZ"); } catch { }
+                try { await smu.SendCommandAsync(readingChannel == channel ? $"CL {channel}" : $"CL {channel},{readingChannel}"); } catch { }
             }
         }
 
-        private List<CurvePoint> ParseSmuData(string rawData, double forcedVoltage)
+        internal List<CurvePoint> ParseSmuData(string rawData, double forcedVoltage)
         {
             var points = new List<CurvePoint>();
             if (string.IsNullOrWhiteSpace(rawData)) return points;

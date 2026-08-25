@@ -25,6 +25,12 @@ public partial class MainWindowViewModel
 
         IsMeasuring = true;
 
+        // Linked to the wafer-scan token when scanning, so a stop request also
+        // aborts the in-flight hardware measurement instead of only the loop.
+        using var measurementCts = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(
+            _scanCts?.Token ?? System.Threading.CancellationToken.None);
+        var measurementToken = measurementCts.Token;
+
         // Update the plotted plan to be the one we are running
         PlottedPlan = SelectedPlan;
 
@@ -122,7 +128,7 @@ public partial class MainWindowViewModel
                     RefreshPlotDataFromPlottedPlan();
                 }
             });
-            await PlottedPlan.RunMeasurementAsync(smu, progressReporter);
+            await PlottedPlan.RunMeasurementAsync(smu, progressReporter, measurementToken);
             singleMeasurementStopwatch.Stop();
 
             double actualDurationSeconds = singleMeasurementStopwatch.Elapsed.TotalSeconds;
@@ -162,7 +168,8 @@ public partial class MainWindowViewModel
                 }
                 else if (PlotSeries.Count > 1)
                 {
-                    MeasurementStatus = $"Finished. Measured {CurvePoints.Count} points in {PlotSeries.Count} plot series.";
+                    int totalSeriesPoints = PlotSeries.Sum(s => s.Points.Count);
+                    MeasurementStatus = $"Finished. Measured {totalSeriesPoints} points in {PlotSeries.Count} plot series.";
                 }
                 else
                 {
@@ -310,11 +317,24 @@ public partial class MainWindowViewModel
                 SelectedTabIndex = 0; // Auto switch to Viewer tab
             }
         }
+        catch (OperationCanceledException)
+        {
+            // Rethrow so a wafer scan aborts cleanly instead of accumulating
+            // partially measured data for this contact point.
+            MeasurementStatus = IsScanningWafer ? "Measurement canceled by stop request." : "Measurement canceled.";
+            throw;
+        }
         catch (Exception ex)
         {
             ErrorMessage = $"Error during measurement: {ex.Message}";
             MeasurementStatus = $"Error: {ex.Message}";
             Console.WriteLine($"Error running measurement: {ex.Message}");
+            if (IsScanningWafer)
+            {
+                // Surface the failure to the wafer-scan callback instead of
+                // silently counting this contact point as completed.
+                throw;
+            }
         }
         finally
         {
@@ -324,7 +344,8 @@ public partial class MainWindowViewModel
                 try { await E5263_SMU.Instance.DisconnectAsync(); } catch { }
             }
             IsMeasuring = false;
-            MeasurementProgress = 100;
+            // Keep the actual progress on failure/cancel instead of jumping to 100%;
+            // successful plans report 100 themselves.
             IsProgressIndeterminate = false;
         }
     }
@@ -846,7 +867,13 @@ public partial class MainWindowViewModel
 
         if (!string.IsNullOrEmpty(currentPresetName))
         {
-            SelectedPreset = AvailablePresets.FirstOrDefault(p => p.Name == currentPresetName);
+            var match = AvailablePresets.FirstOrDefault(p => p.Name == currentPresetName);
+            // Only reassign when the instance actually changed to avoid a
+            // re-entrant SelectedPreset application.
+            if (!ReferenceEquals(match, _selectedPreset))
+            {
+                SelectedPreset = match;
+            }
         }
     }
 
@@ -911,8 +938,16 @@ public partial class MainWindowViewModel
         }
 
         config.Presets.Add(newPreset);
-        await ConfigurationService.Instance.SaveAsync(config);
-        
+        try
+        {
+            await ConfigurationService.Instance.SaveAsync(config);
+        }
+        catch (Exception ex)
+        {
+            // async void: swallow and log so an unexpected failure cannot crash the app.
+            System.Diagnostics.Debug.WriteLine($"Failed to save preset '{name}': {ex}");
+        }
+
         LoadAvailablePresets();
         SelectedPreset = config.Presets.FirstOrDefault(p => p.Name == name);
         NewPresetName = string.Empty;
@@ -939,7 +974,15 @@ public partial class MainWindowViewModel
                 SelectedPreset = null;
             }
             UpdateWarningMessage();
-            await SaveSettingsAndConfigurationAsync();
+            try
+            {
+                await SaveSettingsAndConfigurationAsync();
+            }
+            catch (Exception ex)
+            {
+                // async void: log instead of risking an unhandled crash.
+                System.Diagnostics.Debug.WriteLine($"Failed to save measurement config after parameter change: {ex}");
+            }
         }
     }
 
@@ -1197,7 +1240,7 @@ public partial class MainWindowViewModel
         await ConfigurationService.Instance.SaveAsync(config);
     }
 
-    public Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+    public Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, System.Threading.CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }

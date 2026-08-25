@@ -45,7 +45,7 @@ namespace SMU_Revamp.MeasurementPlans
             };
         }
 
-        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             ResultPoints.Clear();
             progress?.Report(0);
@@ -61,126 +61,147 @@ namespace SMU_Revamp.MeasurementPlans
             int adcSamples = GetParamValueInt("AdcSamples");
             string mode = GetParamValueString("SweepMode");
 
-            progress?.Report(1);
-            await smu.SendCommandAsync("*RST");
-            await smu.SendCommandAsync("FMT 1");
-            await smu.SendCommandAsync("TSC 1");
-            if (readingChannel != channel)
-            {
-                await smu.SendCommandAsync($"CN {channel},{readingChannel}");
-            }
-            else
-            {
-                await smu.SendCommandAsync($"CN {channel}");
-            }
-            await smu.SendCommandAsync($"AV -{adcSamples},0");
-            progress?.Report(2);
-
-            int modeValue = 3;
-            if (mode.Contains("(1)")) modeValue = 1;
-            else if (mode.Contains("(3)")) modeValue = 3;
-
-            var wvCommand = System.FormattableString.Invariant($"WV {channel},{modeValue},0,{start},{stop},{pointsCount},{compliance}");
-            await smu.SendCommandAsync(wvCommand);
-
-            var wvError = await smu.CheckErrorAsync();
-            if (wvError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected WV command parameters: {wvError}");
-            }
-            progress?.Report(3);
-
-            await smu.SendCommandAsync($"RI {readingChannel},0");
-            await smu.SendCommandAsync($"MM 2,{readingChannel}");
-            var mmError = await smu.CheckErrorAsync();
-            if (mmError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected MM command: {mmError}");
-            }
-            progress?.Report(4);
-
-            await smu.SendCommandAsync($"CMM {readingChannel},1");
-            var cmmError = await smu.CheckErrorAsync();
-            if (cmmError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected CMM command: {cmmError}");
-            }
-            progress?.Report(5);
-
-            await smu.SendCommandAsync("TSR");
-            await smu.SendCommandAsync("XE");
-            await smu.SendCommandAsync("TSQ");
-
-            // Calculate estimated duration
-            int totalPoints = modeValue == 3 ? pointsCount * 2 : pointsCount;
-            // 20 ms per PLC at 50 Hz. Let's assume 20ms per PLC + 5ms overhead per point, plus 0.5s GPIB/device overhead
-            double plcTime = adcSamples * 0.02;
-            double estimatedDurationSeconds = totalPoints * (plcTime + 0.005) + 0.5;
-            if (estimatedDurationSeconds < 0.5) estimatedDurationSeconds = 0.5;
-
-            using var cts = new CancellationTokenSource();
-            var progressTask = Task.Run(async () =>
-            {
-                try
-                {
-                    double currentProgress = 5.0;
-                    double targetProgress = 95.0;
-                    double totalSteps = estimatedDurationSeconds * 10.0; // 100ms interval
-                    double stepIndex = 0;
-
-                    while (!cts.Token.IsCancellationRequested && currentProgress < targetProgress)
-                    {
-                        progress?.Report(currentProgress);
-                        await Task.Delay(100, cts.Token);
-                        stepIndex++;
-
-                        if (stepIndex < totalSteps)
-                        {
-                            currentProgress = 5.0 + (targetProgress - 5.0) * (stepIndex / totalSteps);
-                        }
-                        else
-                        {
-                            // Asymptotically approach 98% if it takes longer than estimated
-                            currentProgress += (98.0 - currentProgress) * 0.05;
-                        }
-                    }
-                }
-                catch (TaskCanceledException) { }
-                catch (Exception) { }
-            });
+            cancellationToken.ThrowIfCancellationRequested();
 
             try
             {
-                // Calculate buffer size
-                int expectedBufferLength = pointsCount * 32 * (modeValue == 3 ? 2 : 1) + 200;
-                string rawData = await smu.ReadResponseAsync(expectedBufferLength);
-
-                // Cancel the background progress task since we got the data
-                cts.Cancel();
-                try { await progressTask; } catch { }
-                progress?.Report(95);
-
-                // Read the TSQ response block to clear it from the session output queue
-                string tsqResponse = await smu.ReadResponseAsync(50);
-
-                var parsed = ParseSmuData(rawData, modeValue, start, stop);
-                ResultPoints.AddRange(parsed);
-                progress?.Report(98);
-
-                var finalError = await smu.CheckErrorAsync();
-                if (finalError != null)
+                progress?.Report(1);
+                await smu.SendCommandAsync("*RST");
+                await smu.SendCommandAsync("FMT 1");
+                await smu.SendCommandAsync("TSC 1");
+                if (readingChannel != channel)
                 {
-                    throw new InvalidOperationException($"SMU Error during sweep: {finalError}");
+                    await smu.SendCommandAsync($"CN {channel},{readingChannel}");
                 }
-                progress?.Report(100);
+                else
+                {
+                    await smu.SendCommandAsync($"CN {channel}");
+                }
+                await smu.SendCommandAsync($"AV -{adcSamples},0");
+                progress?.Report(2);
+
+                int modeValue = 3;
+                if (mode.Contains("(1)")) modeValue = 1;
+                else if (mode.Contains("(3)")) modeValue = 3;
+
+                var wvCommand = System.FormattableString.Invariant($"WV {channel},{modeValue},0,{start},{stop},{pointsCount},{compliance}");
+                await smu.SendCommandAsync(wvCommand);
+
+                var wvError = await smu.CheckErrorAsync();
+                if (wvError != null)
+                {
+                    throw new InvalidOperationException($"SMU rejected WV command parameters: {wvError}");
+                }
+                progress?.Report(3);
+
+                await smu.SendCommandAsync($"RI {readingChannel},0");
+                await smu.SendCommandAsync($"MM 2,{readingChannel}");
+                var mmError = await smu.CheckErrorAsync();
+                if (mmError != null)
+                {
+                    throw new InvalidOperationException($"SMU rejected MM command: {mmError}");
+                }
+                progress?.Report(4);
+
+                await smu.SendCommandAsync($"CMM {readingChannel},1");
+                var cmmError = await smu.CheckErrorAsync();
+                if (cmmError != null)
+                {
+                    throw new InvalidOperationException($"SMU rejected CMM command: {cmmError}");
+                }
+                progress?.Report(5);
+
+                // Observe a pending stop request before triggering the hardware sweep.
+                cancellationToken.ThrowIfCancellationRequested();
+
+                await smu.SendCommandAsync("TSR");
+                await smu.SendCommandAsync("XE");
+                await smu.SendCommandAsync("TSQ");
+
+                // Calculate estimated duration
+                int totalPoints = modeValue == 3 ? pointsCount * 2 : pointsCount;
+                // 20 ms per PLC at 50 Hz. Let's assume 20ms per PLC + 5ms overhead per point, plus 0.5s GPIB/device overhead
+                double plcTime = adcSamples * 0.02;
+                double estimatedDurationSeconds = totalPoints * (plcTime + 0.005) + 0.5;
+                if (estimatedDurationSeconds < 0.5) estimatedDurationSeconds = 0.5;
+
+                using var cts = new CancellationTokenSource();
+                var progressTask = Task.Run(async () =>
+                {
+                    try
+                    {
+                        double currentProgress = 5.0;
+                        double targetProgress = 95.0;
+                        double totalSteps = estimatedDurationSeconds * 10.0; // 100ms interval
+                        double stepIndex = 0;
+
+                        while (!cts.Token.IsCancellationRequested && currentProgress < targetProgress)
+                        {
+                            progress?.Report(currentProgress);
+                            await Task.Delay(100, cts.Token);
+                            stepIndex++;
+
+                            if (stepIndex < totalSteps)
+                            {
+                                currentProgress = 5.0 + (targetProgress - 5.0) * (stepIndex / totalSteps);
+                            }
+                            else
+                            {
+                                // Asymptotically approach 98% if it takes longer than estimated
+                                currentProgress += (98.0 - currentProgress) * 0.05;
+                            }
+                        }
+                    }
+                    catch (TaskCanceledException) { }
+                    catch (Exception) { }
+                });
+
+                try
+                {
+                    // Calculate buffer size
+                    int expectedBufferLength = pointsCount * 32 * (modeValue == 3 ? 2 : 1) + 200;
+                    string rawData = await smu.ReadResponseAsync(expectedBufferLength);
+
+                    // Cancel the background progress task since we got the data
+                    cts.Cancel();
+                    try { await progressTask; } catch { }
+                    progress?.Report(95);
+
+                    // Read the TSQ response block to clear it from the session output queue
+                    string tsqResponse = await smu.ReadResponseAsync(50);
+
+                    var parsed = ParseSmuData(rawData, modeValue, start, stop, pointsCount);
+                    ResultPoints.AddRange(parsed);
+                    progress?.Report(98);
+
+                    var finalError = await smu.CheckErrorAsync();
+                    if (finalError != null)
+                    {
+                        throw new InvalidOperationException($"SMU Error during sweep: {finalError}");
+                    }
+                    progress?.Report(100);
+                }
+                finally
+                {
+                    cts.Cancel();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // AB interrupts an active staircase sweep before the cleanup below.
+                try { await smu.SendCommandAsync("AB"); } catch { }
+                throw;
             }
             finally
             {
-                cts.Cancel();
+                // Always disable the source output and turn the channels off so the
+                // DUT is not left holding the stop voltage after success or failure.
+                try { await smu.SendCommandAsync("DZ"); } catch { }
+                try { await smu.SendCommandAsync(readingChannel == channel ? $"CL {channel}" : $"CL {channel},{readingChannel}"); } catch { }
             }
         }
 
-        private List<CurvePoint> ParseSmuData(string rawData, int modeValue, double sweepStart, double sweepStop)
+        internal List<CurvePoint> ParseSmuData(string rawData, int modeValue, double sweepStart, double sweepStop, int pointsCount)
         {
             var points = new List<CurvePoint>();
             if (string.IsNullOrWhiteSpace(rawData)) return points;
@@ -210,6 +231,15 @@ namespace SMU_Revamp.MeasurementPlans
             int count = parsedCurrents.Count;
             if (count == 0) return points;
 
+            int expectedTotal = modeValue == 3 ? pointsCount * 2 : pointsCount;
+            if (expectedTotal > 0 && count != expectedTotal)
+            {
+                var warn = $"[U-Sweep] Warning: received {count} points, expected {expectedTotal}. " +
+                           "The instrument likely stopped early (compliance?). Mapping the voltage axis to the received prefix.";
+                Console.WriteLine(warn);
+                System.Diagnostics.Debug.WriteLine(warn);
+            }
+
             string readingChannel = GetParamValueString("ReadingChannel");
             string channel = GetParamValueString("WriteChannel");
             if (string.IsNullOrWhiteSpace(readingChannel)) readingChannel = channel;
@@ -217,40 +247,35 @@ namespace SMU_Revamp.MeasurementPlans
 
             if (modeValue == 1)
             {
-                // Single sweep: start -> stop
+                // Single sweep: start -> stop. Map against the REQUESTED point
+                // count so a compliance-truncated response keeps its true voltages
+                // instead of being stretched over the full range.
                 for (int i = 0; i < count; i++)
                 {
-                    double v = sweepStart;
-                    if (count > 1)
-                    {
-                        v = sweepStart + i * (sweepStop - sweepStart) / (count - 1);
-                    }
+                    double v = pointsCount > 1
+                        ? sweepStart + i * (sweepStop - sweepStart) / (pointsCount - 1)
+                        : sweepStart;
                     double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
                     points.Add(new CurvePoint(v, current));
                 }
             }
             else
             {
-                // Double sweep: start -> stop -> start
-                int halfPoints = (count + 1) / 2;
+                // Split by INDEX against the requested half-count: indices below
+                // pointsCount belong to the ascending ramp, the rest to the
+                // descending one. A compliance-truncated response is an ordered
+                // prefix, so every received point keeps its true voltage.
+                int n = Math.Max(pointsCount, 1);
                 for (int i = 0; i < count; i++)
                 {
                     double v;
-                    if (i < halfPoints)
+                    if (i < n)
                     {
-                        v = sweepStart;
-                        if (halfPoints > 1)
-                        {
-                            v = sweepStart + i * (sweepStop - sweepStart) / (halfPoints - 1);
-                        }
+                        v = n > 1 ? sweepStart + i * (sweepStop - sweepStart) / (n - 1) : sweepStart;
                     }
                     else
                     {
-                        v = sweepStop;
-                        if (halfPoints > 1)
-                        {
-                            v = sweepStop - (i - halfPoints) * (sweepStop - sweepStart) / (halfPoints - 1);
-                        }
+                        v = n > 1 ? sweepStop - (i - n) * (sweepStop - sweepStart) / (n - 1) : sweepStop;
                     }
                     double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
                     points.Add(new CurvePoint(v, current));

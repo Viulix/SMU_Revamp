@@ -422,6 +422,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 (ScanWaferCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (RequestStopScanCommand as RelayCommand)?.NotifyCanExecuteChanged();
                 (RunMeasurementCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (GoToContactCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (MoveRelativeCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (MoveAbsoluteCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (GoToScanStartCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (DisconnectRouteCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (ClearAllMatrixCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 NotifyGlobalProgressPropertiesChanged();
             }
         }
@@ -622,13 +628,6 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _isAlignmentWarningVisible, value);
     }
 
-    private bool _dontShowAlignmentWarning;
-    public bool DontShowAlignmentWarning
-    {
-        get => _dontShowAlignmentWarning;
-        set => SetProperty(ref _dontShowAlignmentWarning, value);
-    }
-
     public ICommand CloseErrorPopupCommand { get; }
     public ICommand ProceedWithScanCommand { get; }
     public ICommand CancelAlignmentWarningCommand { get; }
@@ -686,13 +685,19 @@ public partial class MainWindowViewModel : ViewModelBase
         get => _selectedPreset;
         set
         {
-            if (SetProperty(ref _selectedPreset, value))
+            if (!SetProperty(ref _selectedPreset, value)) return;
+
+            NotifyDurationPropertiesChanged();
+            if (value == null) return;
+
+            // Re-entrant assignments (e.g. LoadAvailablePresets restoring the same
+            // preset under a new instance while one is being applied) must not
+            // re-apply parameters or corrupt the loading guard.
+            if (_isLoadingPreset) return;
+
+            _isLoadingPreset = true;
+            try
             {
-                NotifyDurationPropertiesChanged();
-                if (value != null)
-                {
-                _isLoadingPreset = true;
-                
                 // 1. Switch the plan if needed
                 if (!string.IsNullOrEmpty(value.PlanName) && (SelectedPlan == null || SelectedPlan.Name != value.PlanName))
                 {
@@ -702,7 +707,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         SelectedPlan = targetPlan;
                     }
                 }
-                
+
                 // 2. Load the parameter values for the active plan
                 if (SelectedPlan != null)
                 {
@@ -729,15 +734,13 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
                 // Save immediately when preset is loaded so the new config becomes the "last" config
                 _ = SaveSettingsAndConfigurationAsync();
-                
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                {
-                    _isLoadingPreset = false;
-                });
+            }
+            finally
+            {
+                _isLoadingPreset = false;
             }
         }
     }
-}
 
     private string _newPresetName = string.Empty;
     public string NewPresetName
@@ -892,12 +895,12 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedPlan = MeasurementPlans.Count > 0 ? MeasurementPlans.Find(p => p.Name == "Measure Point") ?? MeasurementPlans[0] : null!;
         PlottedPlan = null;
 
-        GoToContactCommand = new AsyncRelayCommand(GoToContactAsync);
+        GoToContactCommand = new AsyncRelayCommand(GoToContactAsync, () => !IsScanningWafer);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAndConfigurationAsync);
         RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync, () => !IsScanningWafer && !IsMeasuring);
-        MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync);
-        MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync);
-        GoToScanStartCommand = new AsyncRelayCommand(GoToScanStartAsync);
+        MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync, () => !IsScanningWafer);
+        MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync, () => !IsScanningWafer);
+        GoToScanStartCommand = new AsyncRelayCommand(GoToScanStartAsync, () => !IsScanningWafer);
         
         SelectAllCellsCommand = new RelayCommand(() => 
         {
@@ -975,8 +978,8 @@ public partial class MainWindowViewModel : ViewModelBase
             }
         };
 
-        DisconnectRouteCommand = new AsyncRelayCommand(DisconnectRouteAsync);
-        ClearAllMatrixCommand = new AsyncRelayCommand(ClearAllMatrixAsync);
+        DisconnectRouteCommand = new AsyncRelayCommand(DisconnectRouteAsync, () => !IsScanningWafer);
+        ClearAllMatrixCommand = new AsyncRelayCommand(ClearAllMatrixAsync, () => !IsScanningWafer);
 
         SyncDatabaseCommand = new AsyncRelayCommand(SyncDatabaseAsync);
         DatabaseSyncService.Instance.SyncCompleted += OnDatabaseSyncCompleted;
@@ -1835,5 +1838,5 @@ public class ImportedMeasurementPlan : IMeasurementPlan
     public List<CurvePoint> ResultPoints { get; } = new();
 
 
-    public Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null) => Task.CompletedTask; public void LoadDefaults() { }
+    public Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, System.Threading.CancellationToken cancellationToken = default) => Task.CompletedTask; public void LoadDefaults() { }
 }
