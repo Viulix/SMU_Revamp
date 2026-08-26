@@ -428,6 +428,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 (GoToScanStartCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (DisconnectRouteCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (ClearAllMatrixCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (ToggleScanPauseCommand as RelayCommand)?.NotifyCanExecuteChanged();
                 NotifyStartQueueCanExecuteChanged();
                 NotifyGlobalProgressPropertiesChanged();
             }
@@ -586,6 +587,25 @@ public partial class MainWindowViewModel : ViewModelBase
     public ICommand DeselectAllContactsCommand { get; }
 
     private System.Threading.CancellationTokenSource? _scanCts;
+
+    private Services.AsyncPauseGate? _scanPauseGate;
+
+    private bool _isScanPaused;
+    public bool IsScanPaused
+    {
+        get => _isScanPaused;
+        private set
+        {
+            if (SetProperty(ref _isScanPaused, value))
+            {
+                OnPropertyChanged(nameof(ScanPauseButtonText));
+                (ToggleScanPauseCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>Label for the pause/resume toggle button.</summary>
+    public string ScanPauseButtonText => IsScanPaused ? "Resume Scan" : "Pause Scan";
 
     private System.Threading.CancellationTokenSource? _settingsSaveDebounceCts;
 
@@ -962,6 +982,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RequestStopScanCommand = new RelayCommand(() => IsCancelPromptVisible = true, () => IsScanningWafer);
         ConfirmStopScanCommand = new RelayCommand(ConfirmStopWaferScan);
         CancelStopRequestCommand = new RelayCommand(() => IsCancelPromptVisible = false);
+        ToggleScanPauseCommand = new RelayCommand(ToggleScanPause, () => IsScanningWafer);
         ToggleWaferScanGuideCommand = new RelayCommand(() => IsWaferScanGuideVisible = !IsWaferScanGuideVisible);
 
         CloseErrorPopupCommand = new RelayCommand(() => IsErrorPopupVisible = false);
@@ -1093,6 +1114,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public ICommand RequestStopScanCommand { get; }
     public ICommand ConfirmStopScanCommand { get; }
     public ICommand CancelStopRequestCommand { get; }
+    public ICommand ToggleScanPauseCommand { get; }
 
 
 

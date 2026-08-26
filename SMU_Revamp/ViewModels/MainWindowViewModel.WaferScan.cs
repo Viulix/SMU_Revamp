@@ -187,6 +187,28 @@ public partial class MainWindowViewModel
         IsDeleteWaferScanPresetWarningVisible = false;
     }
 
+    private void ToggleScanPause()
+    {
+        if (!IsScanningWafer || _scanPauseGate == null) return;
+
+        if (!IsScanPaused)
+        {
+            _scanPauseGate.Pause();
+            IsScanPaused = true;
+            WaferScanLog = "Pausing after the current measurement...";
+            WaferScanLogFontWeight = Avalonia.Media.FontWeight.Bold;
+            LogService.Instance.Info("Wafer scan pause requested (takes effect after the current contact point).");
+        }
+        else
+        {
+            _scanPauseGate.Resume();
+            IsScanPaused = false;
+            WaferScanLog = "Scan resumed.";
+            WaferScanLogFontWeight = Avalonia.Media.FontWeight.Normal;
+            LogService.Instance.Info("Wafer scan resumed.");
+        }
+    }
+
     private async Task GoToScanStartAsync()
     {
         try
@@ -310,6 +332,8 @@ public partial class MainWindowViewModel
 
         IsScanningWafer = true;
         _scanCts = new System.Threading.CancellationTokenSource();
+        _scanPauseGate = new Services.AsyncPauseGate();
+        IsScanPaused = false;
 
         int selectedCellCount = WaferCells.Count(c => c.IsValid && c.IsSelected);
         int selectedSubCellCount = SubCells.Count(c => c.IsValid && c.IsSelected);
@@ -350,6 +374,7 @@ public partial class MainWindowViewModel
             int totalExpectedContacts = _totalExpectedCells * _totalExpectedSubCells * _parsedScanContacts.Count;
             int currentContact = 0;
             int failedContacts = 0;
+            double totalPausedMs = 0;
             var scanTotalStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             WaferScanCountText = $"0 / {totalExpectedContacts}";
@@ -359,10 +384,19 @@ public partial class MainWindowViewModel
             
             await ProberService.Instance.ScanWaferAsync(targetCells, targetSubCells, _parsedScanContacts, WaferScanDelayMs, async (cell, row, col, contact) =>
             {
+                // Pause gate: hold before starting the next contact point. A stop
+                // request wins over the pause and cancels the scan from here.
+                if (_scanPauseGate is { IsPaused: true })
+                {
+                    WaferScanLog = "Scan paused.";
+                    totalPausedMs += await _scanPauseGate.WaitAsync(_scanCts!.Token);
+                }
+
                 currentContact++;
                 if (currentContact > 1)
                 {
-                    double avgMs = scanTotalStopwatch.Elapsed.TotalMilliseconds / (currentContact - 1);
+                    double activeMs = scanTotalStopwatch.Elapsed.TotalMilliseconds - totalPausedMs;
+                    double avgMs = activeMs / (currentContact - 1);
                     int remaining = Math.Max(0, totalExpectedContacts - currentContact + 1);
                     TimeSpan estimatedRemaining = TimeSpan.FromMilliseconds(avgMs * remaining);
                     DateTime finishTime = DateTime.Now + estimatedRemaining;
@@ -444,6 +478,12 @@ public partial class MainWindowViewModel
         }
         finally
         {
+            // Tear down any pause state so a scan that ended while paused
+            // cannot leave the gate or UI flag stuck.
+            _scanPauseGate?.Resume();
+            _scanPauseGate = null;
+            IsScanPaused = false;
+
             WaferScanLog = "Separating chuck...";
             try 
             {

@@ -104,6 +104,8 @@
                             <!-- Buttons -->
                             <StackPanel Spacing="10" Margin="0,5,0,0">
                                 <Button Content="Start Wafer Scan" Command="{Binding ScanWaferCommand}" Classes="Primary" HorizontalAlignment="Stretch" Height="36" />
+                                <Button Content="{Binding ScanPauseButtonText}" Command="{Binding ToggleScanPauseCommand}" Classes="Secondary" HorizontalAlignment="Stretch" Height="36"
+                                        IsVisible="{Binding IsScanningWafer}" />
                                 <Button Content="Stop Scan" Command="{Binding RequestStopScanCommand}" Classes="Danger" HorizontalAlignment="Stretch" Height="36" />
                                 <Button Content="Move to Start Point" Command="{Binding GoToScanStartCommand}" Classes="Secondary" HorizontalAlignment="Stretch" Height="36" />
                             </StackPanel>
