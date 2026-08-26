@@ -108,5 +108,55 @@ namespace SMU_Revamp.Tests
                 Console.SetOut(originalOut);
             }
         }
+
+        [Fact]
+        public void EntryLogged_FiresWithLevelAndMessage()
+        {
+            var log = LogService.Instance;
+            LogLevel seenLevel = default;
+            string? seenMessage = null;
+            int callCount = 0;
+
+            void Handler(LogLevel level, string message)
+            {
+                seenLevel = level;
+                seenMessage = message;
+                callCount++;
+            }
+
+            log.EntryLogged += Handler;
+            try
+            {
+                log.Warning("event probe entry");
+            }
+            finally
+            {
+                log.EntryLogged -= Handler;
+            }
+
+            Assert.Equal(1, callCount);
+            Assert.Equal(LogLevel.Warning, seenLevel);
+            Assert.Contains("event probe entry", seenMessage);
+        }
+
+        [Fact]
+        public void IsComplianceTruncationWarning_MatchesOnlySweepTruncationNotices()
+        {
+            const LogLevel info = Services.LogLevel.Info;
+
+            Assert.True(SMU_Revamp.ViewModels.MainWindowViewModel.IsComplianceTruncationWarning(
+                LogLevel.Warning,
+                "[U-Sweep] Warning: received 37 points, expected 40. The instrument likely stopped early (compliance?)."));
+
+            // Wrong level
+            Assert.False(SMU_Revamp.ViewModels.MainWindowViewModel.IsComplianceTruncationWarning(
+                info,
+                "[U-Sweep] Warning: received 37 points, expected 40. compliance"));
+
+            // Unrelated warning (e.g. channel mismatch) must not toast
+            Assert.False(SMU_Revamp.ViewModels.MainWindowViewModel.IsComplianceTruncationWarning(
+                LogLevel.Warning,
+                "Warning: Write Channel and Reading Channel are the same."));
+        }
     }
 }

@@ -41,6 +41,12 @@ namespace SMU_Revamp.Services
             _logDirectory = ComputeDefaultLogDirectory();
         }
 
+        /// <summary>
+        /// Fired for every written entry. Used e.g. to surface compliance
+        /// warnings in the UI. Handlers must marshal to the UI thread themselves.
+        /// </summary>
+        public event Action<LogLevel, string>? EntryLogged;
+
         /// <summary>Gets the directory the log files are written to.</summary>
         public string LogDirectory => _logDirectory;
 
@@ -97,6 +103,15 @@ namespace SMU_Revamp.Services
             {
                 // Logging must never take the app down.
                 System.Diagnostics.Debug.WriteLine($"[LogService] Write failed: {ex.Message}");
+            }
+
+            try
+            {
+                EntryLogged?.Invoke(level, message);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[LogService] EntryLogged handler failed: {ex.Message}");
             }
         }
 

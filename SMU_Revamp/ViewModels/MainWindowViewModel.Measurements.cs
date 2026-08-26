@@ -1140,63 +1140,73 @@ public partial class MainWindowViewModel
 
         LoadAvailablePresets();
         LoadLastConfig();
-        RefreshExistingDeviceNames();
+        _ = RefreshExistingDeviceNamesAsync();
         IsConfigLoaded = true;
     }
 
-    public void RefreshExistingDeviceNames()
+    /// <summary>
+    /// Collects known device names from config and disk without blocking the
+    /// UI thread; the collection is updated on the caller's (UI) context.
+    /// </summary>
+    public async Task RefreshExistingDeviceNamesAsync()
     {
         try
         {
-            var profile = string.IsNullOrWhiteSpace(Settings.Profile) ? "Default" : Settings.Profile.Trim();
-            var deviceNamesSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string profileName = string.IsNullOrWhiteSpace(Settings.Profile) ? "Default" : Settings.Profile.Trim();
 
-            // 1. Load from AppConfig saved device names
-            var config = ConfigurationService.Instance.GetConfig();
-            if (config.SavedDeviceNames != null)
+            HashSet<string> deviceNamesSet = await Task.Run(() =>
             {
-                foreach (var name in config.SavedDeviceNames)
+                var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                // 1. Load from AppConfig saved device names
+                var config = ConfigurationService.Instance.GetConfig();
+                if (config.SavedDeviceNames != null)
                 {
-                    if (!string.IsNullOrWhiteSpace(name)) deviceNamesSet.Add(name.Trim());
-                }
-            }
-
-            // Always include "Empty Device" in suggestions
-            deviceNamesSet.Add("Empty Device");
-
-            // 2. Scan disk folders under SMU_Measurements/<profile>/Wafermaps/
-            string[] basePaths = new[]
-            {
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                AppDomain.CurrentDomain.BaseDirectory
-            };
-
-            foreach (var basePath in basePaths)
-            {
-                try
-                {
-                    string wafermapsDir = System.IO.Path.Combine(basePath, "SMU_Measurements", profile, "Wafermaps");
-                    if (System.IO.Directory.Exists(wafermapsDir))
+                    foreach (var name in config.SavedDeviceNames)
                     {
-                        // First migrate any legacy Scan_* folders directly under Wafermaps/ into Wafermaps/Empty Device/
-                        MigrateLegacyWafermapFolders(wafermapsDir);
+                        if (!string.IsNullOrWhiteSpace(name)) set.Add(name.Trim());
+                    }
+                }
 
-                        // Scan device subdirectories
-                        var subDirs = System.IO.Directory.GetDirectories(wafermapsDir);
-                        foreach (var subDir in subDirs)
+                // Always include "Empty Device" in suggestions
+                set.Add("Empty Device");
+
+                // 2. Scan disk folders under SMU_Measurements/<profile>/Wafermaps/
+                string[] basePaths = new[]
+                {
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    AppDomain.CurrentDomain.BaseDirectory
+                };
+
+                foreach (var basePath in basePaths)
+                {
+                    try
+                    {
+                        string wafermapsDir = System.IO.Path.Combine(basePath, "SMU_Measurements", profileName, "Wafermaps");
+                        if (System.IO.Directory.Exists(wafermapsDir))
                         {
-                            var dirName = System.IO.Path.GetFileName(subDir);
-                            if (!string.IsNullOrWhiteSpace(dirName))
+                            // First migrate any legacy Scan_* folders directly under Wafermaps/ into Wafermaps/Empty Device/
+                            MigrateLegacyWafermapFolders(wafermapsDir);
+
+                            // Scan device subdirectories
+                            var subDirs = System.IO.Directory.GetDirectories(wafermapsDir);
+                            foreach (var subDir in subDirs)
                             {
-                                deviceNamesSet.Add(dirName.Trim());
+                                var dirName = System.IO.Path.GetFileName(subDir);
+                                if (!string.IsNullOrWhiteSpace(dirName))
+                                {
+                                    set.Add(dirName.Trim());
+                                }
                             }
                         }
                     }
+                    catch { }
                 }
-                catch { }
-            }
 
-            // Update collection
+                return set;
+            });
+
+            // Update collection on the UI thread
             ExistingDeviceNames.Clear();
             foreach (var devName in deviceNamesSet.OrderBy(n => n))
             {

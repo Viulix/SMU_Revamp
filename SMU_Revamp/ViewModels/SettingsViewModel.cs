@@ -209,6 +209,9 @@ namespace SMU_Revamp.ViewModels
             LastDatabaseSyncTimestamp = config.LastDatabaseSyncTimestamp;
             UpdateSyncStatusSummary();
 
+            // Idempotent: repeated LoadSettings calls (settings reopened) must not
+            // stack duplicate handlers on the static sync service.
+            DatabaseSyncService.Instance.SyncCompleted -= OnSyncCompleted;
             DatabaseSyncService.Instance.SyncCompleted += OnSyncCompleted;
         }
 

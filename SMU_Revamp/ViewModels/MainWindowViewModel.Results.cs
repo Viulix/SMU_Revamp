@@ -51,47 +51,64 @@ public partial class MainWindowViewModel
 
         try
         {
-            InitializeResultTab();
-
-            var csvFiles = Directory.GetFiles(folderPath, "*.csv");
-
             // Regex pattern: "Cell0104_R1C5_Contact3"
             var regex = new Regex(@"Cell(?<cR>\d{2})(?<cC>\d{2})_R(?<sR>\d)C(?<sC>\d)_Contact(?<cont>\d)");
 
-            bool filesFound = false;
-            int loadedCount = 0;
-            foreach (var file in csvFiles)
+            // Heavy disk I/O and CSV parsing run off the UI thread; the
+            // observable collections are only touched afterwards on the
+            // caller's (UI) context.
+            var parsedFiles = await Task.Run(() =>
             {
-                var filename = Path.GetFileName(file);
-                var match = regex.Match(filename);
-                if (!match.Success) continue;
+                var records = new List<(int CellRow, int CellCol, int SubRow, int SubCol, int Contact, List<CurvePoint> Points)>();
+                int matchedFiles = 0;
 
-                filesFound = true;
-                int cellRow = int.Parse(match.Groups["cR"].Value);
-                int cellCol = int.Parse(match.Groups["cC"].Value);
-                int subRow = int.Parse(match.Groups["sR"].Value);
-                int subCol = int.Parse(match.Groups["sC"].Value);
-                int contact = int.Parse(match.Groups["cont"].Value);
+                foreach (var file in Directory.GetFiles(folderPath, "*.csv"))
+                {
+                    var filename = Path.GetFileName(file);
+                    var match = regex.Match(filename);
+                    if (!match.Success) continue;
 
-                var cell = ResultCells.FirstOrDefault(c => c.Row == cellRow && c.Col == cellCol);
+                    matchedFiles++;
+                    var points = ParseCsvPoints(file);
+                    if (points.Count == 0) continue;
+
+                    records.Add((
+                        int.Parse(match.Groups["cR"].Value),
+                        int.Parse(match.Groups["cC"].Value),
+                        int.Parse(match.Groups["sR"].Value),
+                        int.Parse(match.Groups["sC"].Value),
+                        int.Parse(match.Groups["cont"].Value),
+                        points));
+                }
+
+                return (records, matchedFiles);
+            });
+
+            InitializeResultTab();
+
+            int loadedCount = 0;
+            bool filesFound = parsedFiles.matchedFiles > 0;
+
+            foreach (var record in parsedFiles.records)
+            {
+                var cell = ResultCells.FirstOrDefault(c => c.Row == record.CellRow && c.Col == record.CellCol);
                 if (cell == null) continue;
 
-                var subCell = cell.SubCells.FirstOrDefault(s => s.Row == subRow && s.Col == subCol);
+                var subCell = cell.SubCells.FirstOrDefault(s => s.Row == record.SubRow && s.Col == record.SubCol);
                 if (subCell == null)
                 {
-                    subCell = new ResultSubCellViewModel { Row = subRow, Col = subCol };
+                    subCell = new ResultSubCellViewModel { Row = record.SubRow, Col = record.SubCol };
                     cell.SubCells.Add(subCell);
                 }
 
-                var contactVm = subCell.Contacts.FirstOrDefault(c => c.ContactNumber == contact);
+                var contactVm = subCell.Contacts.FirstOrDefault(c => c.ContactNumber == record.Contact);
                 if (contactVm == null)
                 {
-                    contactVm = new ResultContactViewModel { ContactNumber = contact };
+                    contactVm = new ResultContactViewModel { ContactNumber = record.Contact };
                     subCell.Contacts.Add(contactVm);
                 }
 
-                // Read points
-                contactVm.CurveData = ParseCsvPoints(file);
+                contactVm.CurveData = record.Points;
                 loadedCount++;
             }
 

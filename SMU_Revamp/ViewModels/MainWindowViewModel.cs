@@ -587,6 +587,30 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private System.Threading.CancellationTokenSource? _scanCts;
 
+    private System.Threading.CancellationTokenSource? _settingsSaveDebounceCts;
+
+    private static readonly TimeSpan SettingsSaveDebounceDelay = TimeSpan.FromMilliseconds(400);
+
+    private async Task DebouncedSaveSettingsAsync(System.Threading.CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(SettingsSaveDebounceDelay, token);
+            token.ThrowIfCancellationRequested();
+
+            await Task.Run(() => ConfigurationService.Instance.Save(ConfigurationService.Instance.GetConfig()));
+            await RefreshExistingDeviceNamesAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer keystroke superseded this save.
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Debounced settings save failed: {ex.Message}");
+        }
+    }
+
     private double _moveX;
     public double MoveX
     {
@@ -960,22 +984,19 @@ public partial class MainWindowViewModel : ViewModelBase
             MemristorWeightSmoothness = 0.05;
         });
 
-        LoadScanFolderCommand = new AsyncRelayCommand(async () =>
-        {
-            var topLevel = Avalonia.Controls.TopLevel.GetTopLevel(new Avalonia.Controls.Window()); // Will inject topLevel dynamically from UI or pass the path.
-            // Wait, we can't do this easily from ViewModel. We should do it from UI code-behind.
-            // Or better, let's keep it in MainWindow.axaml.cs.
-        });
-
         LoadConfigState();
 
-        // Auto-save settings when Profile or SampleName changes
-        Settings.PropertyChanged += async (s, e) =>
+        // Auto-save settings when Profile or SampleName changes.
+        // Debounced so typing does not trigger a disk write per keystroke,
+        // with the actual I/O moved off the UI thread.
+        Settings.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(SettingsViewModel.Profile) || e.PropertyName == nameof(SettingsViewModel.SampleName))
             {
-                await ConfigurationService.Instance.SaveAsync(ConfigurationService.Instance.GetConfig());
-                RefreshExistingDeviceNames();
+                _settingsSaveDebounceCts?.Cancel();
+                _settingsSaveDebounceCts?.Dispose();
+                _settingsSaveDebounceCts = new System.Threading.CancellationTokenSource();
+                _ = DebouncedSaveSettingsAsync(_settingsSaveDebounceCts.Token);
             }
         };
 
@@ -985,6 +1006,10 @@ public partial class MainWindowViewModel : ViewModelBase
         SyncDatabaseCommand = new AsyncRelayCommand(SyncDatabaseAsync);
         DatabaseSyncService.Instance.SyncCompleted += OnDatabaseSyncCompleted;
 
+        // Surface compliance truncation warnings (logged by the sweep plan
+        // parsers) as visible notifications instead of log-only entries.
+        LogService.Instance.EntryLogged += OnLogEntryLogged;
+
         InitializeWaferCells();
         InitializeSubCells();
         SubscribeToWaferMapChanges();
@@ -992,6 +1017,27 @@ public partial class MainWindowViewModel : ViewModelBase
         ScanWaferCommand = new AsyncRelayCommand(StartWaferScanAsync, () => !IsScanningWafer && !IsQueueRunning);
 
         InitializeQueueCommands();
+    }
+
+    /// <summary>
+    /// Matches sweep truncation warnings emitted by the plan parsers so they
+    /// can be surfaced as UI notifications.
+    /// </summary>
+    internal static bool IsComplianceTruncationWarning(LogLevel level, string message)
+    {
+        return level == LogLevel.Warning
+               && message.Contains("compliance", StringComparison.OrdinalIgnoreCase)
+               && message.Contains("expected", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void OnLogEntryLogged(LogLevel level, string message)
+    {
+        if (!IsComplianceTruncationWarning(level, message)) return;
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            NotificationRequested?.Invoke("Compliance", message, null, Avalonia.Controls.Notifications.NotificationType.Warning);
+        });
     }
 
     private void OnDatabaseSyncCompleted(DatabaseSyncResult result)
@@ -1042,13 +1088,11 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     public IAsyncRelayCommand SyncDatabaseCommand { get; }
-    
+
     public ICommand GoToScanStartCommand { get; }
     public ICommand RequestStopScanCommand { get; }
     public ICommand ConfirmStopScanCommand { get; }
     public ICommand CancelStopRequestCommand { get; }
-
-
 
 
 
@@ -1520,7 +1564,6 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
 
-    public ICommand LoadScanFolderCommand { get; }
     public ICommand SetSelectedResultCellCommand { get; }
     public ICommand SetSelectedResultSubCellCommand { get; }
     public ICommand ResetMemristorWeightsCommand { get; }
