@@ -162,6 +162,83 @@
                                         Classes="Secondary" 
                                         Width="150" />
                             </StackPanel>
+
+                            <!-- Experiment Queue -->
+                            <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Margin="0,15,0,5">
+                                <Expander Header="Experiment Queue" IsExpanded="False" HorizontalAlignment="Stretch" CornerRadius="8" Background="Transparent" BorderThickness="0">
+                                    <Expander.Styles>
+                                        <Style Selector="Expander /template/ ToggleButton#ExpanderHeader">
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Background" Value="Transparent" />
+                                        </Style>
+                                    </Expander.Styles>
+                                    <StackPanel Spacing="10" Margin="5,5,5,5">
+
+                                        <TextBlock Text="Chain saved presets into an automatic experiment series. Pauses between programs let the device settle."
+                                                   FontSize="12" Foreground="#666666" TextWrapping="Wrap" />
+
+                                        <StackPanel Orientation="Horizontal" Spacing="10" IsEnabled="{Binding !IsQueueRunning}">
+                                            <Button Content="+ Add selected preset" Command="{Binding AddSelectedPresetToQueueCommand}" Classes="Secondary" Padding="12,6" />
+                                            <TextBox Text="{Binding QueuePauseMinutes}" PlaceholderText="Pause (min)" Width="90" Height="32" VerticalContentAlignment="Center" />
+                                            <Button Content="+ Add pause" Command="{Binding AddQueuePauseCommand}" Classes="Secondary" Padding="12,6" />
+                                        </StackPanel>
+
+                                        <ListBox ItemsSource="{Binding MeasurementQueue}"
+                                                 SelectedItem="{Binding SelectedQueueItem}"
+                                                 Height="170">
+                                            <ListBox.Styles>
+                                                <Style Selector="ListBoxItem">
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                    <Setter Property="Padding" Value="6,2" />
+                                                </Style>
+                                            </ListBox.Styles>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:QueueItemViewModel">
+                                                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="2,0">
+                                                        <TextBlock Grid.Column="0" Text="{Binding DisplayName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding Status}" VerticalAlignment="Center" Margin="10,0,0,0" FontWeight="SemiBold"
+                                                                   Classes.running="{Binding IsRunning}"
+                                                                   Classes.done="{Binding IsDone}"
+                                                                   Classes.failed="{Binding IsFailed}">
+                                                            <TextBlock.Styles>
+                                                                <Style Selector="TextBlock">
+                                                                    <Setter Property="Foreground" Value="#6B7280" />
+                                                                </Style>
+                                                                <Style Selector="TextBlock.running">
+                                                                    <Setter Property="Foreground" Value="#2563EB" />
+                                                                </Style>
+                                                                <Style Selector="TextBlock.done">
+                                                                    <Setter Property="Foreground" Value="#16A34A" />
+                                                                </Style>
+                                                                <Style Selector="TextBlock.failed">
+                                                                    <Setter Property="Foreground" Value="#DC2626" />
+                                                                </Style>
+                                                            </TextBlock.Styles>
+                                                        </TextBlock>
+                                                        <TextBlock Grid.Column="2" Text="{Binding Type}" VerticalAlignment="Center" Margin="12,0,0,0" FontSize="11" Foreground="#9CA3AF" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="8" IsEnabled="{Binding !IsQueueRunning}">
+                                            <Button Content="↑ Up" Command="{Binding MoveQueueItemUpCommand}" Classes="Secondary" Padding="10,4" />
+                                            <Button Content="↓ Down" Command="{Binding MoveQueueItemDownCommand}" Classes="Secondary" Padding="10,4" />
+                                            <Button Content="Remove" Command="{Binding RemoveQueueItemCommand}" Classes="Secondary" Padding="10,4" />
+                                            <Button Content="Clear All" Command="{Binding ClearQueueCommand}" Classes="Secondary" Padding="10,4" />
+                                        </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <Button Content="Start Queue" Command="{Binding StartQueueCommand}" Classes="Primary" Padding="16,6" />
+                                            <Button Content="Stop Queue" Command="{Binding StopQueueCommand}" Classes="Danger" Padding="16,6"
+                                                    IsEnabled="{Binding IsQueueRunning}" />
+                                        </StackPanel>
+
+                                        <TextBlock Text="{Binding QueueStatusText}" FontSize="12" Foreground="#374151" TextWrapping="Wrap"
+                                                   IsVisible="{Binding QueueStatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    </StackPanel>
+                                </Expander>
+                            </Border>
                         </StackPanel>
                     </Border>
                 </ScrollViewer>

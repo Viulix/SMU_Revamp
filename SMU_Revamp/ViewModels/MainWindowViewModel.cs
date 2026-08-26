@@ -428,6 +428,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 (GoToScanStartCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (DisconnectRouteCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (ClearAllMatrixCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                NotifyStartQueueCanExecuteChanged();
                 NotifyGlobalProgressPropertiesChanged();
             }
         }
@@ -895,12 +896,12 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedPlan = MeasurementPlans.Count > 0 ? MeasurementPlans.Find(p => p.Name == "Measure Point") ?? MeasurementPlans[0] : null!;
         PlottedPlan = null;
 
-        GoToContactCommand = new AsyncRelayCommand(GoToContactAsync, () => !IsScanningWafer);
+        GoToContactCommand = new AsyncRelayCommand(GoToContactAsync, () => !IsScanningWafer && !IsQueueRunning);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAndConfigurationAsync);
-        RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync, () => !IsScanningWafer && !IsMeasuring);
-        MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync, () => !IsScanningWafer);
-        MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync, () => !IsScanningWafer);
-        GoToScanStartCommand = new AsyncRelayCommand(GoToScanStartAsync, () => !IsScanningWafer);
+        RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync, () => !IsScanningWafer && !IsMeasuring && !IsQueueRunning);
+        MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync, () => !IsScanningWafer && !IsQueueRunning);
+        MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync, () => !IsScanningWafer && !IsQueueRunning);
+        GoToScanStartCommand = new AsyncRelayCommand(GoToScanStartAsync, () => !IsScanningWafer && !IsQueueRunning);
         
         SelectAllCellsCommand = new RelayCommand(() => 
         {
@@ -978,8 +979,8 @@ public partial class MainWindowViewModel : ViewModelBase
             }
         };
 
-        DisconnectRouteCommand = new AsyncRelayCommand(DisconnectRouteAsync, () => !IsScanningWafer);
-        ClearAllMatrixCommand = new AsyncRelayCommand(ClearAllMatrixAsync, () => !IsScanningWafer);
+        DisconnectRouteCommand = new AsyncRelayCommand(DisconnectRouteAsync, () => !IsScanningWafer && !IsQueueRunning);
+        ClearAllMatrixCommand = new AsyncRelayCommand(ClearAllMatrixAsync, () => !IsScanningWafer && !IsQueueRunning);
 
         SyncDatabaseCommand = new AsyncRelayCommand(SyncDatabaseAsync);
         DatabaseSyncService.Instance.SyncCompleted += OnDatabaseSyncCompleted;
@@ -988,7 +989,9 @@ public partial class MainWindowViewModel : ViewModelBase
         InitializeSubCells();
         SubscribeToWaferMapChanges();
 
-        ScanWaferCommand = new AsyncRelayCommand(StartWaferScanAsync, () => !IsScanningWafer);
+        ScanWaferCommand = new AsyncRelayCommand(StartWaferScanAsync, () => !IsScanningWafer && !IsQueueRunning);
+
+        InitializeQueueCommands();
     }
 
     private void OnDatabaseSyncCompleted(DatabaseSyncResult result)
@@ -1106,6 +1109,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(IsMeasuringSweep));
                 (RunMeasurementCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                NotifyStartQueueCanExecuteChanged();
                 NotifyGlobalProgressPropertiesChanged();
             }
         }

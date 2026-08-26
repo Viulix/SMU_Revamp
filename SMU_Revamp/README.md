@@ -11,6 +11,7 @@ SMU Revamp is a modern, cross-platform C# desktop application built with [Avalon
   - Memristor Sweep
   - And more...
 - **Automated Wafer Scanning:** Step through target cells, sub-cells, and contacts automatically with live progress, ETA estimation, and per-contact failure tracking.
+- **Experiment Queue:** Chain saved presets into an automatic series with configurable repetitions and pauses between programs — ideal for overnight runs. Stop aborts safely mid-measurement.
 - **Advanced Sequence Editor:** Visually build and manage complex measurement sequences consisting of pulse, point, sweep, and measurement steps.
 - **Dynamic Parameter Editor:** Configurable parameters for each measurement plan, featuring cross-parameter linking and multiplier logic.
 - **Wafer & Sub-Cell Visualization:** Interactive 16x16 Wafermaps and 5x5 Sub-cell matrices to quickly locate and analyze specific contacts.

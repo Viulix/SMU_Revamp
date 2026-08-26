@@ -25,10 +25,11 @@ public partial class MainWindowViewModel
 
         IsMeasuring = true;
 
-        // Linked to the wafer-scan token when scanning, so a stop request also
-        // aborts the in-flight hardware measurement instead of only the loop.
+        // Linked to the wafer-scan or queue token when running under either
+        // engine, so a stop request also aborts the in-flight hardware
+        // measurement instead of only the loop.
         using var measurementCts = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(
-            _scanCts?.Token ?? System.Threading.CancellationToken.None);
+            _scanCts?.Token ?? _queueCts?.Token ?? System.Threading.CancellationToken.None);
         var measurementToken = measurementCts.Token;
 
         // Update the plotted plan to be the one we are running
