@@ -33,6 +33,9 @@ The documentation is split into multiple files for easier reading:
 9. **[Logging](Logging.md)**
     Daily log files, line format, what is recorded (instrument traffic, session banners, failures), and how to use `LogService`.
 
+10. **[Yield Dashboard Specification](Yield_Dashboard_Spec.md)**
+    Draft specification for the planned yield-statistics dashboard: scope, data foundation, and open questions.
+
 ---
 
 ## High-Level Architecture Overview
