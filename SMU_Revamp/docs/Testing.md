@@ -48,7 +48,7 @@ The test project references the app project directly. Parser methods under test 
 - **Singleton isolation:** `E5263_SMU.Instance` is shared state. All tests touching it live in a single class (`SmuSimulationIntegrationTests`) which enables simulation in its constructor (`SetSimulationMode(true)`) and disables it in `Dispose`, so tests never leak hardware mode into each other.
 - **Raw data format:** Instrument responses are simulated as comma-separated tokens like `N2I1.2345678901E-005`; the parsers identify current tokens by `'I'` at index 2.
 - **Compliance truncation:** The simulator stops a staircase at the compliance limit exactly like the real instrument. Tests assert that truncated responses map to *true* voltages rather than being stretched across the sweep range.
-- **No disk access:** Plan constructors read the configuration service but only from memory/default state; tests never write to user configuration.
+- **Isolated configuration:** Plan constructors call `LoadDefaults()`, which reads `ConfigurationService`. A `[ModuleInitializer]` in the test project (`TestEnvironment.cs`) sets `SMU_REVAMP_CONFIG_DIR` to a throwaway temp directory before any test runs, so every test sees factory-default settings and the real `%APPDATA%\SMU_Revamp\config.json` is never read or written. The same environment variable can be used for portable app deployments.
 
 ## Adding Tests
 

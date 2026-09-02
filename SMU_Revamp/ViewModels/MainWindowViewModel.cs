@@ -873,7 +873,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (string.IsNullOrWhiteSpace(NewPresetName))
             {
                 IsPresetNameInvalid = true;
-                PresetNameErrorMessage = "Bitte geben Sie einen Preset-Namen ein.";
+                PresetNameErrorMessage = "Please enter a preset name.";
                 return;
             }
             

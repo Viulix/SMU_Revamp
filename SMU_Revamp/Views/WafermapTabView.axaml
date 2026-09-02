@@ -95,7 +95,7 @@
                                 <StackPanel Spacing="6">
                                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                         <Path Fill="#0284C7" Data="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z" Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" />
-                                        <TextBlock Text="Vorabschätzung (Pre-Estimation)" FontWeight="Bold" Foreground="#0369A1" FontSize="13" VerticalAlignment="Center" />
+                                        <TextBlock Text="Pre-Estimation" FontWeight="Bold" Foreground="#0369A1" FontSize="13" VerticalAlignment="Center" />
                                     </StackPanel>
                                     <TextBlock Text="{Binding WaferScanPreEstimationText}" Foreground="#075985" FontSize="12" TextWrapping="Wrap" FontWeight="SemiBold" />
                                 </StackPanel>

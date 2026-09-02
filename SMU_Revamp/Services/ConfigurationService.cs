@@ -23,10 +23,13 @@ namespace SMU_Revamp.Services
         {
             try
             {
-                var appDataDir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "SMU_Revamp"
-                );
+                var configDirOverride = Environment.GetEnvironmentVariable("SMU_REVAMP_CONFIG_DIR");
+                var appDataDir = string.IsNullOrWhiteSpace(configDirOverride)
+                    ? Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                        "SMU_Revamp"
+                    )
+                    : configDirOverride;
 
                 if (!Directory.Exists(appDataDir))
                 {

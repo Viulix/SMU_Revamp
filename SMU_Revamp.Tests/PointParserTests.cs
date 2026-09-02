@@ -29,17 +29,13 @@ namespace SMU_Revamp.Tests
         public void MeasurePoint_InvertsCurrentForSeparateReadingChannel()
         {
             var plan = new MeasurePointMeasurementPlan();
+            plan.Parameters.Find(p => p.Name == "WriteChannel")!.Value = "1";
             plan.Parameters.Find(p => p.Name == "ReadingChannel")!.Value = "2";
-            try
-            {
-                var result = plan.ParseSmuData(Raw(1e-6), 0.5);
-                Assert.Single(result);
-                Assert.Equal(-1e-6, result[0].Y, 15);
-            }
-            finally
-            {
-                plan.Parameters.Find(p => p.Name == "ReadingChannel")!.Value = "1";
-            }
+
+            var result = plan.ParseSmuData(Raw(1e-6), 0.5);
+
+            Assert.Single(result);
+            Assert.Equal(-1e-6, result[0].Y, 15);
         }
 
         [Fact]

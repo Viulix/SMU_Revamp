@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+
+      - name: Restore
+        run: dotnet restore SMU_Revamp/SMU_Revamp.slnx
+
+      - name: Build
+        run: dotnet build SMU_Revamp/SMU_Revamp.slnx -c Release --no-restore /warnaserror
+
+      - name: Test
+        run: dotnet test SMU_Revamp/SMU_Revamp.slnx -c Release --no-build --logger "trx" --results-directory test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/**/*.trx
+          if-no-files-found: ignore

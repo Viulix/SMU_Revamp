@@ -68,7 +68,7 @@ namespace SMU_Revamp.Services
                 "WeakSignal" => "Weak signal (SNR < 3)",
                 "MostlyLinear" => "Curve is mostly linear",
                 "WeakHysteresis" => "Weak hysteresis (< 5%)",
-                "HysteresisNotAboveNoise" => "Hysterese below noise floor",
+                "HysteresisNotAboveNoise" => "Hysteresis below noise floor",
                 "WeakPinch" => "Weak pinch at origin",
                 "HighOriginOffset" => "High origin offset",
                 "NoCommonZeroVoltage" => "No common 0 V point",

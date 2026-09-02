@@ -54,7 +54,7 @@
                                 <Border Background="#F3F4F6" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="10,0" Height="32" VerticalAlignment="Center" Margin="0,0,10,10">
                                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                         <Path Fill="#6B7280" Data="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z" Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" />
-                                        <TextBlock Text="Messdauer:" FontSize="12" FontWeight="SemiBold" Foreground="#4B5563" VerticalAlignment="Center" />
+                                        <TextBlock Text="Duration:" FontSize="12" FontWeight="SemiBold" Foreground="#4B5563" VerticalAlignment="Center" />
                                         <TextBlock Text="{Binding SingleMeasurementDurationText}" FontSize="12" FontWeight="Bold" Foreground="#1F2937" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
