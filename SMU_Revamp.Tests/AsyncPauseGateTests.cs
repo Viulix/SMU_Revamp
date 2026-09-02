@@ -62,7 +62,7 @@ namespace SMU_Revamp.Tests
         }
 
         [Fact]
-        public void Pause_Twice_IsIdempotent()
+        public async Task Pause_Twice_IsIdempotent()
         {
             var gate = new AsyncPauseGate();
             gate.Pause();
@@ -73,8 +73,8 @@ namespace SMU_Revamp.Tests
             // A single resume must release the wait (no stacked gates).
             Task<double> waitTask = gate.WaitAsync(CancellationToken.None);
             gate.Resume();
-            var completed = waitTask.Wait(TimeSpan.FromSeconds(2));
-            Assert.True(completed, "Single resume must release a doubly paused gate.");
+            var completedTask = await Task.WhenAny(waitTask, Task.Delay(TimeSpan.FromSeconds(2)));
+            Assert.Same(waitTask, completedTask);
         }
 
         [Fact]
