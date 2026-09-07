@@ -43,9 +43,9 @@ namespace SMU_Revamp.MeasurementPlans
                 { "WriteChannel", "1" },
                 { "ReadingChannel", "1" },
                 { "BaseVoltage", 0.0 },
-                { "StartVoltage", 0 },
-                { "StopVoltage", 0 },
-                { "Points", 0 },
+                { "StartVoltage", -1.0 },
+                { "StopVoltage", 1.0 },
+                { "Points", 21 },
                 { "HoldTime", 0.0 },
                 { "PulseWidth", 0.001 },
                 { "PulsePeriod", 0.01 },
@@ -72,6 +72,11 @@ namespace SMU_Revamp.MeasurementPlans
             double pulsePeriod = GetParamValueDouble("PulsePeriod");
             double compliance = GetParamValueDouble("Compliance");
             string mode = GetParamValueString("SweepMode");
+
+            if (pointsCount < 1)
+            {
+                throw new InvalidOperationException("Points count must be at least 1.");
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -178,13 +183,13 @@ namespace SMU_Revamp.MeasurementPlans
                 {
                     // Calculate buffer size
                     int expectedBufferLength = pointsCount * 32 * (modeValue == 3 ? 2 : 1) + 200;
-                    string rawData = await smu.ReadResponseAsync(expectedBufferLength);
+                    string rawData = await smu.ReadResponseAsync(expectedBufferLength, cancellationToken);
 
                     cts.Cancel();
                     try { await progressTask; } catch { }
                     progress?.Report(95);
 
-                    string tsqResponse = await smu.ReadResponseAsync(50);
+                    string tsqResponse = await smu.ReadResponseAsync(50, cancellationToken);
 
                     var parsed = ParseSmuData(rawData, modeValue, start, stop, pointsCount);
                     ResultPoints.AddRange(parsed);

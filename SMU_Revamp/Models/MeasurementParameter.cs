@@ -239,12 +239,30 @@ namespace SMU_Revamp.Models
             }
         }
 
+        public static bool WouldCreateCycle(MeasurementParameter source, MeasurementParameter candidate)
+        {
+            var current = candidate;
+            var visited = new HashSet<MeasurementParameter>();
+            while (current != null)
+            {
+                if (ReferenceEquals(current, source)) return true;
+                if (!visited.Add(current)) return true;
+                current = current.LinkedParameter;
+            }
+            return false;
+        }
+
         private MeasurementParameter? _linkedParameter;
         public MeasurementParameter? LinkedParameter
         {
             get => _linkedParameter;
             set
             {
+                if (value != null && WouldCreateCycle(this, value))
+                {
+                    // Ignore assignment that would introduce a cycle
+                    return;
+                }
                 if (_linkedParameter != null)
                 {
                     _linkedParameter.PropertyChanged -= LinkedParameter_PropertyChanged;
@@ -294,14 +312,31 @@ namespace SMU_Revamp.Models
             }
         }
 
+        [ThreadStatic]
+        private static HashSet<MeasurementParameter>? _currentlyUpdating;
+
         private void UpdateFromLinkedParameter()
         {
             if (LinkedParameter == null) return;
-            
-            if (double.TryParse(LinkedParameter.GetValueAsString().Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double numVal))
+
+            _currentlyUpdating ??= new HashSet<MeasurementParameter>();
+            if (!_currentlyUpdating.Add(this))
             {
-                double linkedVal = numVal * LinkedMultiplier;
-                Value = linkedVal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                // Reentrancy detected in current call stack: abort recursion safely
+                return;
+            }
+
+            try
+            {
+                if (double.TryParse(LinkedParameter.GetValueAsString().Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double numVal))
+                {
+                    double linkedVal = numVal * LinkedMultiplier;
+                    Value = linkedVal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                }
+            }
+            finally
+            {
+                _currentlyUpdating.Remove(this);
             }
         }
     }

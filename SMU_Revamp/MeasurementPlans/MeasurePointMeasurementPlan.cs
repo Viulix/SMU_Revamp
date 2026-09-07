@@ -108,11 +108,11 @@ namespace SMU_Revamp.MeasurementPlans
                 progress?.Report(80);
 
                 // Read the single-point response block
-                string rawData = await smu.ReadResponseAsync(100);
+                string rawData = await smu.ReadResponseAsync(100, cancellationToken);
                 progress?.Report(90);
 
                 // Read the TSQ response block to clear it from the session output queue
-                string tsqResponse = await smu.ReadResponseAsync(50);
+                string tsqResponse = await smu.ReadResponseAsync(50, cancellationToken);
 
                 var parsed = ParseSmuData(rawData, voltage);
                 ResultPoints.AddRange(parsed);

@@ -156,6 +156,12 @@
                                         Classes="Primary" 
                                         Width="180" />
 
+                                <Button Content="Stop Measurement" 
+                                        Command="{Binding StopMeasurementCommand}" 
+                                        IsVisible="{Binding IsMeasuringSingle}"
+                                        Classes="Danger" 
+                                        Width="160" />
+
                                 <Button Content="Export to CSV" 
                                         Click="ExportCsvButton_Click"
                                         IsEnabled="{Binding HasCurvePoints}"

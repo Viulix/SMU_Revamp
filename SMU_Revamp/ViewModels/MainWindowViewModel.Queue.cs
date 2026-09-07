@@ -46,6 +46,8 @@ public partial class MainWindowViewModel
             {
                 NotifyQueueCommandsChanged();
                 OnPropertyChanged(nameof(IsExperimentBusy));
+                OnPropertyChanged(nameof(IsMeasuringSingle));
+                (StopMeasurementCommand as RelayCommand)?.NotifyCanExecuteChanged();
             }
         }
     }

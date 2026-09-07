@@ -18,18 +18,43 @@ namespace SMU_Revamp.ViewModels;
 
 public partial class MainWindowViewModel
 {
+    private System.Threading.CancellationTokenSource? _singleMeasurementCts;
+
+    public void StopMeasurement()
+    {
+        if (_singleMeasurementCts != null && !_singleMeasurementCts.IsCancellationRequested)
+        {
+            MeasurementStatus = "Stopping measurement...";
+            LogService.Instance.Info("Manual measurement stop requested by user.");
+            try
+            {
+                _singleMeasurementCts.Cancel();
+            }
+            catch (Exception ex)
+            {
+                LogService.Instance.Warning($"Error cancelling measurement: {ex.Message}");
+            }
+        }
+    }
+
     private async Task RunMeasurementAsync()
     {
         if (IsMeasuring) return;
         if (SelectedPlan == null) return;
 
+        if (!IsScanningWafer && !IsQueueRunning)
+        {
+            _singleMeasurementCts = new System.Threading.CancellationTokenSource();
+        }
+
         IsMeasuring = true;
 
-        // Linked to the wafer-scan or queue token when running under either
-        // engine, so a stop request also aborts the in-flight hardware
-        // measurement instead of only the loop.
+        // Linked to the wafer-scan, queue, or single-measurement token, so a stop request
+        // also aborts the in-flight hardware measurement instead of only the loop.
         using var measurementCts = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(
-            _scanCts?.Token ?? _queueCts?.Token ?? System.Threading.CancellationToken.None);
+            _scanCts?.Token ?? System.Threading.CancellationToken.None,
+            _queueCts?.Token ?? System.Threading.CancellationToken.None,
+            _singleMeasurementCts?.Token ?? System.Threading.CancellationToken.None);
         var measurementToken = measurementCts.Token;
 
         // Update the plotted plan to be the one we are running
@@ -326,11 +351,15 @@ public partial class MainWindowViewModel
         }
         catch (OperationCanceledException)
         {
-            // Rethrow so a wafer scan aborts cleanly instead of accumulating
-            // partially measured data for this contact point.
+            // Rethrow so a wafer scan or queue aborts cleanly instead of accumulating
+            // partially measured data for this contact point. Standalone manual measurements
+            // finish gracefully here.
             MeasurementStatus = IsScanningWafer ? "Measurement canceled by stop request." : "Measurement canceled.";
             LogService.Instance.Warning(MeasurementStatus);
-            throw;
+            if (IsScanningWafer || IsQueueRunning)
+            {
+                throw;
+            }
         }
         catch (Exception ex)
         {
@@ -347,6 +376,9 @@ public partial class MainWindowViewModel
         }
         finally
         {
+            _singleMeasurementCts?.Dispose();
+            _singleMeasurementCts = null;
+
             // Close session for single measurements (during a wafer scan, ExecuteWaferScanAsync manages the persistent session)
             if (!IsScanningWafer)
             {

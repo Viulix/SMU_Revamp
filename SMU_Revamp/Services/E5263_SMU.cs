@@ -201,23 +201,54 @@ namespace SMU_Revamp.Services
         /// <summary>
         /// Reads a response from the SMU.
         /// </summary>
-        public async Task<string> ReadResponseAsync(int readBufferChars = 1024)
+        public async Task<string> ReadResponseAsync(int readBufferChars = 1024, CancellationToken cancellationToken = default)
         {
             if (_simulationActive)
             {
+                if (cancellationToken.CanBeCanceled)
+                {
+                    var readSimTask = Task.Run(() => _simulator.Read());
+                    var completed = await Task.WhenAny(readSimTask, Task.Delay(Timeout.Infinite, cancellationToken));
+                    if (completed != readSimTask)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+                    string simResp = await readSimTask;
+                    LogService.Instance.Debug($"SMU << {LogService.Truncate(simResp)}");
+                    return simResp;
+                }
                 string simResponse = await Task.Run(() => _simulator.Read());
                 LogService.Instance.Debug($"SMU << {LogService.Truncate(simResponse)}");
                 return simResponse;
             }
             if (!IsConnected || _session == null)
                 throw new InvalidOperationException("Not connected to E5263 SMU.");
-            await _ioLock.WaitAsync();
+            await _ioLock.WaitAsync(cancellationToken);
             try
             {
                 var session = _session ?? throw new InvalidOperationException("Not connected to E5263 SMU.");
-                string response = await Task.Run(() => session.RawIO.ReadString(readBufferChars));
+                string response;
+                if (cancellationToken.CanBeCanceled)
+                {
+                    var readTask = Task.Run(() => session.RawIO.ReadString(readBufferChars));
+                    var completed = await Task.WhenAny(readTask, Task.Delay(Timeout.Infinite, cancellationToken));
+                    if (completed != readTask)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+                    response = await readTask;
+                }
+                else
+                {
+                    response = await Task.Run(() => session.RawIO.ReadString(readBufferChars));
+                }
                 LogService.Instance.Debug($"SMU << {LogService.Truncate(response)}");
                 return response;
+            }
+            catch (OperationCanceledException)
+            {
+                try { _session?.Clear(); } catch { }
+                throw;
             }
             catch (Exception ex)
             {
@@ -231,16 +262,67 @@ namespace SMU_Revamp.Services
         }
 
         /// <summary>
-        /// Sends a command and reads a response.
+        /// Sends a command and reads a response atomically under the VISA session lock.
         /// </summary>
-        public async Task<string> QueryAsync(string command, int readBufferChars = 1024, int postWriteDelayMs = 0)
+        public async Task<string> QueryAsync(string command, int readBufferChars = 1024, int postWriteDelayMs = 0, CancellationToken cancellationToken = default)
         {
-            await SendCommandAsync(command);
-            if (postWriteDelayMs > 0)
+            if (_simulationActive)
             {
-                await Task.Delay(postWriteDelayMs);
+                await Task.Run(() => _simulator.Execute(command));
+                LogService.Instance.Debug($"SMU >> {LogService.Truncate(command)}");
+                if (postWriteDelayMs > 0)
+                {
+                    await Task.Delay(postWriteDelayMs, cancellationToken);
+                }
+                string simResponse = await Task.Run(() => _simulator.Read());
+                LogService.Instance.Debug($"SMU << {LogService.Truncate(simResponse)}");
+                return simResponse;
             }
-            return await ReadResponseAsync(readBufferChars);
+            if (!IsConnected || _session == null)
+                throw new InvalidOperationException("Not connected to E5263 SMU.");
+
+            await _ioLock.WaitAsync(cancellationToken);
+            try
+            {
+                var session = _session ?? throw new InvalidOperationException("Not connected to E5263 SMU.");
+                await Task.Run(() => session.RawIO.Write(command + "\n"));
+                LogService.Instance.Debug($"SMU >> {LogService.Truncate(command)}");
+                if (postWriteDelayMs > 0)
+                {
+                    await Task.Delay(postWriteDelayMs, cancellationToken);
+                }
+                string response;
+                if (cancellationToken.CanBeCanceled)
+                {
+                    var readTask = Task.Run(() => session.RawIO.ReadString(readBufferChars));
+                    var completed = await Task.WhenAny(readTask, Task.Delay(Timeout.Infinite, cancellationToken));
+                    if (completed != readTask)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+                    response = await readTask;
+                }
+                else
+                {
+                    response = await Task.Run(() => session.RawIO.ReadString(readBufferChars));
+                }
+                LogService.Instance.Debug($"SMU << {LogService.Truncate(response)}");
+                return response;
+            }
+            catch (OperationCanceledException)
+            {
+                try { _session?.Clear(); } catch { }
+                throw;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[E5263_SMU] Error during query '{command}': {ex.Message}");
+                throw;
+            }
+            finally
+            {
+                _ioLock.Release();
+            }
         }
 
         public void SetTimeout(int timeoutMilliseconds)

@@ -163,7 +163,7 @@ namespace SMU_Revamp.MeasurementPlans
                         await WaitMillisecondsAccurateAsync(treadPD, cancellationToken);
                         await WaitMillisecondsAccurateAsync(10, cancellationToken);
 
-                        string resp = await smu.ReadResponseAsync(100);
+                        string resp = await smu.ReadResponseAsync(100, cancellationToken);
                         double iRead = ParseReading(resp, invertCurrent);
                         await smu.SendCommandAsync($"DZ {channel}");
 
@@ -198,7 +198,7 @@ namespace SMU_Revamp.MeasurementPlans
                         await WaitMillisecondsAccurateAsync(treadPD, cancellationToken);
                         await WaitMillisecondsAccurateAsync(10, cancellationToken);
 
-                        string resp = await smu.ReadResponseAsync(100);
+                        string resp = await smu.ReadResponseAsync(100, cancellationToken);
                         double iRead = ParseReading(resp, invertCurrent);
                         await smu.SendCommandAsync($"DZ {channel}");
 

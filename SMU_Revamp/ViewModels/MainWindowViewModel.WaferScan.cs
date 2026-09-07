@@ -214,14 +214,19 @@ public partial class MainWindowViewModel
         try
         {
             await ProberService.Instance.ConnectAsync();
+            WaferScanLog = "Separating chuck...";
             await ProberService.Instance.DisconnectChuckAsync();
+            await Task.Delay(200);
+            WaferScanLog = "Returning prober to Home position...";
             await ProberService.Instance.ProberGoHomeAsync();
+            WaferScanLog = "Prober at Home position.";
             WaferScanLogFontWeight = Avalonia.Media.FontWeight.Bold;
             IsScanningWafer = false;
         }
         catch (Exception ex)
         {
             WaferScanLog = $"Error moving to start: {ex.Message}";
+            LogService.Instance.Error("Failed moving prober to start position", ex);
         }
     }
 
@@ -485,24 +490,37 @@ public partial class MainWindowViewModel
             IsScanPaused = false;
 
             WaferScanLog = "Separating chuck...";
+            bool separationSucceeded = false;
             try 
             {
                 await ProberService.Instance.DisconnectChuckAsync();
                 await Task.Delay(200);
+                separationSucceeded = true;
             }
             catch (Exception discEx)
             {
                 System.Diagnostics.Debug.WriteLine($"[WaferScan] Error disconnecting chuck in finally: {discEx.Message}");
+                LogService.Instance.Error("CRITICAL HARDWARE SAFETY: Failed to separate chuck. Aborting return to Home position to prevent damaging needles and wafer.", discEx);
+                WaferScanLog = "CRITICAL: Chuck separation failed! Prober Home movement aborted for safety.";
+                NotificationRequested?.Invoke(
+                    "CRITICAL SAFETY WARNING",
+                    "Chuck separation failed! Movement to Home position was aborted to prevent damaging the probe needles and wafer.",
+                    null,
+                    Avalonia.Controls.Notifications.NotificationType.Error);
             }
 
-            try
+            if (separationSucceeded)
             {
-                WaferScanLog = "Returning prober to Home position...";
-                await ProberService.Instance.ProberGoHomeAsync();
-            }
-            catch (Exception homeEx)
-            {
-                System.Diagnostics.Debug.WriteLine($"[WaferScan] Error returning prober home in finally: {homeEx.Message}");
+                try
+                {
+                    WaferScanLog = "Returning prober to Home position...";
+                    await ProberService.Instance.ProberGoHomeAsync();
+                }
+                catch (Exception homeEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WaferScan] Error returning prober home in finally: {homeEx.Message}");
+                    LogService.Instance.Error("Failed to return prober home in finally", homeEx);
+                }
             }
 
             // Close SMU session properly when wafer scan completes, is canceled, or fails

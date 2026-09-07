@@ -36,9 +36,9 @@ namespace SMU_Revamp.MeasurementPlans
             {
                 { "WriteChannel", "1" },
                 { "ReadingChannel", "1" },
-                { "StartVoltage", 0 },
-                { "StopVoltage", 0 },
-                { "Points", 0 },
+                { "StartVoltage", -1.0 },
+                { "StopVoltage", 1.0 },
+                { "Points", 21 },
                 { "Compliance", 0.01 },
                 { "AdcSamples", 0 },
                 { "SweepMode", 0 }
@@ -60,6 +60,11 @@ namespace SMU_Revamp.MeasurementPlans
             double compliance = GetParamValueDouble("Compliance");
             int adcSamples = GetParamValueInt("AdcSamples");
             string mode = GetParamValueString("SweepMode");
+
+            if (pointsCount < 1)
+            {
+                throw new InvalidOperationException("Points count must be at least 1.");
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -160,7 +165,7 @@ namespace SMU_Revamp.MeasurementPlans
                 {
                     // Calculate buffer size
                     int expectedBufferLength = pointsCount * 32 * (modeValue == 3 ? 2 : 1) + 200;
-                    string rawData = await smu.ReadResponseAsync(expectedBufferLength);
+                    string rawData = await smu.ReadResponseAsync(expectedBufferLength, cancellationToken);
 
                     // Cancel the background progress task since we got the data
                     cts.Cancel();
@@ -168,7 +173,7 @@ namespace SMU_Revamp.MeasurementPlans
                     progress?.Report(95);
 
                     // Read the TSQ response block to clear it from the session output queue
-                    string tsqResponse = await smu.ReadResponseAsync(50);
+                    string tsqResponse = await smu.ReadResponseAsync(50, cancellationToken);
 
                     var parsed = ParseSmuData(rawData, modeValue, start, stop, pointsCount);
                     ResultPoints.AddRange(parsed);

@@ -167,6 +167,12 @@ public partial class CurvePlotView : UserControl
 
     private void UpdateAspectRatio()
     {
+        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(UpdateAspectRatio);
+            return;
+        }
+
         if (ContainerGrid == null || AvaPlot == null || ContainerGrid.Bounds.Width <= 0) return;
         
         double availableWidth = ContainerGrid.Bounds.Width;
@@ -200,6 +206,12 @@ public partial class CurvePlotView : UserControl
 
     private void Redraw()
     {
+        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(Redraw);
+            return;
+        }
+
         if (AvaPlot is null) return;
         AvaPlot.Plot.Clear();
 

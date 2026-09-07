@@ -306,14 +306,18 @@ namespace SMU_Revamp.ViewModels
         public async Task TestDbConnectionAsync()
         {
             ApplyStatusMessage = "Testing connection...";
-            bool success = await DatabaseService.Instance.TestConnectionAsync(DbAddress, DbUser, DbPassword, DbName);
-            if (success)
+            var result = await DatabaseService.Instance.TestConnectionDetailedAsync(DbAddress, DbUser, DbPassword, DbName);
+            if (result.Success)
             {
                 ApplyStatusMessage = "Database connection successful. Tables initialized.";
             }
+            else if (result.Status == DatabaseConnectionStatus.AccessDenied)
+            {
+                ApplyStatusMessage = $"Access Denied: {result.Message}";
+            }
             else
             {
-                ApplyStatusMessage = "Database connection failed. Check credentials.";
+                ApplyStatusMessage = $"Connection failed ({result.Status}): {result.Message}";
             }
         }
 

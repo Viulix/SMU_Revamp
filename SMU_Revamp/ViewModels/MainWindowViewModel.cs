@@ -422,6 +422,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 (ScanWaferCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (RequestStopScanCommand as RelayCommand)?.NotifyCanExecuteChanged();
                 (RunMeasurementCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (StopMeasurementCommand as RelayCommand)?.NotifyCanExecuteChanged();
                 (GoToContactCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (MoveRelativeCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (MoveAbsoluteCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
@@ -429,6 +430,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 (DisconnectRouteCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (ClearAllMatrixCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (ToggleScanPauseCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(IsMeasuringSingle));
                 NotifyStartQueueCanExecuteChanged();
                 NotifyGlobalProgressPropertiesChanged();
             }
@@ -943,6 +945,7 @@ public partial class MainWindowViewModel : ViewModelBase
         GoToContactCommand = new AsyncRelayCommand(GoToContactAsync, () => !IsScanningWafer && !IsQueueRunning);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAndConfigurationAsync);
         RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync, () => !IsScanningWafer && !IsMeasuring && !IsQueueRunning);
+        StopMeasurementCommand = new RelayCommand(StopMeasurement, () => IsMeasuringSingle);
         MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync, () => !IsScanningWafer && !IsQueueRunning);
         MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync, () => !IsScanningWafer && !IsQueueRunning);
         GoToScanStartCommand = new AsyncRelayCommand(GoToScanStartAsync, () => !IsScanningWafer && !IsQueueRunning);
@@ -1067,11 +1070,15 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (!result.Success)
             {
+                _isDbSyncAccessDenied = result.IsAccessDenied;
+                OnPropertyChanged(nameof(DbSyncWarningBadgeText));
                 IsDbSyncWarningVisible = true;
                 DbSyncWarningTooltip = $"{result.Message} (Click to retry)";
             }
             else
             {
+                _isDbSyncAccessDenied = false;
+                OnPropertyChanged(nameof(DbSyncWarningBadgeText));
                 IsDbSyncWarningVisible = false;
                 DbSyncWarningTooltip = string.Empty;
             }
@@ -1107,6 +1114,9 @@ public partial class MainWindowViewModel : ViewModelBase
         get => _dbSyncWarningTooltip;
         set => SetProperty(ref _dbSyncWarningTooltip, value);
     }
+
+    private bool _isDbSyncAccessDenied;
+    public string DbSyncWarningBadgeText => _isDbSyncAccessDenied ? "Access Denied" : "DB Sync Offline";
 
     public IAsyncRelayCommand SyncDatabaseCommand { get; }
 
@@ -1174,7 +1184,9 @@ public partial class MainWindowViewModel : ViewModelBase
             if (SetProperty(ref _isMeasuring, value))
             {
                 OnPropertyChanged(nameof(IsMeasuringSweep));
+                OnPropertyChanged(nameof(IsMeasuringSingle));
                 (RunMeasurementCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (StopMeasurementCommand as RelayCommand)?.NotifyCanExecuteChanged();
                 NotifyStartQueueCanExecuteChanged();
                 NotifyGlobalProgressPropertiesChanged();
             }
@@ -1218,7 +1230,9 @@ public partial class MainWindowViewModel : ViewModelBase
          SelectedPlan is SpikeTimingMeasurementPlan ||
          SelectedPlan is MemristorSweepMeasurementPlan ||
          SelectedPlan is FrequencyMemoryMeasurementPlan);
+    public bool IsMeasuringSingle => IsMeasuring && !IsScanningWafer && !IsQueueRunning;
     public ICommand RunMeasurementCommand { get; }
+    public ICommand StopMeasurementCommand { get; }
 
 
     /// <summary>

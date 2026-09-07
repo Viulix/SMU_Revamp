@@ -12,6 +12,7 @@ namespace SMU_Revamp.Services
     public class DatabaseSyncResult
     {
         public bool Success { get; set; }
+        public bool IsAccessDenied { get; set; }
         public int UploadedCount { get; set; }
         public int SkippedCount { get; set; }
         public string Message { get; set; } = string.Empty;
@@ -92,15 +93,21 @@ namespace SMU_Revamp.Services
                 }
 
                 // 1. Connection Health Check
-                bool isConnected = await DatabaseService.Instance.TestConnectionAsync(
+                var connResult = await DatabaseService.Instance.TestConnectionDetailedAsync(
                     config.DbAddress, config.DbUser, config.DbPassword, config.DbName);
 
-                if (!isConnected)
+                if (!connResult.Success)
                 {
+                    bool isAccessDenied = connResult.Status == DatabaseConnectionStatus.AccessDenied;
+                    string message = isAccessDenied
+                        ? $"Database Access Denied ({config.DbAddress}): {connResult.Message}"
+                        : $"Database offline ({config.DbAddress}): {connResult.Message}";
+
                     var failResult = new DatabaseSyncResult
                     {
                         Success = false,
-                        Message = $"Database offline ({config.DbAddress}). Sync deferred."
+                        IsAccessDenied = isAccessDenied,
+                        Message = message
                     };
                     SyncCompleted?.Invoke(failResult);
                     return failResult;

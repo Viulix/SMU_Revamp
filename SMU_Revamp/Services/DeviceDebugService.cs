@@ -24,10 +24,14 @@ namespace SMU_Revamp.Services
 
         public async Task<string> TestProberConnectionAsync()
         {
+            bool wasConnected = _prober.IsConnected;
             try
             {
                 await _prober.ConnectAsync();
-                await _prober.DisconnectAsync();
+                if (!wasConnected)
+                {
+                    await _prober.DisconnectAsync();
+                }
                 return $"Prober connected (resource={_prober.ResourceString})";
             }
             catch (Exception ex)
@@ -40,11 +44,15 @@ namespace SMU_Revamp.Services
 
         public async Task<string> TestSwitchMatrixConnectionAsync()
         {
+            bool wasConnected = _switch.IsConnected;
             try
             {
                 await _switch.ConnectAsync();
                 var info = await _switch.ReadConnectionAsync();
-                await _switch.DisconnectAsync();
+                if (!wasConnected)
+                {
+                    await _switch.DisconnectAsync();
+                }
                 return $"Switch matrix connected. Info: {info}";
             }
             catch (Exception ex)
@@ -68,11 +76,15 @@ namespace SMU_Revamp.Services
 
         public async Task<string> CreateSwitchMatrixConnectionAsync(string x, string y)
         {
+            bool wasConnected = _switch.IsConnected;
             try
             {
                 await _switch.ConnectAsync();
                 var channel = await _switch.CreateConnectionAsync(x, y, overrideCheck: true);
-                await _switch.DisconnectAsync();
+                if (!wasConnected)
+                {
+                    await _switch.DisconnectAsync();
+                }
                 return $"Connection successfully created! Channel: {channel}";
             }
             catch (Exception ex)
@@ -83,11 +95,15 @@ namespace SMU_Revamp.Services
 
         public async Task<string> RemoveSwitchMatrixConnectionAsync(string x, string y)
         {
+            bool wasConnected = _switch.IsConnected;
             try
             {
                 await _switch.ConnectAsync();
                 var channel = await _switch.RemoveConnectionAsync(x, y);
-                await _switch.DisconnectAsync();
+                if (!wasConnected)
+                {
+                    await _switch.DisconnectAsync();
+                }
                 return $"Connection successfully removed! Channel: {channel}";
             }
             catch (Exception ex)
@@ -98,11 +114,15 @@ namespace SMU_Revamp.Services
 
         public async Task<string> ClearAllSwitchMatrixConnectionsAsync()
         {
+            bool wasConnected = _switch.IsConnected;
             try
             {
                 await _switch.ConnectAsync();
                 await _switch.ClearAllConnectionsAsync();
-                await _switch.DisconnectAsync();
+                if (!wasConnected)
+                {
+                    await _switch.DisconnectAsync();
+                }
                 return "Successfully cleared all switch matrix connections.";
             }
             catch (Exception ex)
@@ -113,11 +133,15 @@ namespace SMU_Revamp.Services
 
         public async Task<string> ReadSwitchMatrixConnectionAsync()
         {
+            bool wasConnected = _switch.IsConnected;
             try
             {
                 await _switch.ConnectAsync();
                 var connectionInfo = await _switch.ReadConnectionAsync();
-                await _switch.DisconnectAsync();
+                if (!wasConnected)
+                {
+                    await _switch.DisconnectAsync();
+                }
                 return $"Switch matrix connections: {connectionInfo}";
             }
             catch (Exception ex)
@@ -128,15 +152,19 @@ namespace SMU_Revamp.Services
 
         public async Task<string> TestSMUConnectionAsync()
         {
+            var smu = E5263_SMU.Instance;
+            bool wasConnected = smu.IsConnected;
             try
             {
                 var config = ConfigurationService.Instance.GetConfig();
-                var smu = E5263_SMU.Instance;
                 smu.ResourceString = config.SMUResource;
                 smu.SetTimeout(config.SMUTimeoutMs);
                 await smu.ConnectAsync();
                 var identity = await smu.QueryAsync("*IDN?");
-                await smu.DisconnectAsync();
+                if (!wasConnected)
+                {
+                    await smu.DisconnectAsync();
+                }
                 return $"SMU connected (resource={smu.ResourceString}). Identity: {identity.Trim()}";
             }
             catch (Exception ex)
@@ -147,15 +175,19 @@ namespace SMU_Revamp.Services
 
         public async Task<string> QuerySMUIdentityAsync()
         {
+            var smu = E5263_SMU.Instance;
+            bool wasConnected = smu.IsConnected;
             try
             {
                 var config = ConfigurationService.Instance.GetConfig();
-                var smu = E5263_SMU.Instance;
                 smu.ResourceString = config.SMUResource;
                 smu.SetTimeout(config.SMUTimeoutMs);
                 await smu.ConnectAsync();
                 var identity = await smu.QueryAsync("*IDN?");
-                await smu.DisconnectAsync();
+                if (!wasConnected)
+                {
+                    await smu.DisconnectAsync();
+                }
                 return $"SMU Identity: {identity.Trim()}";
             }
             catch (Exception ex)
@@ -166,10 +198,11 @@ namespace SMU_Revamp.Services
 
         public async Task<string> ForceSMUDCVoltageAsync(string channel, double voltage, double compliance, double seconds)
         {
+            var smu = E5263_SMU.Instance;
+            bool wasConnected = smu.IsConnected;
             try
             {
                 var config = ConfigurationService.Instance.GetConfig();
-                var smu = E5263_SMU.Instance;
                 smu.ResourceString = config.SMUResource;
                 smu.SetTimeout(config.SMUTimeoutMs);
                 await smu.ConnectAsync();
@@ -187,7 +220,10 @@ namespace SMU_Revamp.Services
                 if (error != null)
                 {
                     await smu.SendCommandAsync($"CL {channel}");
-                    await smu.DisconnectAsync();
+                    if (!wasConnected)
+                    {
+                        await smu.DisconnectAsync();
+                    }
                     return $"SMU configuration failed: {error}";
                 }
 
@@ -195,9 +231,12 @@ namespace SMU_Revamp.Services
                 int delayMs = (int)(seconds * 1000);
                 await Task.Delay(delayMs);
 
-                // Disable channel and disconnect
+                // Disable channel and disconnect only if not connected before
                 await smu.SendCommandAsync($"CL {channel}");
-                await smu.DisconnectAsync();
+                if (!wasConnected)
+                {
+                    await smu.DisconnectAsync();
+                }
 
                 return $"Successfully forced {voltage:F3}V on channel {channel} for {seconds} seconds.";
             }
@@ -208,11 +247,14 @@ namespace SMU_Revamp.Services
                     await E5263_SMU.Instance.SendCommandAsync($"CL {channel}");
                 }
                 catch {}
-                try
+                if (!wasConnected)
                 {
-                    await E5263_SMU.Instance.DisconnectAsync();
+                    try
+                    {
+                        await E5263_SMU.Instance.DisconnectAsync();
+                    }
+                    catch {}
                 }
-                catch {}
                 return $"Failed to force SMU voltage: {ex.Message}";
             }
         }

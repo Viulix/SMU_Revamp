@@ -40,7 +40,7 @@ namespace SMU_Revamp.MeasurementPlans
                 { "ReadingChannel", "1" },
                 { "PositiveVoltage", 1.0 },
                 { "NegativeVoltage", -1.0 },
-                { "PointsPerSweep", 0 },
+                { "PointsPerSweep", 21 },
                 { "Cycles", 1 },
                 { "Compliance", 0.01 },
                 { "AdcSamples", 0 }
@@ -78,6 +78,11 @@ namespace SMU_Revamp.MeasurementPlans
             int cycles = GetParamValueInt("Cycles");
             double compliance = GetParamValueDouble("Compliance");
             int adcSamples = GetParamValueInt("AdcSamples");
+
+            if (pointsCount < 1)
+            {
+                throw new InvalidOperationException("PointsPerSweep must be at least 1.");
+            }
 
             if (cycles < 1) cycles = 1;
 
@@ -136,12 +141,12 @@ namespace SMU_Revamp.MeasurementPlans
                     var currentCycleData = new List<CurvePoint>();
 
                     // PART 1: 0 -> Positive -> 0
-                    var parsedPos = await RunDoubleSweepAsync(smu, channel, readingChannel, 0, posVol, pointsCount, compliance);
+                    var parsedPos = await RunDoubleSweepAsync(smu, channel, readingChannel, 0, posVol, pointsCount, compliance, cancellationToken);
                     currentCycleData.AddRange(parsedPos);
                     ResultPoints.AddRange(parsedPos);
                     
                     // PART 2: 0 -> Negative -> 0
-                    var parsedNeg = await RunDoubleSweepAsync(smu, channel, readingChannel, 0, negVol, pointsCount, compliance);
+                    var parsedNeg = await RunDoubleSweepAsync(smu, channel, readingChannel, 0, negVol, pointsCount, compliance, cancellationToken);
                     currentCycleData.AddRange(parsedNeg);
                     ResultPoints.AddRange(parsedNeg);
 
@@ -176,7 +181,7 @@ namespace SMU_Revamp.MeasurementPlans
             }
         }
 
-        private async Task<List<CurvePoint>> RunDoubleSweepAsync(E5263_SMU smu, string channel, string readingChannel, double start, double stop, int pointsCount, double compliance)
+        private async Task<List<CurvePoint>> RunDoubleSweepAsync(E5263_SMU smu, string channel, string readingChannel, double start, double stop, int pointsCount, double compliance, CancellationToken cancellationToken = default)
         {
             var wvCommand = System.FormattableString.Invariant($"WV {channel},3,0,{start},{stop},{pointsCount},{compliance}");
             await smu.SendCommandAsync(wvCommand);
@@ -194,8 +199,8 @@ namespace SMU_Revamp.MeasurementPlans
             await smu.SendCommandAsync("TSQ");
 
             int expectedBufferLength = pointsCount * 2 * 32 + 200;
-            string rawData = await smu.ReadResponseAsync(expectedBufferLength);
-            string tsqResponse = await smu.ReadResponseAsync(50); // Clear TSQ
+            string rawData = await smu.ReadResponseAsync(expectedBufferLength, cancellationToken);
+            string tsqResponse = await smu.ReadResponseAsync(50, cancellationToken); // Clear TSQ
 
             return ParseDoubleSweepData(rawData, start, stop, pointsCount, channel, readingChannel);
         }

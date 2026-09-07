@@ -19,7 +19,9 @@ namespace SMU_Revamp.ViewModels
         public ParameterLinkViewModel(MeasurementParameter source, IEnumerable<MeasurementParameter> allParameters)
         {
             SourceParameter = source;
-            AvailableParameters = allParameters.Where(p => p != source && p.Type == ParameterType.Number).ToList();
+            AvailableParameters = allParameters
+                .Where(p => p != source && p.Type == ParameterType.Number && !MeasurementParameter.WouldCreateCycle(source, p))
+                .ToList();
             
             if (source.LinkedParameter != null)
             {
