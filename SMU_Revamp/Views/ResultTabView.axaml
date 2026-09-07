@@ -30,8 +30,8 @@
         </Border>
 
         <!-- Normal Result UI -->
-        <ScrollViewer IsVisible="{Binding IsResultFolderLoaded}" Padding="15" HorizontalScrollBarVisibility="Disabled">
-            <Grid RowDefinitions="Auto,Auto,*" Margin="5">
+        <ScrollViewer IsVisible="{Binding IsResultFolderLoaded}" Padding="15" HorizontalScrollBarVisibility="Auto">
+            <Grid RowDefinitions="Auto,Auto,*" Margin="5" MinWidth="1100">
                 <!-- Top Bar / Metric Settings -->
                 <controls:ResultMetricSettingsControl Grid.Row="0"
                                                       LoadFolderRequested="LoadResultFolderButton_Click"
@@ -39,41 +39,42 @@
 
                 <!-- Keyboard Navigation Legend Strip -->
                 <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="14,8" Margin="0,0,0,15" BoxShadow="0 2 8 0 #0A000000">
-                    <StackPanel Orientation="Horizontal" Spacing="20" VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,20,5">
                             <TextBlock Text="⌨" FontSize="13" Foreground="#4B5563" VerticalAlignment="Center" />
                             <TextBlock Text="Navigation Shortcuts:" FontSize="12" FontWeight="SemiBold" Foreground="#374151" VerticalAlignment="Center" />
                         </StackPanel>
 
-                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,20,5">
                             <Border Background="#F3F4F6" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="4" Padding="6,2">
                                 <TextBlock Text="↑ ↓ ← →" FontSize="11" FontWeight="Bold" Foreground="#1F2937" />
                             </Border>
                             <TextBlock Text="Sub-Cell (R / C)" FontSize="12" Foreground="#4B5563" VerticalAlignment="Center" />
                         </StackPanel>
 
-                        <TextBlock Text="•" Foreground="#9CA3AF" VerticalAlignment="Center" />
+                        <TextBlock Text="•" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,20,5" />
 
-                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,20,5">
                             <Border Background="#F3F4F6" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="4" Padding="6,2">
                                 <TextBlock Text="Ctrl + Arrows" FontSize="11" FontWeight="Bold" Foreground="#1F2937" />
                             </Border>
                             <TextBlock Text="Wafer Cell (16x16)" FontSize="12" Foreground="#4B5563" VerticalAlignment="Center" />
                         </StackPanel>
 
-                        <TextBlock Text="•" Foreground="#9CA3AF" VerticalAlignment="Center" />
+                        <TextBlock Text="•" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,20,5" />
 
-                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,0,5">
                             <Border Background="#F3F4F6" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="4" Padding="6,2">
                                 <TextBlock Text="Alt + Arrows" FontSize="11" FontWeight="Bold" Foreground="#1F2937" />
                             </Border>
                             <TextBlock Text="Contacts" FontSize="12" Foreground="#4B5563" VerticalAlignment="Center" />
                         </StackPanel>
-                    </StackPanel>
+                    </WrapPanel>
                 </Border>
 
-                <!-- Main 3-Column Layout -->
-                <Grid Grid.Row="2" ColumnDefinitions="5*, 2*, 5*">
+                <!-- Main 3-Column Layout: left/middle size to content, right takes rest.
+                     Auto columns prevent squishing; outer ScrollViewer scrolls instead of clipping. -->
+                <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*">
                     <!-- Left: 16x16 Wafermap -->
                     <controls:ResultWafermapControl Grid.Column="0" />
 

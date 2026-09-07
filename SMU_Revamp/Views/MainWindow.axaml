@@ -19,8 +19,18 @@
     </Design.DataContext>
 
     <Window.Styles>
-        <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+        <Style Selector="TabItem.MainTab:selected /template/ Border#PART_SelectedPipe">
             <Setter Property="Background" Value="Black" />
+        </Style>
+
+        <!-- DB Sync Offline Badge: Hover/Pressed in Rot-Familie halten (statt grauem Default) -->
+        <Style Selector="Button.DbSyncWarning:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#FEE2E2" />
+            <Setter Property="BorderBrush" Value="#DC2626" />
+        </Style>
+        <Style Selector="Button.DbSyncWarning:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#FECACA" />
+            <Setter Property="BorderBrush" Value="#991B1B" />
         </Style>
 
         <!-- Glanzeffekt / Shimmer sweep animation across ProgressBar -->
@@ -99,16 +109,16 @@
         <Grid>
             <!-- Main Content with Tabs -->
             <TabControl SelectedIndex="{Binding SelectedTabIndex}" Margin="20" Padding="20">
-                <TabItem Header="Viewer">
+                <TabItem Header="Viewer" Classes="MainTab">
                     <views:ViewerTabView />
                 </TabItem>
-                <TabItem Header="Measurements">
+                <TabItem Header="Measurements" Classes="MainTab">
                     <views:MeasurementsTabView />
                 </TabItem>
-                <TabItem Header="Wafermap">
+                <TabItem Header="Wafermap" Classes="MainTab">
                     <views:WafermapTabView />
                 </TabItem>
-                <TabItem Header="Result">
+                <TabItem Header="Result" Classes="MainTab">
                     <views:ResultTabView />
                 </TabItem>
             </TabControl>
@@ -123,6 +133,7 @@
                 <!-- DB Sync Offline Warning Badge (Visible when DB sync fails / unreachable) -->
                 <Button IsVisible="{Binding IsDbSyncWarningVisible}"
                         Command="{Binding SyncDatabaseCommand}"
+                        Classes="DbSyncWarning"
                         Background="#FEF2F2"
                         BorderBrush="#EF4444"
                         BorderThickness="1"

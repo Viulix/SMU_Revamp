@@ -37,7 +37,7 @@
                                              Height="400" />
                     </TabItem>
                     <TabItem Header="Logarithmic Plot">
-                        <views:CurvePlotView Title="I/U Curve - Logarithmic"
+                        <views:CurvePlotView Title="I-V Curve - Logarithmic"
                                              XAxisLabel="Voltage (V)"
                                              YAxisLabel="Current (A)"
                                              Points="{Binding SelectedResultContact.CurveData}"

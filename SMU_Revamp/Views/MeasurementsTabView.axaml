@@ -252,50 +252,56 @@
                 <!-- Right Column: Status -->
                 <Grid Grid.Row="1" Grid.Column="1" Margin="20,15,10,20" RowDefinitions="Auto, *">
                     <Border Grid.Row="0" CornerRadius="8" BoxShadow="0 4 15 0 #15000000" Margin="0,0,0,15" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0">
-                        <Expander Header="Measurement Status &amp; Diagnostics" IsExpanded="False" HorizontalAlignment="Stretch" CornerRadius="8" Background="Transparent" BorderThickness="0" BorderBrush="Transparent">
-                            <Expander.Styles>
-                                <Style Selector="Expander /template/ ToggleButton#ExpanderHeader">
-                                    <Setter Property="BorderThickness" Value="0" />
-                                    <Setter Property="BorderBrush" Value="Transparent" />
-                                    <Setter Property="Background" Value="Transparent" />
-                                </Style>
-                            </Expander.Styles>
-                            <StackPanel Spacing="10" Margin="15,0,15,15">
-                                <Border BorderBrush="Transparent" BorderThickness="0" CornerRadius="4" Padding="15" Background="#F9F9F9" MinWidth="450" MinHeight="80">
-                                    <TextBlock Text="{Binding MeasurementStatus}" 
-                                               Foreground="#333333"
-                                               FontFamily="Courier New" 
-                                               FontSize="12" 
-                                               TextWrapping="Wrap" />
-                                </Border>
+                        <StackPanel Spacing="0">
+                            <Expander Header="Measurement Status &amp; Diagnostics" IsExpanded="False" HorizontalAlignment="Stretch" CornerRadius="8" Background="Transparent" BorderThickness="0" BorderBrush="Transparent">
+                                <Expander.Styles>
+                                    <Style Selector="Expander /template/ ToggleButton#ExpanderHeader">
+                                        <Setter Property="BorderThickness" Value="0" />
+                                        <Setter Property="BorderBrush" Value="Transparent" />
+                                        <Setter Property="Background" Value="Transparent" />
+                                    </Style>
+                                </Expander.Styles>
+                                <StackPanel Spacing="10" Margin="15,0,15,15">
+                                    <Border BorderBrush="Transparent" BorderThickness="0" CornerRadius="4" Padding="15" Background="#F9F9F9" MinHeight="80" HorizontalAlignment="Stretch">
+                                        <TextBlock Text="{Binding MeasurementStatus}" 
+                                                   Foreground="#333333"
+                                                   FontFamily="Courier New" 
+                                                   FontSize="12" 
+                                                   TextWrapping="Wrap" />
+                                    </Border>
 
-                                <StackPanel Spacing="5" IsVisible="{Binding IsMeasuringSweep}">
-                                    <Grid ColumnDefinitions="*, Auto">
-                                        <TextBlock Text="Measurement Progress" FontSize="11" FontWeight="SemiBold" Foreground="#666666" />
-                                        <TextBlock Grid.Column="1" Text="{Binding MeasurementProgressText}" FontSize="11" FontWeight="SemiBold" Foreground="#333333" />
-                                    </Grid>
-                                    <ProgressBar Minimum="0" 
-                                                 Maximum="100" 
-                                                 Value="{Binding MeasurementProgress}" 
-                                                 IsIndeterminate="{Binding IsProgressIndeterminate}" 
-                                                 Height="8" 
-                                                 CornerRadius="4"
-                                                 Foreground="#3B82F6"
-                                                 Background="#E0E0E0" />
+                                    <StackPanel Spacing="5" IsVisible="{Binding IsMeasuringSweep}">
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <TextBlock Text="Measurement Progress" FontSize="11" FontWeight="SemiBold" Foreground="#666666" />
+                                            <TextBlock Grid.Column="1" Text="{Binding MeasurementProgressText}" FontSize="11" FontWeight="SemiBold" Foreground="#333333" />
+                                        </Grid>
+                                        <ProgressBar Minimum="0" 
+                                                     Maximum="100" 
+                                                     Value="{Binding MeasurementProgress}" 
+                                                     IsIndeterminate="{Binding IsProgressIndeterminate}" 
+                                                     Height="8" 
+                                                     CornerRadius="4"
+                                                     Foreground="#3B82F6"
+                                                     Background="#E0E0E0" />
+                                    </StackPanel>
                                 </StackPanel>
+                            </Expander>
 
-                                <TextBlock Text="{Binding WarningMessage}" 
-                                           Foreground="#E65100" 
-                                           TextWrapping="Wrap" 
-                                           HorizontalAlignment="Stretch"
-                                           IsVisible="{Binding HasWarningMessage}" />
+                            <!-- Warnings / Errors are always visible, even when the Expander is collapsed -->
+                            <TextBlock Text="{Binding WarningMessage}" 
+                                       Foreground="#E65100" 
+                                       TextWrapping="Wrap" 
+                                       HorizontalAlignment="Stretch"
+                                       Margin="15,0,15,10"
+                                       IsVisible="{Binding HasWarningMessage}" />
 
-                                <TextBlock Text="{Binding ErrorMessage}" 
-                                           Foreground="#D32F2F" 
-                                           TextWrapping="Wrap" 
-                                           HorizontalAlignment="Stretch" />
-                            </StackPanel>
-                        </Expander>
+                            <TextBlock Text="{Binding ErrorMessage}" 
+                                       Foreground="#D32F2F" 
+                                       TextWrapping="Wrap" 
+                                       HorizontalAlignment="Stretch"
+                                       Margin="15,0,15,15"
+                                       IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
                     </Border>
 
                     <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" BoxShadow="0 4 15 0 #15000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
@@ -311,10 +317,10 @@
                                                  PlotAspectRatio="{Binding PlotAspectRatio}"
                                              SeriesSettings="{Binding SeriesSettings}" />
                             
-                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="20" Margin="0,15,0,0" HorizontalAlignment="Center">
-                                <CheckBox Content="Logarithmic X-Axis" IsChecked="{Binding IsMeasurementLogarithmicX}" />
-                                <CheckBox Content="Logarithmic Y-Axis" IsChecked="{Binding IsMeasurementLogarithmic}" />
-                            </StackPanel>
+                            <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,15,0,0" HorizontalAlignment="Center">
+                                <CheckBox Content="Logarithmic X-Axis" IsChecked="{Binding IsMeasurementLogarithmicX}" Margin="0,0,20,5" />
+                                <CheckBox Content="Logarithmic Y-Axis" IsChecked="{Binding IsMeasurementLogarithmic}" Margin="0,0,0,5" />
+                            </WrapPanel>
                         </Grid>
                     </Border>
                 </Grid>
