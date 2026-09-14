@@ -177,6 +177,20 @@ namespace SMU_Revamp.ViewModels
             set => SetProperty(ref _isSyncingDatabase, value);
         }
 
+        private double _syncProgressPercentage = 0;
+        public double SyncProgressPercentage
+        {
+            get => _syncProgressPercentage;
+            set => SetProperty(ref _syncProgressPercentage, value);
+        }
+
+        private bool _isSyncProgressIndeterminate = true;
+        public bool IsSyncProgressIndeterminate
+        {
+            get => _isSyncProgressIndeterminate;
+            set => SetProperty(ref _isSyncProgressIndeterminate, value);
+        }
+
         public SettingsViewModel()
         {
             // Get singleton instances
@@ -213,6 +227,33 @@ namespace SMU_Revamp.ViewModels
             // stack duplicate handlers on the static sync service.
             DatabaseSyncService.Instance.SyncCompleted -= OnSyncCompleted;
             DatabaseSyncService.Instance.SyncCompleted += OnSyncCompleted;
+            DatabaseSyncService.Instance.SyncProgressChanged -= OnSyncProgressChanged;
+            DatabaseSyncService.Instance.SyncProgressChanged += OnSyncProgressChanged;
+            DatabaseSyncService.Instance.SyncStateChanged -= OnSyncStateChanged;
+            DatabaseSyncService.Instance.SyncStateChanged += OnSyncStateChanged;
+        }
+
+        private void OnSyncProgressChanged(DatabaseSyncProgress progress)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                SyncStatusMessage = progress.StatusText;
+                SyncProgressPercentage = progress.Percentage;
+                IsSyncProgressIndeterminate = progress.IsIndeterminate;
+            });
+        }
+
+        private void OnSyncStateChanged(bool isSyncing)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                IsSyncingDatabase = isSyncing;
+                if (!isSyncing)
+                {
+                    IsSyncProgressIndeterminate = true;
+                    SyncProgressPercentage = 0;
+                }
+            });
         }
 
         private void OnSyncCompleted(DatabaseSyncResult result)
@@ -325,8 +366,14 @@ namespace SMU_Revamp.ViewModels
         {
             if (IsSyncingDatabase) return;
 
+            // Automatically apply current settings from text fields before syncing
+            await ApplySettingsAsync();
+
             IsSyncingDatabase = true;
+            IsSyncProgressIndeterminate = true;
+            SyncProgressPercentage = 0;
             SyncStatusMessage = "Starting synchronization...";
+
             var progress = new System.Progress<string>(msg =>
             {
                 if (IsSyncingDatabase)
@@ -337,6 +384,7 @@ namespace SMU_Revamp.ViewModels
 
             var result = await DatabaseSyncService.Instance.SyncNowAsync(progress);
             IsSyncingDatabase = false;
+            IsSyncProgressIndeterminate = true;
             
             var config = _configService.GetConfig();
             LastDatabaseSyncTimestamp = config.LastDatabaseSyncTimestamp;

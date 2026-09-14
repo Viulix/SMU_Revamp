@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Threading.Tasks;
 using MySqlConnector;
 using SMU_Revamp.Interfaces;
@@ -410,30 +411,85 @@ namespace SMU_Revamp.Services
             public string SourceFilename { get; set; } = string.Empty;
         }
 
-        public async Task<List<MeasurementSummary>> GetRecentMeasurementsAsync(int limit = 100)
+        public async Task<List<string>> GetProfilesAsync()
         {
             await EnsureSchemaUpdatedAsync();
+            var list = new List<string>();
+            try
+            {
+                using var connection = new MySqlConnection(GetCurrentConnectionString());
+                await connection.OpenAsync();
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = "SELECT DISTINCT COALESCE(NULLIF(TRIM(ProfileName), ''), 'Default') AS Prof FROM Measurements ORDER BY Prof ASC;";
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    if (!reader.IsDBNull(0))
+                    {
+                        var p = reader.GetString(0).Trim();
+                        if (!string.IsNullOrEmpty(p) && !list.Any(x => string.Equals(x, p, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            list.Add(p);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[DatabaseService] Failed to load profiles: {ex.Message}");
+            }
+
+            if (list.Count == 0)
+            {
+                list.Add("Default");
+            }
+            return list;
+        }
+
+        public async Task<List<MeasurementSummary>> GetRecentMeasurementsAsync(int limitPerProfile = 300)
+        {
+            await EnsureSchemaUpdatedAsync();
+            var profiles = await GetProfilesAsync();
             var list = new List<MeasurementSummary>();
+
             using var connection = new MySqlConnection(GetCurrentConnectionString());
             await connection.OpenAsync();
-            using var cmd = connection.CreateCommand();
-            cmd.CommandText = "SELECT Id, ProfileName, PlanName, SampleName, Timestamp, FolderName, SourceFilename FROM Measurements ORDER BY Timestamp DESC LIMIT @limit";
-            cmd.Parameters.AddWithValue("@limit", limit);
 
-            using var reader = await cmd.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
+            foreach (var profile in profiles)
             {
-                list.Add(new MeasurementSummary
+                try
                 {
-                    Id = reader.GetInt32(0),
-                    ProfileName = reader.IsDBNull(1) ? "" : reader.GetString(1),
-                    PlanName = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                    SampleName = reader.IsDBNull(3) ? "" : reader.GetString(3),
-                    Timestamp = reader.GetDateTime(4),
-                    FolderName = reader.IsDBNull(5) ? "" : reader.GetString(5),
-                    SourceFilename = reader.IsDBNull(6) ? "" : reader.GetString(6)
-                });
+                    using var cmd = connection.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT Id, ProfileName, PlanName, SampleName, Timestamp, FolderName, SourceFilename 
+                        FROM Measurements 
+                        WHERE (ProfileName = @profile OR (@profile = 'Default' AND (ProfileName IS NULL OR ProfileName = ''))) 
+                        ORDER BY Timestamp DESC 
+                        LIMIT @limit";
+                    cmd.Parameters.AddWithValue("@profile", profile);
+                    cmd.Parameters.AddWithValue("@limit", limitPerProfile);
+
+                    using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
+                    {
+                        list.Add(new MeasurementSummary
+                        {
+                            Id = reader.GetInt32(0),
+                            ProfileName = reader.IsDBNull(1) || string.IsNullOrWhiteSpace(reader.GetString(1)) ? "Default" : reader.GetString(1),
+                            PlanName = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                            SampleName = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                            Timestamp = reader.GetDateTime(4),
+                            FolderName = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                            SourceFilename = reader.IsDBNull(6) ? "" : reader.GetString(6)
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[DatabaseService] Failed to load measurements for profile '{profile}': {ex.Message}");
+                }
             }
+
             return list;
         }
 

@@ -324,21 +324,25 @@
                 </StackPanel>
                 
                 <StackPanel Orientation="Horizontal" Spacing="10" Margin="130,5,0,0">
-                    <Button Content="Test Connection" Click="TestDbConnectionButton_Click" />
-                    <Button Content="Sync Database Now" Click="SyncDbNowButton_Click" Classes="Secondary" />
+                    <Button Content="Test Connection" Click="TestDbConnectionButton_Click" IsEnabled="{Binding !Settings.IsSyncingDatabase}" />
+                    <Button Content="Sync Database Now" Click="SyncDbNowButton_Click" Classes="Secondary" IsEnabled="{Binding !Settings.IsSyncingDatabase}" />
                 </StackPanel>
 
                 <TextBlock Text="{Binding Settings.SyncStatusMessage}"
                            Foreground="#4B5563"
                            FontSize="12"
-                           Margin="130,2,0,0"
+                           Margin="130,4,0,0"
                            TextWrapping="Wrap"
-                           MaxWidth="350" />
-                <ProgressBar IsIndeterminate="True" 
+                           MaxWidth="380" />
+                <ProgressBar Minimum="0"
+                             Maximum="100"
+                             Value="{Binding Settings.SyncProgressPercentage}"
+                             IsIndeterminate="{Binding Settings.IsSyncProgressIndeterminate}" 
                              IsVisible="{Binding Settings.IsSyncingDatabase}" 
-                             Height="4" 
-                             Margin="130,2,0,0" 
-                             Width="200" 
+                             Height="6" 
+                             CornerRadius="3"
+                             Margin="130,4,0,0" 
+                             Width="250" 
                              HorizontalAlignment="Left" />
             </StackPanel>
 

@@ -9,10 +9,19 @@ using SMU_Revamp.Models;
 
 namespace SMU_Revamp.Services
 {
+    public record DatabaseSyncProgress(
+        string StatusText,
+        int Current,
+        int Total,
+        double Percentage,
+        bool IsIndeterminate
+    );
+
     public class DatabaseSyncResult
     {
         public bool Success { get; set; }
         public bool IsAccessDenied { get; set; }
+        public DatabaseConnectionStatus Status { get; set; } = DatabaseConnectionStatus.Connected;
         public int UploadedCount { get; set; }
         public int SkippedCount { get; set; }
         public string Message { get; set; } = string.Empty;
@@ -31,6 +40,8 @@ namespace SMU_Revamp.Services
         public bool IsSyncing { get; private set; }
 
         public event Action<DatabaseSyncResult>? SyncCompleted;
+        public event Action<DatabaseSyncProgress>? SyncProgressChanged;
+        public event Action<bool>? SyncStateChanged;
 
         private DatabaseSyncService() { }
 
@@ -64,6 +75,14 @@ namespace SMU_Revamp.Services
             }, null, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(30));
         }
 
+        private void ReportProgress(string text, int current, int total, bool isIndeterminate, IProgress<string>? progress)
+        {
+            double percentage = total > 0 ? Math.Clamp((double)current / total * 100.0, 0.0, 100.0) : 0.0;
+            var p = new DatabaseSyncProgress(text, current, total, percentage, isIndeterminate);
+            SyncProgressChanged?.Invoke(p);
+            progress?.Report(text);
+        }
+
         public async Task<DatabaseSyncResult> SyncNowAsync(IProgress<string>? progress = null)
         {
             if (!await _syncLock.WaitAsync(100))
@@ -76,7 +95,8 @@ namespace SMU_Revamp.Services
             }
 
             IsSyncing = true;
-            progress?.Report("Checking database connection...");
+            SyncStateChanged?.Invoke(true);
+            ReportProgress("Checking database connection...", 0, 0, true, progress);
 
             try
             {
@@ -86,8 +106,10 @@ namespace SMU_Revamp.Services
                     var noAddrResult = new DatabaseSyncResult
                     {
                         Success = false,
+                        Status = DatabaseConnectionStatus.ConfigurationMissing,
                         Message = "Database address is not configured."
                     };
+                    ReportProgress(noAddrResult.Message, 0, 0, false, progress);
                     SyncCompleted?.Invoke(noAddrResult);
                     return noAddrResult;
                 }
@@ -99,24 +121,30 @@ namespace SMU_Revamp.Services
                 if (!connResult.Success)
                 {
                     bool isAccessDenied = connResult.Status == DatabaseConnectionStatus.AccessDenied;
-                    string message = isAccessDenied
-                        ? $"Database Access Denied ({config.DbAddress}): {connResult.Message}"
-                        : $"Database offline ({config.DbAddress}): {connResult.Message}";
+                    string message = connResult.Status switch
+                    {
+                        DatabaseConnectionStatus.AccessDenied => $"Database Access Denied ({config.DbAddress}): {connResult.Message}",
+                        DatabaseConnectionStatus.ConfigurationMissing => $"Database configuration missing: {connResult.Message}",
+                        DatabaseConnectionStatus.Offline => $"Database server offline or unreachable ({config.DbAddress}): {connResult.Message}",
+                        _ => $"Database error ({config.DbAddress}): {connResult.Message}"
+                    };
 
                     var failResult = new DatabaseSyncResult
                     {
                         Success = false,
+                        Status = connResult.Status,
                         IsAccessDenied = isAccessDenied,
                         Message = message
                     };
+                    ReportProgress(message, 0, 0, false, progress);
                     SyncCompleted?.Invoke(failResult);
                     return failResult;
                 }
 
-                progress?.Report("Querying existing database measurements...");
+                ReportProgress("Querying existing database measurements...", 0, 0, true, progress);
                 var existingKeys = await DatabaseService.Instance.GetExistingMeasurementKeysAsync();
 
-                progress?.Report("Scanning local measurement folders...");
+                ReportProgress("Scanning local measurement folders...", 0, 0, true, progress);
                 var localFiles = DiscoverLocalMeasurementFiles();
 
                 int uploadedCount = 0;
@@ -124,6 +152,11 @@ namespace SMU_Revamp.Services
 
                 int total = localFiles.Count;
                 int current = 0;
+
+                if (total == 0)
+                {
+                    ReportProgress("No local measurement files found to sync.", 0, 0, false, progress);
+                }
 
                 foreach (var fileInfo in localFiles)
                 {
@@ -134,10 +167,11 @@ namespace SMU_Revamp.Services
                     if (existingKeys.Contains(compositeKey))
                     {
                         skippedCount++;
+                        ReportProgress($"Checked ({current}/{total}): {fileInfo.FileName} (already synced)", current, total, false, progress);
                         continue;
                     }
 
-                    progress?.Report($"Uploading ({current}/{total}): {fileInfo.FileName}...");
+                    ReportProgress($"Uploading ({current}/{total}): {fileInfo.FileName}...", current, total, false, progress);
 
                     try
                     {
@@ -175,6 +209,7 @@ namespace SMU_Revamp.Services
                 var successResult = new DatabaseSyncResult
                 {
                     Success = true,
+                    Status = DatabaseConnectionStatus.Connected,
                     UploadedCount = uploadedCount,
                     SkippedCount = skippedCount,
                     Message = uploadedCount > 0 
@@ -182,7 +217,7 @@ namespace SMU_Revamp.Services
                         : $"Database sync completed: All {skippedCount} local measurements are up to date."
                 };
 
-                progress?.Report(successResult.Message);
+                ReportProgress(successResult.Message, total, total, false, progress);
                 SyncCompleted?.Invoke(successResult);
                 return successResult;
             }
@@ -191,16 +226,18 @@ namespace SMU_Revamp.Services
                 var errorResult = new DatabaseSyncResult
                 {
                     Success = false,
+                    Status = DatabaseConnectionStatus.Error,
                     Message = $"Database sync error: {ex.Message}",
                     Exception = ex
                 };
-                progress?.Report(errorResult.Message);
+                ReportProgress(errorResult.Message, 0, 0, false, progress);
                 SyncCompleted?.Invoke(errorResult);
                 return errorResult;
             }
             finally
             {
                 IsSyncing = false;
+                SyncStateChanged?.Invoke(false);
                 _syncLock.Release();
             }
         }
@@ -219,11 +256,34 @@ namespace SMU_Revamp.Services
             var results = new List<LocalMeasurementFileInfo>();
             var seenFullPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            string[] basePaths = new[]
+            var basePaths = new List<string>();
+
+            void TryAddBasePath(string? path)
             {
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                AppDomain.CurrentDomain.BaseDirectory
-            };
+                if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path) && !basePaths.Contains(path, StringComparer.OrdinalIgnoreCase))
+                {
+                    basePaths.Add(path);
+                }
+            }
+
+            try { TryAddBasePath(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)); } catch { }
+            try { TryAddBasePath(AppDomain.CurrentDomain.BaseDirectory); } catch { }
+            try { TryAddBasePath(AppContext.BaseDirectory); } catch { }
+            try { TryAddBasePath(Directory.GetCurrentDirectory()); } catch { }
+
+            try
+            {
+                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (!string.IsNullOrWhiteSpace(userProfile) && Directory.Exists(userProfile))
+                {
+                    TryAddBasePath(Path.Combine(userProfile, "Documents"));
+                    TryAddBasePath(Path.Combine(userProfile, "OneDrive", "Documents"));
+                    TryAddBasePath(userProfile);
+                }
+            }
+            catch { }
+
+            try { TryAddBasePath(Environment.GetFolderPath(Environment.SpecialFolder.Desktop)); } catch { }
 
             foreach (var basePath in basePaths)
             {
@@ -238,67 +298,100 @@ namespace SMU_Revamp.Services
                         string profileName = Path.GetFileName(profileDir);
                         if (string.IsNullOrWhiteSpace(profileName)) continue;
 
-                        // 1. Check Wafermaps: SMU_Measurements/<Profile>/Wafermaps/<DeviceName>/<FolderName>/*.csv
-                        string wafermapsRoot = Path.Combine(profileDir, "Wafermaps");
-                        if (Directory.Exists(wafermapsRoot))
+                        string[] allCsvFiles;
+                        try
                         {
-                            var deviceDirs = Directory.GetDirectories(wafermapsRoot);
-                            foreach (var devDir in deviceDirs)
-                            {
-                                string devName = Path.GetFileName(devDir);
-                                var scanDirs = Directory.GetDirectories(devDir);
-                                foreach (var scanDir in scanDirs)
-                                {
-                                    string folderName = Path.GetFileName(scanDir);
-                                    var csvFiles = Directory.GetFiles(scanDir, "*.csv");
-                                    foreach (var file in csvFiles)
-                                    {
-                                        if (seenFullPaths.Add(file))
-                                        {
-                                            results.Add(new LocalMeasurementFileInfo
-                                            {
-                                                FullPath = file,
-                                                ProfileName = profileName,
-                                                SampleName = devName,
-                                                FolderName = folderName,
-                                                FileName = Path.GetFileName(file)
-                                            });
-                                        }
-                                    }
-                                }
-                            }
+                            allCsvFiles = Directory.GetFiles(profileDir, "*.csv", SearchOption.AllDirectories);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[DatabaseSyncService] Failed to get files in {profileDir}: {ex.Message}");
+                            continue;
                         }
 
-                        // 2. Check Standard Measurement Folders: SMU_Measurements/<Profile>/<FolderName>/*.csv
-                        var directSubDirs = Directory.GetDirectories(profileDir);
-                        foreach (var subDir in directSubDirs)
+                        foreach (var file in allCsvFiles)
                         {
-                            string folderName = Path.GetFileName(subDir);
-                            if (folderName.Equals("Wafermaps", StringComparison.OrdinalIgnoreCase)) continue;
+                            if (!seenFullPaths.Add(file)) continue;
 
-                            var csvFiles = Directory.GetFiles(subDir, "*.csv");
-                            foreach (var file in csvFiles)
+                            string relPath = Path.GetRelativePath(profileDir, file);
+                            string[] segments = relPath.Split(
+                                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, 
+                                StringSplitOptions.RemoveEmptyEntries);
+
+                            string sampleName = "Empty Device";
+                            string folderName = "General";
+
+                            if (segments.Length <= 1)
                             {
-                                if (seenFullPaths.Add(file))
+                                // SMU_Measurements/<Profile>/file.csv
+                                folderName = "General";
+                                sampleName = "Empty Device";
+                            }
+                            else if (segments.Length == 2)
+                            {
+                                // SMU_Measurements/<Profile>/<FolderName>/file.csv
+                                if (segments[0].Equals("Wafermaps", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    // Extract device name from folder or filename if available
-                                    string sampleName = folderName;
-                                    int underscoreIdx = folderName.LastIndexOf('_');
-                                    if (underscoreIdx > 0 && folderName.Length - underscoreIdx == 9) // e.g. "DeviceA_20260818"
-                                    {
-                                        sampleName = folderName.Substring(0, underscoreIdx);
-                                    }
-
-                                    results.Add(new LocalMeasurementFileInfo
-                                    {
-                                        FullPath = file,
-                                        ProfileName = profileName,
-                                        SampleName = string.IsNullOrWhiteSpace(sampleName) ? "Empty Device" : sampleName,
-                                        FolderName = folderName,
-                                        FileName = Path.GetFileName(file)
-                                    });
+                                    folderName = "Wafermaps";
+                                    sampleName = "Empty Device";
+                                }
+                                else
+                                {
+                                    folderName = segments[0];
+                                    sampleName = ExtractSampleName(folderName);
                                 }
                             }
+                            else if (segments.Length == 3)
+                            {
+                                if (segments[0].Equals("Wafermaps", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // SMU_Measurements/<Profile>/Wafermaps/<ScanOrDevice>/file.csv
+                                    if (segments[1].StartsWith("Scan_", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        sampleName = "Empty Device";
+                                        folderName = segments[1];
+                                    }
+                                    else
+                                    {
+                                        sampleName = segments[1];
+                                        folderName = segments[1];
+                                    }
+                                }
+                                else
+                                {
+                                    // SMU_Measurements/<Profile>/<DeviceName>/<FolderName>/file.csv
+                                    sampleName = segments[0];
+                                    folderName = segments[1];
+                                }
+                            }
+                            else // segments.Length >= 4
+                            {
+                                if (segments[0].Equals("Wafermaps", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // SMU_Measurements/<Profile>/Wafermaps/<DeviceName>/<FolderName>/.../file.csv
+                                    sampleName = segments[1];
+                                    folderName = segments[2];
+                                }
+                                else
+                                {
+                                    sampleName = segments[0];
+                                    folderName = segments[1];
+                                }
+                            }
+
+                            if (string.IsNullOrWhiteSpace(sampleName))
+                            {
+                                sampleName = "Empty Device";
+                            }
+
+                            results.Add(new LocalMeasurementFileInfo
+                            {
+                                FullPath = file,
+                                ProfileName = profileName,
+                                SampleName = sampleName,
+                                FolderName = folderName,
+                                FileName = Path.GetFileName(file)
+                            });
                         }
                     }
                 }
@@ -309,6 +402,17 @@ namespace SMU_Revamp.Services
             }
 
             return results;
+        }
+
+        private static string ExtractSampleName(string folderName)
+        {
+            if (string.IsNullOrWhiteSpace(folderName)) return "Empty Device";
+            int underscoreIdx = folderName.LastIndexOf('_');
+            if (underscoreIdx > 0 && folderName.Length - underscoreIdx == 9) // e.g. "DeviceA_20260818"
+            {
+                return folderName.Substring(0, underscoreIdx);
+            }
+            return folderName;
         }
 
         private class ParsedCsvData

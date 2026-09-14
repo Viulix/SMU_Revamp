@@ -1029,6 +1029,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
         SyncDatabaseCommand = new AsyncRelayCommand(SyncDatabaseAsync);
         DatabaseSyncService.Instance.SyncCompleted += OnDatabaseSyncCompleted;
+        DatabaseSyncService.Instance.SyncProgressChanged += OnDatabaseSyncProgressChanged;
+        DatabaseSyncService.Instance.SyncStateChanged += OnDatabaseSyncStateChanged;
 
         // Surface compliance truncation warnings (logged by the sweep plan
         // parsers) as visible notifications instead of log-only entries.
@@ -1064,31 +1066,70 @@ public partial class MainWindowViewModel : ViewModelBase
         });
     }
 
+    private void OnDatabaseSyncProgressChanged(DatabaseSyncProgress progress)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            DbSyncProgressText = progress.Total > 0 && !progress.IsIndeterminate
+                ? $"Syncing ({progress.Current}/{progress.Total})..."
+                : progress.StatusText;
+            OnPropertyChanged(nameof(DbSyncWarningBadgeText));
+        });
+    }
+
+    private void OnDatabaseSyncStateChanged(bool isSyncing)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            IsSyncingDatabase = isSyncing;
+            if (isSyncing)
+            {
+                DbSyncProgressText = "Syncing database...";
+                OnPropertyChanged(nameof(DbSyncWarningBadgeText));
+                OnPropertyChanged(nameof(IsDbSyncBadgeVisible));
+            }
+        });
+    }
+
     private void OnDatabaseSyncCompleted(DatabaseSyncResult result)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
+            IsSyncingDatabase = false;
+            LastSyncStatus = result.Status;
+
             if (!result.Success)
             {
-                _isDbSyncAccessDenied = result.IsAccessDenied;
-                OnPropertyChanged(nameof(DbSyncWarningBadgeText));
                 IsDbSyncWarningVisible = true;
                 DbSyncWarningTooltip = $"{result.Message} (Click to retry)";
             }
             else
             {
-                _isDbSyncAccessDenied = false;
-                OnPropertyChanged(nameof(DbSyncWarningBadgeText));
                 IsDbSyncWarningVisible = false;
                 DbSyncWarningTooltip = string.Empty;
             }
+            OnPropertyChanged(nameof(DbSyncWarningBadgeText));
+            OnPropertyChanged(nameof(IsDbSyncBadgeVisible));
         });
     }
 
     public async Task SyncDatabaseAsync()
     {
+        if (IsSyncingDatabase) return;
+
         MeasurementStatus = "Synchronizing database...";
-        var result = await DatabaseSyncService.Instance.SyncNowAsync();
+        IsSyncingDatabase = true;
+        DbSyncProgressText = "Checking connection...";
+        OnPropertyChanged(nameof(IsDbSyncBadgeVisible));
+
+        var progress = new System.Progress<string>(msg =>
+        {
+            MeasurementStatus = msg;
+        });
+
+        var result = await DatabaseSyncService.Instance.SyncNowAsync(progress);
+        IsSyncingDatabase = false;
+
         if (result.Success)
         {
             MeasurementStatus = result.Message;
@@ -1105,7 +1146,49 @@ public partial class MainWindowViewModel : ViewModelBase
     public bool IsDbSyncWarningVisible
     {
         get => _isDbSyncWarningVisible;
-        set => SetProperty(ref _isDbSyncWarningVisible, value);
+        set
+        {
+            if (SetProperty(ref _isDbSyncWarningVisible, value))
+            {
+                OnPropertyChanged(nameof(IsDbSyncBadgeVisible));
+            }
+        }
+    }
+
+    private bool _isSyncingDatabase;
+    public bool IsSyncingDatabase
+    {
+        get => _isSyncingDatabase;
+        set
+        {
+            if (SetProperty(ref _isSyncingDatabase, value))
+            {
+                OnPropertyChanged(nameof(DbSyncWarningBadgeText));
+                OnPropertyChanged(nameof(IsDbSyncBadgeVisible));
+            }
+        }
+    }
+
+    public bool IsDbSyncBadgeVisible => IsDbSyncWarningVisible || IsSyncingDatabase;
+
+    private string _dbSyncProgressText = "Syncing...";
+    public string DbSyncProgressText
+    {
+        get => _dbSyncProgressText;
+        set => SetProperty(ref _dbSyncProgressText, value);
+    }
+
+    private DatabaseConnectionStatus _lastSyncStatus = DatabaseConnectionStatus.Connected;
+    public DatabaseConnectionStatus LastSyncStatus
+    {
+        get => _lastSyncStatus;
+        set
+        {
+            if (SetProperty(ref _lastSyncStatus, value))
+            {
+                OnPropertyChanged(nameof(DbSyncWarningBadgeText));
+            }
+        }
     }
 
     private string _dbSyncWarningTooltip = string.Empty;
@@ -1115,8 +1198,25 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _dbSyncWarningTooltip, value);
     }
 
-    private bool _isDbSyncAccessDenied;
-    public string DbSyncWarningBadgeText => _isDbSyncAccessDenied ? "Access Denied" : "DB Sync Offline";
+    public string DbSyncWarningBadgeText
+    {
+        get
+        {
+            if (IsSyncingDatabase)
+            {
+                return DbSyncProgressText;
+            }
+
+            return LastSyncStatus switch
+            {
+                DatabaseConnectionStatus.AccessDenied => "Access Denied",
+                DatabaseConnectionStatus.ConfigurationMissing => "Config Missing",
+                DatabaseConnectionStatus.Offline => "DB Offline",
+                DatabaseConnectionStatus.Error => "DB Error",
+                _ => "Sync Error"
+            };
+        }
+    }
 
     public IAsyncRelayCommand SyncDatabaseCommand { get; }
 
