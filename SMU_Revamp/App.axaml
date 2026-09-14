@@ -165,16 +165,18 @@
 
         <!-- ========================================== -->
         <!-- TAB ITEM STYLING (Bold & Modern)           -->
+        <!-- Scoped to .MainTab so nested TabControls   -->
+        <!-- (Result curves, dialogs) keep default size -->
         <!-- ========================================== -->
-        <Style Selector="TabItem">
+        <Style Selector="TabItem.MainTab">
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontSize" Value="20" />
         </Style>
-        <Style Selector="TabItem:selected">
+        <Style Selector="TabItem.MainTab:selected">
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="Foreground" Value="Black" />
         </Style>
-        <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+        <Style Selector="TabItem.MainTab:selected /template/ Border#PART_SelectedPipe">
             <Setter Property="Background" Value="Black" />
         </Style>
 

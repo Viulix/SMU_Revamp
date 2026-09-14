@@ -54,15 +54,15 @@
                                 <StackPanel Grid.Row="1" Spacing="5" Margin="26,0,0,0">
                                     <TextBlock Text="1. Set Measurement Plan: Select or build the measurement plan in the 'Measurements' tab." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
                                     <TextBlock Text="2. Select Target Contacts: Mark Target Cells (16x16), Global Sub-cells (5x5), and Contacts (1-6)." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
-                                    <TextBlock Text="3. Start &amp; Align: Click 'Start Wafer Scan' and confirm prober alignment at Home position (0101, Sub 1,1, Contact 1)." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
+                                    <TextBlock Text="3. Start &amp; Align: Click 'Start Wafer Scan' and confirm prober alignment at Home position (0104, Sub 1,1, Contact 1)." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
                                     <TextBlock Text="4. Automated Scan: Prober moves to each target point, executes the measurement plan, and saves CSV results." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
 
-                        <StackPanel Spacing="15" IsEnabled="{Binding !IsScanningWafer}">
-                            <!-- Scan Presets -->
-                            <StackPanel Spacing="10">
+                        <StackPanel Spacing="15">
+                            <!-- Scan Presets + Delay are locked during a scan; buttons below stay enabled with own state -->
+                            <StackPanel Spacing="10" IsEnabled="{Binding !IsScanningWafer}">
                                 <TextBlock Text="Scan Presets:" FontSize="14" FontWeight="SemiBold" />
                                 <Grid ColumnDefinitions="*,Auto">
                                     <ComboBox Grid.Column="0" ItemsSource="{Binding WaferScanPresetNames}" SelectedItem="{Binding SelectedWaferScanPreset}" HorizontalAlignment="Stretch" Margin="0,0,10,0" PlaceholderText="Select a preset..." />
@@ -85,7 +85,7 @@
                             </StackPanel>
 
                             <!-- Movement Delay -->
-                            <StackPanel Spacing="5">
+                            <StackPanel Spacing="5" IsEnabled="{Binding !IsScanningWafer}">
                                 <TextBlock Text="Movement Delay (ms):" FontSize="14" FontWeight="SemiBold" />
                                 <TextBox Text="{Binding WaferScanDelayMs}" Width="120" HorizontalAlignment="Left" Height="32" VerticalContentAlignment="Center" />
                             </StackPanel>
@@ -101,13 +101,13 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Buttons -->
+                            <!-- Buttons: each button carries its own enabled state so Stop/Pause stay clickable during a scan -->
                             <StackPanel Spacing="10" Margin="0,5,0,0">
-                                <Button Content="Start Wafer Scan" Command="{Binding ScanWaferCommand}" Classes="Primary" HorizontalAlignment="Stretch" Height="36" />
+                                <Button Content="Start Wafer Scan" Command="{Binding ScanWaferCommand}" Classes="Primary" HorizontalAlignment="Stretch" Height="36" IsEnabled="{Binding !IsScanningWafer}" />
                                 <Button Content="{Binding ScanPauseButtonText}" Command="{Binding ToggleScanPauseCommand}" Classes="Secondary" HorizontalAlignment="Stretch" Height="36"
                                         IsVisible="{Binding IsScanningWafer}" />
-                                <Button Content="Stop Scan" Command="{Binding RequestStopScanCommand}" Classes="Danger" HorizontalAlignment="Stretch" Height="36" />
-                                <Button Content="Move to Start Point" Command="{Binding GoToScanStartCommand}" Classes="Secondary" HorizontalAlignment="Stretch" Height="36" />
+                                <Button Content="Stop Scan" Command="{Binding RequestStopScanCommand}" Classes="Danger" HorizontalAlignment="Stretch" Height="36" IsEnabled="{Binding IsScanningWafer}" />
+                                <Button Content="Move to Start Point" Command="{Binding GoToScanStartCommand}" Classes="Secondary" HorizontalAlignment="Stretch" Height="36" IsEnabled="{Binding !IsScanningWafer}" />
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
@@ -220,7 +220,7 @@
                 <!-- Bottom: Log -->
                 <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="Transparent" BorderThickness="0" CornerRadius="8" Padding="20" Margin="10,5,10,10" BoxShadow="0 4 15 0 #15000000" VerticalAlignment="Stretch">
                     <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="0,0,0,0">
-                        <ProgressBar Grid.Row="0" Value="{Binding WaferScanProgress}" Minimum="0" Maximum="100" Height="20" Foreground="Black" HorizontalAlignment="Stretch" Margin="0,0,0,10" IsVisible="{Binding IsScanningWafer}" />
+                        <ProgressBar Grid.Row="0" Value="{Binding WaferScanProgress}" Minimum="0" Maximum="100" Height="10" CornerRadius="5" Foreground="#10B981" Background="#E5E7EB" HorizontalAlignment="Stretch" Margin="0,0,0,10" IsVisible="{Binding IsScanningWafer}" />
                         <TextBlock Grid.Row="1" Text="Status / Log" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10"/>
                         <ScrollViewer Grid.Row="2" Background="#F9FAFB" Padding="10" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="4" Margin="0,0,0,10" MinHeight="100" MaxHeight="250" IsVisible="{Binding HasWaferScanLog}">
                             <TextBlock Text="{Binding WaferScanLog}" FontFamily="Consolas, monospace" FontSize="12" Foreground="#374151" TextWrapping="Wrap" />

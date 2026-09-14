@@ -13,7 +13,7 @@
         Height="700">
 
     <Window.Styles>
-        <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+        <Style Selector="TabItem.MainTab:selected /template/ Border#PART_SelectedPipe">
             <Setter Property="Background" Value="Black" />
         </Style>
     </Window.Styles>
@@ -21,7 +21,7 @@
     <Grid>
         <TabControl Margin="10">
             <!-- Configuration Tab -->
-            <TabItem Header="Configuration">
+            <TabItem Header="Configuration" Classes="MainTab">
                 <ScrollViewer Margin="10" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="20">
                         <WrapPanel Orientation="Horizontal">
@@ -71,7 +71,7 @@
             </TabItem>
 
             <!-- Debug Tab -->
-            <TabItem Header="Debug">
+            <TabItem Header="Debug" Classes="MainTab">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Vertical" Margin="10" Spacing="20">
                         <StackPanel Spacing="5">
@@ -205,7 +205,7 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
-            <TabItem Header="Developer">
+            <TabItem Header="Developer" Classes="MainTab">
 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Orientation="Vertical" Margin="20" Spacing="15">
             <!-- Warning Disclaimer Box -->

@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SMU_Revamp.ViewModels"
+             xmlns:views="using:SMU_Revamp.Views"
              x:Class="SMU_Revamp.Views.Controls.ResultWafermapControl"
              x:DataType="vm:MainWindowViewModel">
     <Border Background="#FFFFFF" BoxShadow="0 4 15 0 #15000000" CornerRadius="8" Padding="20" Margin="0,0,20,0" VerticalAlignment="Top">
@@ -42,7 +43,7 @@
                                                      CommandParameter="{Binding}"
                                                      Opacity="0"
                                                      HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                                        <TextBlock Text="{Binding Id}" FontSize="9" FontWeight="Bold" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+                                        <TextBlock Text="{Binding Id}" FontSize="9" FontWeight="Bold" Foreground="{Binding Color, Converter={x:Static views:BrushToContrastForegroundConverter.Instance}}" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
                                     </Grid>
                                 </Border>
                             </DataTemplate>
