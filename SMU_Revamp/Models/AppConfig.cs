@@ -137,6 +137,21 @@ public class AppConfig
     public System.DateTime? LastDatabaseSyncTimestamp { get; set; }
 
     /// <summary>
+    /// Flag to automatically clean up old local measurement files that are verified to be synced to the database.
+    /// </summary>
+    public bool AutoCleanupSyncedLocalFiles { get; set; } = false;
+
+    /// <summary>
+    /// Number of days to retain local measurement files before they become eligible for cleanup.
+    /// </summary>
+    public int CleanupRetentionDays { get; set; } = 30;
+
+    /// <summary>
+    /// If true, only cleans up wafermap measurements (preserving individual measurement sessions).
+    /// </summary>
+    public bool CleanupOnlyWafermaps { get; set; } = true;
+
+    /// <summary>
     /// MySQL Database IP/Address.
     /// </summary>
     public string DbAddress { get; set; } = "134.245.242.39";

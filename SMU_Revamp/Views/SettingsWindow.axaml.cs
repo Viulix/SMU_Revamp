@@ -239,4 +239,12 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private async void CleanUpLocalStorageNowButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            await vm.Settings.RequestCleanUpLocalFilesNowAsync();
+        }
+    }
+
 }
