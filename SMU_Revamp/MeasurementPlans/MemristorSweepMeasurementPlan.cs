@@ -93,7 +93,18 @@ namespace SMU_Revamp.MeasurementPlans
             {
                 await smu.SendCommandAsync($"CN {channel}");
             }
-            
+
+            // Explicitly set current compliance on the source channel.
+            await smu.SendCommandAsync(
+                FormattableString.Invariant($"DV {channel},0,0,{compliance}"));
+
+            // Hold the separate return channel at 0 V with the same current limit.
+            if (readingChannel != channel)
+            {
+                await smu.SendCommandAsync(
+                    FormattableString.Invariant($"DV {readingChannel},0,0,{compliance}"));
+            }
+                        
             await smu.SendCommandAsync($"AV -{adcSamples},0");
             progress?.Report(5);
 
