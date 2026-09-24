@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Threading.Tasks;
 using MySqlConnector;
 using SMU_Revamp.Interfaces;
@@ -8,6 +9,17 @@ using SMU_Revamp.Models;
 
 namespace SMU_Revamp.Services
 {
+    public enum DatabaseConnectionStatus
+    {
+        Connected,
+        AccessDenied,
+        Offline,
+        ConfigurationMissing,
+        Error
+    }
+
+    public record DatabaseConnectionResult(bool Success, string Message, DatabaseConnectionStatus Status);
+
     public class DatabaseService
     {
         private static readonly Lazy<DatabaseService> _instance = new(() => new DatabaseService());
@@ -23,9 +35,12 @@ namespace SMU_Revamp.Services
             try
             {
                 var config = ConfigurationService.Instance.GetConfig();
-                // TestConnectionAsync also updates the schema if tables/columns are missing
-                await TestConnectionAsync(config.DbAddress, config.DbUser, config.DbPassword, config.DbName);
-                _schemaUpdated = true;
+                if (string.IsNullOrWhiteSpace(config.DbAddress) || string.IsNullOrWhiteSpace(config.DbName)) return;
+                var res = await TestConnectionDetailedAsync(config.DbAddress, config.DbUser, config.DbPassword, config.DbName);
+                if (res.Success)
+                {
+                    _schemaUpdated = true;
+                }
             }
             catch { /* Ignore */ }
         }
@@ -52,116 +67,193 @@ namespace SMU_Revamp.Services
             return GetConnectionString(config.DbAddress, config.DbUser, config.DbPassword, config.DbName);
         }
 
-        public async Task<bool> TestConnectionAsync(string address, string user, string password, string dbName)
+        public async Task<DatabaseConnectionResult> TestConnectionDetailedAsync(string address, string user, string password, string dbName)
         {
+            if (string.IsNullOrWhiteSpace(address) || string.IsNullOrWhiteSpace(dbName))
+            {
+                return new DatabaseConnectionResult(false, "Database address or database name is not configured.", DatabaseConnectionStatus.ConfigurationMissing);
+            }
+
+            MySqlConnection? connection = null;
             try
             {
-                // First connect without DB to create it if it doesn't exist
-                using (var connection = new MySqlConnection(GetConnectionString(address, user, password, "", false)))
+                // 1. Try to connect directly to the target database first (no CREATE DATABASE required)
+                try
                 {
+                    connection = new MySqlConnection(GetConnectionString(address, user, password, dbName));
                     await connection.OpenAsync();
-                    using var command = connection.CreateCommand();
-                    command.CommandText = $"CREATE DATABASE IF NOT EXISTS `{dbName}`;";
-                    await command.ExecuteNonQueryAsync();
+                }
+                catch (MySqlException ex) when (ex.Number == 1049) // ER_BAD_DB_ERROR: Unknown database
+                {
+                    // Database does not exist yet. Try to create it if the user has server-level administrative privileges.
+                    try
+                    {
+                        using var serverConnection = new MySqlConnection(GetConnectionString(address, user, password, "", false));
+                        await serverConnection.OpenAsync();
+                        using var createDbCmd = serverConnection.CreateCommand();
+                        createDbCmd.CommandText = $"CREATE DATABASE IF NOT EXISTS `{dbName}`;";
+                        await createDbCmd.ExecuteNonQueryAsync();
+                    }
+                    catch (MySqlException adminEx) when (adminEx.Number == 1044 || adminEx.Number == 1045)
+                    {
+                        return new DatabaseConnectionResult(
+                            false,
+                            $"Access Denied: Database '{dbName}' does not exist and user lacks administrative permissions to create it.",
+                            DatabaseConnectionStatus.AccessDenied);
+                    }
+                    catch (Exception exOther)
+                    {
+                        return new DatabaseConnectionResult(
+                            false,
+                            $"Failed to create database '{dbName}': {exOther.Message}",
+                            DatabaseConnectionStatus.Error);
+                    }
+
+                    // Database was created successfully, connect to it now
+                    connection = new MySqlConnection(GetConnectionString(address, user, password, dbName));
+                    await connection.OpenAsync();
+                }
+                catch (MySqlException ex) when (ex.Number == 1044 || ex.Number == 1045)
+                {
+                    return new DatabaseConnectionResult(
+                        false,
+                        $"Access Denied: Invalid credentials or user lacks permissions for database '{dbName}'.",
+                        DatabaseConnectionStatus.AccessDenied);
+                }
+                catch (Exception ex)
+                {
+                    return new DatabaseConnectionResult(
+                        false,
+                        $"Database server unreachable or offline ({address}): {ex.Message}",
+                        DatabaseConnectionStatus.Offline);
                 }
 
-                // Now connect to the specific DB and create tables
-                using (var connection = new MySqlConnection(GetConnectionString(address, user, password, dbName)))
+                // 2. Initialize or verify schema on the open database connection
+                using (connection)
                 {
-                    await connection.OpenAsync();
-                    
-                    using var cmd = connection.CreateCommand();
-                    cmd.CommandText = @"
-                        CREATE TABLE IF NOT EXISTS Measurements (
-                            Id INT AUTO_INCREMENT PRIMARY KEY,
-                            ProfileName VARCHAR(255) NULL,
-                            PlanName VARCHAR(255),
-                            SampleName VARCHAR(255),
-                            Timestamp DATETIME,
-                            SourceFilename VARCHAR(500) NULL,
-                            Notes TEXT NULL
-                        );
-
-                        CREATE TABLE IF NOT EXISTS MeasurementParameters (
-                            Id INT AUTO_INCREMENT PRIMARY KEY,
-                            MeasurementId INT,
-                            Name VARCHAR(255),
-                            Value VARCHAR(255),
-                            FOREIGN KEY (MeasurementId) REFERENCES Measurements(Id) ON DELETE CASCADE
-                        );
-
-                        CREATE TABLE IF NOT EXISTS MeasurementPoints (
-                            Id INT AUTO_INCREMENT PRIMARY KEY,
-                            MeasurementId INT,
-                            X DOUBLE,
-                            Y DOUBLE,
-                            FOREIGN KEY (MeasurementId) REFERENCES Measurements(Id) ON DELETE CASCADE
-                        );
-                    ";
-                    await cmd.ExecuteNonQueryAsync();
-
-                    // Try to add ProfileName column if it's missing (for older DB versions)
                     try
                     {
-                        using var alterCmd = connection.CreateCommand();
-                        alterCmd.CommandText = "ALTER TABLE Measurements ADD COLUMN ProfileName VARCHAR(255) NULL;";
-                        await alterCmd.ExecuteNonQueryAsync();
-                    }
-                    catch { /* Ignore if it already exists */ }
+                        using var cmd = connection.CreateCommand();
+                        cmd.CommandText = @"
+                            CREATE TABLE IF NOT EXISTS Measurements (
+                                Id INT AUTO_INCREMENT PRIMARY KEY,
+                                ProfileName VARCHAR(255) NULL,
+                                PlanName VARCHAR(255),
+                                SampleName VARCHAR(255),
+                                Timestamp DATETIME,
+                                SourceFilename VARCHAR(500) NULL,
+                                Notes TEXT NULL
+                            );
 
-                    // Fill missing ProfileNames with a default value
-                    try
-                    {
-                        using var updateCmd = connection.CreateCommand();
-                        updateCmd.CommandText = "UPDATE Measurements SET ProfileName = 'Default' WHERE ProfileName IS NULL OR ProfileName = '';";
-                        await updateCmd.ExecuteNonQueryAsync();
-                    }
-                    catch { /* Ignore */ }
+                            CREATE TABLE IF NOT EXISTS MeasurementParameters (
+                                Id INT AUTO_INCREMENT PRIMARY KEY,
+                                MeasurementId INT,
+                                Name VARCHAR(255),
+                                Value VARCHAR(255),
+                                FOREIGN KEY (MeasurementId) REFERENCES Measurements(Id) ON DELETE CASCADE
+                            );
 
-                    // Fill missing/blank SampleNames with 'Empty Device'
-                    try
-                    {
-                        using var updateSampleCmd = connection.CreateCommand();
-                        updateSampleCmd.CommandText = "UPDATE Measurements SET SampleName = 'Empty Device' WHERE SampleName IS NULL OR TRIM(SampleName) = '';";
-                        await updateSampleCmd.ExecuteNonQueryAsync();
-                    }
-                    catch { /* Ignore */ }
+                            CREATE TABLE IF NOT EXISTS MeasurementPoints (
+                                Id INT AUTO_INCREMENT PRIMARY KEY,
+                                MeasurementId INT,
+                                X DOUBLE,
+                                Y DOUBLE,
+                                FOREIGN KEY (MeasurementId) REFERENCES Measurements(Id) ON DELETE CASCADE
+                            );
+                        ";
+                        await cmd.ExecuteNonQueryAsync();
 
-                    // Try to add FolderName column if it's missing
-                    try
-                    {
-                        using var alterCmd2 = connection.CreateCommand();
-                        alterCmd2.CommandText = "ALTER TABLE Measurements ADD COLUMN FolderName VARCHAR(500) NULL;";
-                        await alterCmd2.ExecuteNonQueryAsync();
-                    }
-                    catch { /* Ignore if it already exists */ }
+                        // Try to add ProfileName column if missing
+                        try
+                        {
+                            using var alterCmd = connection.CreateCommand();
+                            alterCmd.CommandText = "ALTER TABLE Measurements ADD COLUMN ProfileName VARCHAR(255) NULL;";
+                            await alterCmd.ExecuteNonQueryAsync();
+                        }
+                        catch { /* Ignore if it already exists */ }
 
-                    // Try to add index on Timestamp for better query performance
-                    try
-                    {
-                        using var indexCmd = connection.CreateCommand();
-                        indexCmd.CommandText = "CREATE INDEX idx_measurements_timestamp ON Measurements (Timestamp DESC);";
-                        await indexCmd.ExecuteNonQueryAsync();
-                    }
-                    catch { /* Ignore if it already exists */ }
+                        // Fill missing ProfileNames
+                        try
+                        {
+                            using var updateCmd = connection.CreateCommand();
+                            updateCmd.CommandText = "UPDATE Measurements SET ProfileName = 'Default' WHERE ProfileName IS NULL OR ProfileName = '';";
+                            await updateCmd.ExecuteNonQueryAsync();
+                        }
+                        catch { /* Ignore */ }
 
-                    // Try to add index on composite lookup for sync
-                    try
-                    {
-                        using var indexSyncCmd = connection.CreateCommand();
-                        indexSyncCmd.CommandText = "CREATE INDEX idx_measurements_sync ON Measurements (ProfileName(50), FolderName(100), SourceFilename(150));";
-                        await indexSyncCmd.ExecuteNonQueryAsync();
+                        // Fill missing/blank SampleNames
+                        try
+                        {
+                            using var updateSampleCmd = connection.CreateCommand();
+                            updateSampleCmd.CommandText = "UPDATE Measurements SET SampleName = 'Empty Device' WHERE SampleName IS NULL OR TRIM(SampleName) = '';";
+                            await updateSampleCmd.ExecuteNonQueryAsync();
+                        }
+                        catch { /* Ignore */ }
+
+                        // Try to add FolderName column if missing
+                        try
+                        {
+                            using var alterCmd2 = connection.CreateCommand();
+                            alterCmd2.CommandText = "ALTER TABLE Measurements ADD COLUMN FolderName VARCHAR(500) NULL;";
+                            await alterCmd2.ExecuteNonQueryAsync();
+                        }
+                        catch { /* Ignore if it already exists */ }
+
+                        // Try to add index on Timestamp
+                        try
+                        {
+                            using var indexCmd = connection.CreateCommand();
+                            indexCmd.CommandText = "CREATE INDEX idx_measurements_timestamp ON Measurements (Timestamp DESC);";
+                            await indexCmd.ExecuteNonQueryAsync();
+                        }
+                        catch { /* Ignore if it already exists */ }
+
+                        // Try to add index on composite lookup for sync
+                        try
+                        {
+                            using var indexSyncCmd = connection.CreateCommand();
+                            indexSyncCmd.CommandText = "CREATE INDEX idx_measurements_sync ON Measurements (ProfileName(50), FolderName(100), SourceFilename(150));";
+                            await indexSyncCmd.ExecuteNonQueryAsync();
+                        }
+                        catch { /* Ignore if it already exists */ }
+
+                        return new DatabaseConnectionResult(true, "Database connection successful. Tables verified.", DatabaseConnectionStatus.Connected);
                     }
-                    catch { /* Ignore if it already exists */ }
+                    catch (MySqlException ex) when (ex.Number == 1142 || ex.Number == 1044 || ex.Number == 1045)
+                    {
+                        // Check if tables already exist and can be queried
+                        try
+                        {
+                            using var checkCmd = connection.CreateCommand();
+                            checkCmd.CommandText = "SELECT 1 FROM Measurements LIMIT 1;";
+                            await checkCmd.ExecuteScalarAsync();
+                            return new DatabaseConnectionResult(true, "Database connection successful (existing tables verified).", DatabaseConnectionStatus.Connected);
+                        }
+                        catch
+                        {
+                            return new DatabaseConnectionResult(
+                                false,
+                                $"Access Denied: User lacks table permissions in database '{dbName}'.",
+                                DatabaseConnectionStatus.AccessDenied);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        return new DatabaseConnectionResult(false, $"Schema error: {ex.Message}", DatabaseConnectionStatus.Error);
+                    }
                 }
-
-                return true;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Database connection test failed: {ex.Message}");
-                return false;
+                return new DatabaseConnectionResult(false, ex.Message, DatabaseConnectionStatus.Error);
             }
+        }
+
+        public async Task<bool> TestConnectionAsync(string address, string user, string password, string dbName)
+        {
+            var result = await TestConnectionDetailedAsync(address, user, password, dbName);
+            return result.Success;
         }
 
         public static string BuildCompositeKey(string? profileName, string? folderName, string? sourceFilename)
@@ -170,6 +262,13 @@ namespace SMU_Revamp.Services
             var f = (folderName ?? "").Trim().ToLowerInvariant();
             var s = (sourceFilename ?? "").Trim().ToLowerInvariant();
             return $"{p}|{f}|{s}";
+        }
+
+        public static string FormatSqlValue(double value)
+        {
+            return double.IsFinite(value)
+                ? value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : "NULL";
         }
 
         public async Task<HashSet<string>> GetExistingMeasurementKeysAsync()
@@ -268,7 +367,7 @@ namespace SMU_Revamp.Services
                     for (int i = 0; i < points.Count; i++)
                     {
                         var point = points[i];
-                        values.Add($"({measurementId}, {point.X.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {point.Y.ToString(System.Globalization.CultureInfo.InvariantCulture)})");
+                        values.Add($"({measurementId}, {FormatSqlValue(point.X)}, {FormatSqlValue(point.Y)})");
                         if (values.Count >= 1000 || i == points.Count - 1)
                         {
                             pointCmd.CommandText = $"INSERT INTO MeasurementPoints (MeasurementId, X, Y) VALUES {string.Join(",", values)}";
@@ -312,30 +411,85 @@ namespace SMU_Revamp.Services
             public string SourceFilename { get; set; } = string.Empty;
         }
 
-        public async Task<List<MeasurementSummary>> GetRecentMeasurementsAsync(int limit = 100)
+        public async Task<List<string>> GetProfilesAsync()
         {
             await EnsureSchemaUpdatedAsync();
+            var list = new List<string>();
+            try
+            {
+                using var connection = new MySqlConnection(GetCurrentConnectionString());
+                await connection.OpenAsync();
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = "SELECT DISTINCT COALESCE(NULLIF(TRIM(ProfileName), ''), 'Default') AS Prof FROM Measurements ORDER BY Prof ASC;";
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    if (!reader.IsDBNull(0))
+                    {
+                        var p = reader.GetString(0).Trim();
+                        if (!string.IsNullOrEmpty(p) && !list.Any(x => string.Equals(x, p, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            list.Add(p);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[DatabaseService] Failed to load profiles: {ex.Message}");
+            }
+
+            if (list.Count == 0)
+            {
+                list.Add("Default");
+            }
+            return list;
+        }
+
+        public async Task<List<MeasurementSummary>> GetRecentMeasurementsAsync(int limitPerProfile = 300)
+        {
+            await EnsureSchemaUpdatedAsync();
+            var profiles = await GetProfilesAsync();
             var list = new List<MeasurementSummary>();
+
             using var connection = new MySqlConnection(GetCurrentConnectionString());
             await connection.OpenAsync();
-            using var cmd = connection.CreateCommand();
-            cmd.CommandText = "SELECT Id, ProfileName, PlanName, SampleName, Timestamp, FolderName, SourceFilename FROM Measurements ORDER BY Timestamp DESC LIMIT @limit";
-            cmd.Parameters.AddWithValue("@limit", limit);
 
-            using var reader = await cmd.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
+            foreach (var profile in profiles)
             {
-                list.Add(new MeasurementSummary
+                try
                 {
-                    Id = reader.GetInt32(0),
-                    ProfileName = reader.IsDBNull(1) ? "" : reader.GetString(1),
-                    PlanName = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                    SampleName = reader.IsDBNull(3) ? "" : reader.GetString(3),
-                    Timestamp = reader.GetDateTime(4),
-                    FolderName = reader.IsDBNull(5) ? "" : reader.GetString(5),
-                    SourceFilename = reader.IsDBNull(6) ? "" : reader.GetString(6)
-                });
+                    using var cmd = connection.CreateCommand();
+                    cmd.CommandText = @"
+                        SELECT Id, ProfileName, PlanName, SampleName, Timestamp, FolderName, SourceFilename 
+                        FROM Measurements 
+                        WHERE (ProfileName = @profile OR (@profile = 'Default' AND (ProfileName IS NULL OR ProfileName = ''))) 
+                        ORDER BY Timestamp DESC 
+                        LIMIT @limit";
+                    cmd.Parameters.AddWithValue("@profile", profile);
+                    cmd.Parameters.AddWithValue("@limit", limitPerProfile);
+
+                    using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
+                    {
+                        list.Add(new MeasurementSummary
+                        {
+                            Id = reader.GetInt32(0),
+                            ProfileName = reader.IsDBNull(1) || string.IsNullOrWhiteSpace(reader.GetString(1)) ? "Default" : reader.GetString(1),
+                            PlanName = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                            SampleName = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                            Timestamp = reader.GetDateTime(4),
+                            FolderName = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                            SourceFilename = reader.IsDBNull(6) ? "" : reader.GetString(6)
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[DatabaseService] Failed to load measurements for profile '{profile}': {ex.Message}");
+                }
             }
+
             return list;
         }
 
@@ -367,7 +521,9 @@ namespace SMU_Revamp.Services
                 using var reader = await dCmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
-                    points.Add(new CurvePoint(reader.GetDouble(0), reader.GetDouble(1)));
+                    double x = reader.IsDBNull(0) ? double.NaN : reader.GetDouble(0);
+                    double y = reader.IsDBNull(1) ? double.NaN : reader.GetDouble(1);
+                    points.Add(new CurvePoint(x, y));
                 }
             }
 

@@ -16,6 +16,17 @@ namespace SMU_Revamp.Services
         private string _resourceString = "GPIB0::22::INSTR";
         private bool _isConnected;
         private MessageBasedSession? _session; // NI VISA session for the prober
+        private bool _simulationActive;
+
+        /// <summary>
+        /// Whether the prober is currently connected (either physical session or simulated).
+        /// </summary>
+        public bool IsConnected => _isConnected;
+
+        /// <summary>
+        /// Whether the prober connection is currently simulated in software.
+        /// </summary>
+        public bool IsSimulationActive => _simulationActive;
 
         // Constants based on the original source code
         private const int AlignContactDelayMs = 100;
@@ -34,6 +45,8 @@ namespace SMU_Revamp.Services
         /// </summary>
         public static ProberService Instance => _instance.Value;
 
+        private readonly SemaphoreSlim _ioLock = new(1, 1);
+
         private bool _quietMode;
         /// <inheritdoc />
         public bool QuietMode
@@ -46,7 +59,17 @@ namespace SMU_Revamp.Services
                     _quietMode = value;
                     if (_isConnected && _session != null)
                     {
-                        _ = SendProberAsync(_quietMode ? "EnableMotorQuiet 1" : "EnableMotorQuiet 0");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await SendProberAsync(_quietMode ? "EnableMotorQuiet 1" : "EnableMotorQuiet 0");
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[ProberService] Failed to set motor quiet mode: {ex.Message}");
+                            }
+                        });
                     }
                 }
             }
@@ -70,18 +93,39 @@ namespace SMU_Revamp.Services
         {
             try
             {
-                if (_isConnected && _session != null)
+                if (_isConnected && (_session != null || _simulationActive))
                     return;
-                await Task.Run(() => 
+
+                if (ConfigurationService.Instance.GetConfig().SimulationMode)
                 {
-                    var rm = new ResourceManager();
-                    _session = rm.Open(_resourceString) as MessageBasedSession;
-                    if (_session != null)
+                    _simulationActive = true;
+                    _isConnected = true;
+                    LogService.Instance.Info("Prober connected (software simulation).");
+                    return;
+                }
+
+                await _ioLock.WaitAsync();
+                try
+                {
+                    await Task.Run(() =>
                     {
-                        // Default NI VISA termination is \n (10).
-                        _isConnected = true;
-                    }
-                });
+                        var rm = new ResourceManager();
+                        _session = rm.Open(_resourceString) as MessageBasedSession;
+                        if (_session != null)
+                        {
+                            // Default NI VISA termination is \n (10).
+                            _isConnected = true;
+                        }
+                    });
+                }
+                finally
+                {
+                    _ioLock.Release();
+                }
+
+                LogService.Instance.Info(_isConnected
+                    ? $"Prober connected ({_resourceString})."
+                    : $"Prober connection returned no session ({_resourceString}).");
 
                 if (_isConnected)
                 {
@@ -102,6 +146,7 @@ namespace SMU_Revamp.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[ProberService] Error during connect: {ex.Message}");
+                LogService.Instance.Error("Prober connection failed", ex);
                 throw new InvalidOperationException($"Failed to connect to prober. Check resource string and connection. Details: {ex.Message}", ex);
             }
         }
@@ -111,14 +156,27 @@ namespace SMU_Revamp.Services
         /// </summary>
         public async Task DisconnectAsync()
         {
+            if (_simulationActive)
+            {
+                _isConnected = false;
+                return;
+            }
             try
             {
-                await Task.Run(() => 
+                await _ioLock.WaitAsync();
+                try
                 {
-                    _session?.Dispose();
-                    _session = null;
-                    _isConnected = false;
-                });
+                    await Task.Run(() => 
+                    {
+                        _session?.Dispose();
+                        _session = null;
+                        _isConnected = false;
+                    });
+                }
+                finally
+                {
+                    _ioLock.Release();
+                }
             }
             catch (Exception ex)
             {
@@ -304,18 +362,27 @@ namespace SMU_Revamp.Services
 
         private async Task<string> SendProberAsync(string command, int timeoutMs = GenericCommandTimeoutMs, int postWriteDelayMs = 100, int readBufferChars = ReadBufferChars)
         {
+            if (_simulationActive)
+            {
+                // Simulated prober acknowledges every command successfully.
+                await Task.Delay(10);
+                return "OK";
+            }
+
+            if (!_isConnected)
+            {
+                throw new InvalidOperationException("Not connected to prober. Call ConnectAsync first.");
+            }
+            if (_session == null)
+            {
+                throw new InvalidOperationException("GPIB session is not initialized. Call ConnectAsync first.");
+            }
+
+            await _ioLock.WaitAsync();
             string response;
 
             try
             {
-                if (!_isConnected)
-                {
-                    throw new InvalidOperationException("Not connected to prober. Call ConnectAsync first.");
-                }
-                if (_session == null)
-                {
-                    throw new InvalidOperationException("GPIB session is not initialized. Call ConnectAsync first.");
-                }
                 _session.TimeoutMilliseconds = timeoutMs;
                 
                 var prevTermChar = _session.TerminationCharacter;
@@ -341,9 +408,14 @@ namespace SMU_Revamp.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[ProberService] Exception in SendProberAsync for command '{command}': {ex.Message}");
+                LogService.Instance.Error($"Prober command failed: {LogService.Truncate(command)}", ex);
                 // Allow a brief cooling down period, fully async without blocking the thread
                 await Task.Delay(1000);
                 throw;
+            }
+            finally
+            {
+                _ioLock.Release();
             }
 
             return response;

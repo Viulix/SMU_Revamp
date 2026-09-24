@@ -1,7 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using SMU_Revamp.Models;
 using SMU_Revamp.Services;
 using SMU_Revamp.Interfaces;
+using System;
 using System.Threading.Tasks;
 
 namespace SMU_Revamp.ViewModels
@@ -101,6 +103,24 @@ namespace SMU_Revamp.ViewModels
             set => SetProperty(ref _showAlignmentWarning, value);
         }
 
+        private bool _simulationMode = false;
+        /// <summary>
+        /// Runs all instrument connections in software simulation (no hardware).
+        /// </summary>
+        public bool SimulationMode
+        {
+            get => _simulationMode;
+            set
+            {
+                if (SetProperty(ref _simulationMode, value))
+                {
+                    // Apply immediately so ConnectAsync picks it up without waiting
+                    // for the next settings save.
+                    E5263_SMU.Instance.SetSimulationMode(value);
+                }
+            }
+        }
+
         public string DbAddress
         {
             get => _dbAddress;
@@ -159,6 +179,73 @@ namespace SMU_Revamp.ViewModels
             set => SetProperty(ref _isSyncingDatabase, value);
         }
 
+        private double _syncProgressPercentage = 0;
+        public double SyncProgressPercentage
+        {
+            get => _syncProgressPercentage;
+            set => SetProperty(ref _syncProgressPercentage, value);
+        }
+
+        private bool _isSyncProgressIndeterminate = true;
+        public bool IsSyncProgressIndeterminate
+        {
+            get => _isSyncProgressIndeterminate;
+            set => SetProperty(ref _isSyncProgressIndeterminate, value);
+        }
+
+        // Local Storage Cleanup Configuration
+        private bool _autoCleanupSyncedLocalFiles = false;
+        public bool AutoCleanupSyncedLocalFiles
+        {
+            get => _autoCleanupSyncedLocalFiles;
+            set => SetProperty(ref _autoCleanupSyncedLocalFiles, value);
+        }
+
+        private int _cleanupRetentionDays = 30;
+        public int CleanupRetentionDays
+        {
+            get => _cleanupRetentionDays;
+            set => SetProperty(ref _cleanupRetentionDays, Math.Max(1, value));
+        }
+
+        private bool _cleanupOnlyWafermaps = true;
+        public bool CleanupOnlyWafermaps
+        {
+            get => _cleanupOnlyWafermaps;
+            set => SetProperty(ref _cleanupOnlyWafermaps, value);
+        }
+
+        private bool _isCleaningUpLocalFiles = false;
+        public bool IsCleaningUpLocalFiles
+        {
+            get => _isCleaningUpLocalFiles;
+            set => SetProperty(ref _isCleaningUpLocalFiles, value);
+        }
+
+        private string _cleanupStatusMessage = string.Empty;
+        public string CleanupStatusMessage
+        {
+            get => _cleanupStatusMessage;
+            set => SetProperty(ref _cleanupStatusMessage, value);
+        }
+
+        private bool _isCleanupConfirmationVisible = false;
+        public bool IsCleanupConfirmationVisible
+        {
+            get => _isCleanupConfirmationVisible;
+            set => SetProperty(ref _isCleanupConfirmationVisible, value);
+        }
+
+        private string _cleanupConfirmationMessage = string.Empty;
+        public string CleanupConfirmationMessage
+        {
+            get => _cleanupConfirmationMessage;
+            set => SetProperty(ref _cleanupConfirmationMessage, value);
+        }
+
+        public IRelayCommand CancelCleanupCommand { get; }
+        public IAsyncRelayCommand ConfirmCleanupCommand { get; }
+
         public SettingsViewModel()
         {
             // Get singleton instances
@@ -180,6 +267,7 @@ namespace SMU_Revamp.ViewModels
             Profile = string.Empty;
             SampleName = string.Empty;
             ShowAlignmentWarning = config.ShowAlignmentWarning;
+            SimulationMode = config.SimulationMode;
 
             DbAddress = config.DbAddress;
             DbUser = config.DbUser;
@@ -190,7 +278,44 @@ namespace SMU_Revamp.ViewModels
             LastDatabaseSyncTimestamp = config.LastDatabaseSyncTimestamp;
             UpdateSyncStatusSummary();
 
+            AutoCleanupSyncedLocalFiles = config.AutoCleanupSyncedLocalFiles;
+            CleanupRetentionDays = config.CleanupRetentionDays > 0 ? config.CleanupRetentionDays : 30;
+            CleanupOnlyWafermaps = config.CleanupOnlyWafermaps;
+
+            CancelCleanupCommand = new RelayCommand(CancelCleanup);
+            ConfirmCleanupCommand = new AsyncRelayCommand(ConfirmCleanupAsync);
+
+            // Idempotent: repeated LoadSettings calls (settings reopened) must not
+            // stack duplicate handlers on the static sync service.
+            DatabaseSyncService.Instance.SyncCompleted -= OnSyncCompleted;
             DatabaseSyncService.Instance.SyncCompleted += OnSyncCompleted;
+            DatabaseSyncService.Instance.SyncProgressChanged -= OnSyncProgressChanged;
+            DatabaseSyncService.Instance.SyncProgressChanged += OnSyncProgressChanged;
+            DatabaseSyncService.Instance.SyncStateChanged -= OnSyncStateChanged;
+            DatabaseSyncService.Instance.SyncStateChanged += OnSyncStateChanged;
+        }
+
+        private void OnSyncProgressChanged(DatabaseSyncProgress progress)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                SyncStatusMessage = progress.StatusText;
+                SyncProgressPercentage = progress.Percentage;
+                IsSyncProgressIndeterminate = progress.IsIndeterminate;
+            });
+        }
+
+        private void OnSyncStateChanged(bool isSyncing)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                IsSyncingDatabase = isSyncing;
+                if (!isSyncing)
+                {
+                    IsSyncProgressIndeterminate = true;
+                    SyncProgressPercentage = 0;
+                }
+            });
         }
 
         private void OnSyncCompleted(DatabaseSyncResult result)
@@ -240,6 +365,7 @@ namespace SMU_Revamp.ViewModels
             config.SMUResource = SMUResource;
             config.SMUTimeoutMs = SMUTimeoutMs;
             config.ShowAlignmentWarning = ShowAlignmentWarning;
+            config.SimulationMode = SimulationMode;
 
             config.DbAddress = DbAddress;
             config.DbUser = DbUser;
@@ -247,6 +373,10 @@ namespace SMU_Revamp.ViewModels
             config.DbName = DbName;
             config.SaveToDatabase = SaveToDatabase;
             config.AutoSyncDatabase = AutoSyncDatabase;
+
+            config.AutoCleanupSyncedLocalFiles = AutoCleanupSyncedLocalFiles;
+            config.CleanupRetentionDays = CleanupRetentionDays;
+            config.CleanupOnlyWafermaps = CleanupOnlyWafermaps;
 
             await _configService.SaveAsync(config);
             ApplyStatusMessage = "Settings saved.";
@@ -268,6 +398,7 @@ namespace SMU_Revamp.ViewModels
             Profile = string.Empty;
             SampleName = string.Empty;
             ShowAlignmentWarning = config.ShowAlignmentWarning;
+            SimulationMode = config.SimulationMode;
 
             DbAddress = config.DbAddress;
             DbUser = config.DbUser;
@@ -277,19 +408,29 @@ namespace SMU_Revamp.ViewModels
             AutoSyncDatabase = config.AutoSyncDatabase;
             LastDatabaseSyncTimestamp = config.LastDatabaseSyncTimestamp;
             UpdateSyncStatusSummary();
+
+            AutoCleanupSyncedLocalFiles = config.AutoCleanupSyncedLocalFiles;
+            CleanupRetentionDays = config.CleanupRetentionDays > 0 ? config.CleanupRetentionDays : 30;
+            CleanupOnlyWafermaps = config.CleanupOnlyWafermaps;
+            CleanupStatusMessage = string.Empty;
+            IsCleanupConfirmationVisible = false;
         }
 
         public async Task TestDbConnectionAsync()
         {
             ApplyStatusMessage = "Testing connection...";
-            bool success = await DatabaseService.Instance.TestConnectionAsync(DbAddress, DbUser, DbPassword, DbName);
-            if (success)
+            var result = await DatabaseService.Instance.TestConnectionDetailedAsync(DbAddress, DbUser, DbPassword, DbName);
+            if (result.Success)
             {
                 ApplyStatusMessage = "Database connection successful. Tables initialized.";
             }
+            else if (result.Status == DatabaseConnectionStatus.AccessDenied)
+            {
+                ApplyStatusMessage = $"Access Denied: {result.Message}";
+            }
             else
             {
-                ApplyStatusMessage = "Database connection failed. Check credentials.";
+                ApplyStatusMessage = $"Connection failed ({result.Status}): {result.Message}";
             }
         }
 
@@ -297,8 +438,14 @@ namespace SMU_Revamp.ViewModels
         {
             if (IsSyncingDatabase) return;
 
+            // Automatically apply current settings from text fields before syncing
+            await ApplySettingsAsync();
+
             IsSyncingDatabase = true;
+            IsSyncProgressIndeterminate = true;
+            SyncProgressPercentage = 0;
             SyncStatusMessage = "Starting synchronization...";
+
             var progress = new System.Progress<string>(msg =>
             {
                 if (IsSyncingDatabase)
@@ -309,12 +456,66 @@ namespace SMU_Revamp.ViewModels
 
             var result = await DatabaseSyncService.Instance.SyncNowAsync(progress);
             IsSyncingDatabase = false;
+            IsSyncProgressIndeterminate = true;
             
             var config = _configService.GetConfig();
             LastDatabaseSyncTimestamp = config.LastDatabaseSyncTimestamp;
 
             SyncStatusMessage = result.Success ? result.Message : $"Sync failed: {result.Message}";
             ApplyStatusMessage = result.Success ? result.Message : $"Sync error: {result.Message}";
+        }
+
+        public async Task RequestCleanUpLocalFilesNowAsync()
+        {
+            if (IsCleaningUpLocalFiles || IsSyncingDatabase) return;
+
+            IsCleaningUpLocalFiles = true;
+            CleanupStatusMessage = "Checking database connection and scanning local files...";
+
+            var preview = await DatabaseSyncService.Instance.PreviewLocalCleanupAsync(
+                CleanupRetentionDays, CleanupOnlyWafermaps);
+
+            if (!preview.Success)
+            {
+                CleanupStatusMessage = $"Cleanup check failed: {preview.Message}";
+                IsCleaningUpLocalFiles = false;
+                return;
+            }
+
+            if (preview.EligibleCount == 0)
+            {
+                CleanupStatusMessage = $"No local files older than {CleanupRetentionDays} day(s) were found that are already synced to the database.";
+                IsCleaningUpLocalFiles = false;
+                return;
+            }
+
+            string scopeDesc = CleanupOnlyWafermaps ? "wafermap" : "measurement";
+            CleanupConfirmationMessage = $"Found {preview.EligibleCount} local {scopeDesc} file(s) older than {CleanupRetentionDays} day(s) that are already saved in the database ({DatabaseSyncService.FormatBytes(preview.TotalBytes)}).\n\nDo you want to permanently delete these local files to free up disk space?";
+            IsCleanupConfirmationVisible = true;
+        }
+
+        private void CancelCleanup()
+        {
+            IsCleanupConfirmationVisible = false;
+            IsCleaningUpLocalFiles = false;
+            CleanupStatusMessage = "Cleanup cancelled by user.";
+        }
+
+        private async Task ConfirmCleanupAsync()
+        {
+            IsCleanupConfirmationVisible = false;
+            CleanupStatusMessage = "Deleting verified synchronized local files...";
+
+            var progress = new System.Progress<string>(msg =>
+            {
+                CleanupStatusMessage = msg;
+            });
+
+            var result = await DatabaseSyncService.Instance.CleanupSyncedLocalFilesAsync(
+                CleanupRetentionDays, CleanupOnlyWafermaps, progress);
+
+            CleanupStatusMessage = result.Message;
+            IsCleaningUpLocalFiles = false;
         }
     }
 }

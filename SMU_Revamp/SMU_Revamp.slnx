@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="../SMU_Revamp.Tests/SMU_Revamp.Tests.csproj" />
   <Project Path="SMU_Revamp.csproj" />
 </Solution>

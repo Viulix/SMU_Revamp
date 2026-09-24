@@ -19,8 +19,18 @@
     </Design.DataContext>
 
     <Window.Styles>
-        <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+        <Style Selector="TabItem.MainTab:selected /template/ Border#PART_SelectedPipe">
             <Setter Property="Background" Value="Black" />
+        </Style>
+
+        <!-- DB Sync Offline Badge: Hover/Pressed in Rot-Familie halten (statt grauem Default) -->
+        <Style Selector="Button.DbSyncWarning:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#FEE2E2" />
+            <Setter Property="BorderBrush" Value="#DC2626" />
+        </Style>
+        <Style Selector="Button.DbSyncWarning:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#FECACA" />
+            <Setter Property="BorderBrush" Value="#991B1B" />
         </Style>
 
         <!-- Glanzeffekt / Shimmer sweep animation across ProgressBar -->
@@ -33,6 +43,23 @@
                     </KeyFrame>
                     <KeyFrame Cue="100%">
                         <Setter Property="TranslateTransform.X" Value="600" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- Rotating animation for sync progress icon -->
+        <Style Selector="Path.Spinning">
+            <Setter Property="RenderTransform">
+                <RotateTransform />
+            </Setter>
+            <Style.Animations>
+                <Animation Duration="0:0:1" IterationCount="Infinite">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="RotateTransform.Angle" Value="0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="RotateTransform.Angle" Value="360"/>
                     </KeyFrame>
                 </Animation>
             </Style.Animations>
@@ -99,16 +126,16 @@
         <Grid>
             <!-- Main Content with Tabs -->
             <TabControl SelectedIndex="{Binding SelectedTabIndex}" Margin="20" Padding="20">
-                <TabItem Header="Viewer">
+                <TabItem Header="Viewer" Classes="MainTab">
                     <views:ViewerTabView />
                 </TabItem>
-                <TabItem Header="Measurements">
+                <TabItem Header="Measurements" Classes="MainTab">
                     <views:MeasurementsTabView />
                 </TabItem>
-                <TabItem Header="Wafermap">
+                <TabItem Header="Wafermap" Classes="MainTab">
                     <views:WafermapTabView />
                 </TabItem>
-                <TabItem Header="Result">
+                <TabItem Header="Result" Classes="MainTab">
                     <views:ResultTabView />
                 </TabItem>
             </TabControl>
@@ -120,21 +147,66 @@
                         Spacing="10" 
                         Margin="0,28,45,0"
                         Height="36">
-                <!-- DB Sync Offline Warning Badge (Visible when DB sync fails / unreachable) -->
-                <Button IsVisible="{Binding IsDbSyncWarningVisible}"
+                <!-- DB Sync Status & Warning Badge (Visible during sync or when sync fails) -->
+                <Button IsVisible="{Binding IsDbSyncBadgeVisible}"
                         Command="{Binding SyncDatabaseCommand}"
-                        Background="#FEF2F2"
-                        BorderBrush="#EF4444"
-                        BorderThickness="1"
+                        Classes="DbSyncWarning"
+                        IsEnabled="{Binding !IsSyncingDatabase}"
                         CornerRadius="6"
                         Padding="10,0"
                         Height="30"
                         VerticalAlignment="Center"
                         ToolTip.Tip="{Binding DbSyncWarningTooltip}">
+                    <Button.Styles>
+                        <Style Selector="Button">
+                            <Setter Property="Background" Value="#FEF2F2" />
+                            <Setter Property="BorderBrush" Value="#EF4444" />
+                            <Setter Property="BorderThickness" Value="1" />
+                        </Style>
+                        <Style Selector="Button.syncing">
+                            <Setter Property="Background" Value="#EFF6FF" />
+                            <Setter Property="BorderBrush" Value="#3B82F6" />
+                            <Setter Property="BorderThickness" Value="1" />
+                        </Style>
+                    </Button.Styles>
+                    <Classes.syncing>
+                        <Binding Path="IsSyncingDatabase" />
+                    </Classes.syncing>
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <TextBlock Text="⚠️" FontSize="13" VerticalAlignment="Center" />
-                        <TextBlock Text="DB Sync Offline" Foreground="#DC2626" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <TextBlock Text="(Retry)" Foreground="#991B1B" FontSize="11" VerticalAlignment="Center" TextDecorations="Underline" />
+                        <!-- Active Sync Spinning Icon -->
+                        <Path Classes="Spinning"
+                              IsVisible="{Binding IsSyncingDatabase}"
+                              Data="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"
+                              Width="13" Height="13"
+                              Fill="#2563EB"
+                              Stretch="Uniform"
+                              VerticalAlignment="Center" />
+                        <TextBlock IsVisible="{Binding IsSyncingDatabase}"
+                                   Text="{Binding DbSyncWarningBadgeText}"
+                                   Foreground="#1D4ED8"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+
+                        <!-- Failed Sync Warning State -->
+                        <Path IsVisible="{Binding !IsSyncingDatabase}"
+                              Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                              Fill="#DC2626"
+                              Width="13" Height="13"
+                              Stretch="Uniform"
+                              VerticalAlignment="Center" />
+                        <TextBlock IsVisible="{Binding !IsSyncingDatabase}"
+                                   Text="{Binding DbSyncWarningBadgeText}"
+                                   Foreground="#DC2626"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                        <TextBlock IsVisible="{Binding !IsSyncingDatabase}"
+                                   Text="(Retry)"
+                                   Foreground="#991B1B"
+                                   FontSize="11"
+                                   VerticalAlignment="Center"
+                                   TextDecorations="Underline" />
                     </StackPanel>
                 </Button>
 

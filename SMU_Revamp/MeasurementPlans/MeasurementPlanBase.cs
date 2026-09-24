@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using SMU_Revamp.Models;
 using SMU_Revamp.Services;
@@ -66,7 +67,7 @@ namespace SMU_Revamp.MeasurementPlans
             }
         }
 
-        public abstract Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null);
+        public abstract Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
 
         public string GetParamValueString(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsString() ?? string.Empty;
         public double GetParamValueDouble(string name) => Parameters.Find(p => p.Name == name)?.GetValueAsDouble() ?? 0.0;

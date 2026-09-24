@@ -9,11 +9,40 @@ using SMU_Revamp.Models;
 
 namespace SMU_Revamp.Services
 {
+    public record DatabaseSyncProgress(
+        string StatusText,
+        int Current,
+        int Total,
+        double Percentage,
+        bool IsIndeterminate
+    );
+
     public class DatabaseSyncResult
     {
         public bool Success { get; set; }
+        public bool IsAccessDenied { get; set; }
+        public DatabaseConnectionStatus Status { get; set; } = DatabaseConnectionStatus.Connected;
         public int UploadedCount { get; set; }
         public int SkippedCount { get; set; }
+        public int DeletedLocalCount { get; set; }
+        public long FreedBytes { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public Exception? Exception { get; set; }
+    }
+
+    public class LocalCleanupPreview
+    {
+        public bool Success { get; set; }
+        public int EligibleCount { get; set; }
+        public long TotalBytes { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class LocalCleanupResult
+    {
+        public bool Success { get; set; }
+        public int DeletedCount { get; set; }
+        public long FreedBytes { get; set; }
         public string Message { get; set; } = string.Empty;
         public Exception? Exception { get; set; }
     }
@@ -30,6 +59,8 @@ namespace SMU_Revamp.Services
         public bool IsSyncing { get; private set; }
 
         public event Action<DatabaseSyncResult>? SyncCompleted;
+        public event Action<DatabaseSyncProgress>? SyncProgressChanged;
+        public event Action<bool>? SyncStateChanged;
 
         private DatabaseSyncService() { }
 
@@ -63,6 +94,14 @@ namespace SMU_Revamp.Services
             }, null, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(30));
         }
 
+        private void ReportProgress(string text, int current, int total, bool isIndeterminate, IProgress<string>? progress)
+        {
+            double percentage = total > 0 ? Math.Clamp((double)current / total * 100.0, 0.0, 100.0) : 0.0;
+            var p = new DatabaseSyncProgress(text, current, total, percentage, isIndeterminate);
+            SyncProgressChanged?.Invoke(p);
+            progress?.Report(text);
+        }
+
         public async Task<DatabaseSyncResult> SyncNowAsync(IProgress<string>? progress = null)
         {
             if (!await _syncLock.WaitAsync(100))
@@ -75,7 +114,8 @@ namespace SMU_Revamp.Services
             }
 
             IsSyncing = true;
-            progress?.Report("Checking database connection...");
+            SyncStateChanged?.Invoke(true);
+            ReportProgress("Checking database connection...", 0, 0, true, progress);
 
             try
             {
@@ -85,31 +125,45 @@ namespace SMU_Revamp.Services
                     var noAddrResult = new DatabaseSyncResult
                     {
                         Success = false,
+                        Status = DatabaseConnectionStatus.ConfigurationMissing,
                         Message = "Database address is not configured."
                     };
+                    ReportProgress(noAddrResult.Message, 0, 0, false, progress);
                     SyncCompleted?.Invoke(noAddrResult);
                     return noAddrResult;
                 }
 
                 // 1. Connection Health Check
-                bool isConnected = await DatabaseService.Instance.TestConnectionAsync(
+                var connResult = await DatabaseService.Instance.TestConnectionDetailedAsync(
                     config.DbAddress, config.DbUser, config.DbPassword, config.DbName);
 
-                if (!isConnected)
+                if (!connResult.Success)
                 {
+                    bool isAccessDenied = connResult.Status == DatabaseConnectionStatus.AccessDenied;
+                    string message = connResult.Status switch
+                    {
+                        DatabaseConnectionStatus.AccessDenied => $"Database Access Denied ({config.DbAddress}): {connResult.Message}",
+                        DatabaseConnectionStatus.ConfigurationMissing => $"Database configuration missing: {connResult.Message}",
+                        DatabaseConnectionStatus.Offline => $"Database server offline or unreachable ({config.DbAddress}): {connResult.Message}",
+                        _ => $"Database error ({config.DbAddress}): {connResult.Message}"
+                    };
+
                     var failResult = new DatabaseSyncResult
                     {
                         Success = false,
-                        Message = $"Database offline ({config.DbAddress}). Sync deferred."
+                        Status = connResult.Status,
+                        IsAccessDenied = isAccessDenied,
+                        Message = message
                     };
+                    ReportProgress(message, 0, 0, false, progress);
                     SyncCompleted?.Invoke(failResult);
                     return failResult;
                 }
 
-                progress?.Report("Querying existing database measurements...");
+                ReportProgress("Querying existing database measurements...", 0, 0, true, progress);
                 var existingKeys = await DatabaseService.Instance.GetExistingMeasurementKeysAsync();
 
-                progress?.Report("Scanning local measurement folders...");
+                ReportProgress("Scanning local measurement folders...", 0, 0, true, progress);
                 var localFiles = DiscoverLocalMeasurementFiles();
 
                 int uploadedCount = 0;
@@ -117,6 +171,11 @@ namespace SMU_Revamp.Services
 
                 int total = localFiles.Count;
                 int current = 0;
+
+                if (total == 0)
+                {
+                    ReportProgress("No local measurement files found to sync.", 0, 0, false, progress);
+                }
 
                 foreach (var fileInfo in localFiles)
                 {
@@ -127,10 +186,11 @@ namespace SMU_Revamp.Services
                     if (existingKeys.Contains(compositeKey))
                     {
                         skippedCount++;
+                        ReportProgress($"Checked ({current}/{total}): {fileInfo.FileName} (already synced)", current, total, false, progress);
                         continue;
                     }
 
-                    progress?.Report($"Uploading ({current}/{total}): {fileInfo.FileName}...");
+                    ReportProgress($"Uploading ({current}/{total}): {fileInfo.FileName}...", current, total, false, progress);
 
                     try
                     {
@@ -162,20 +222,52 @@ namespace SMU_Revamp.Services
                     }
                 }
 
+                int deletedLocalCount = 0;
+                long freedBytes = 0;
+
+                if (config.AutoCleanupSyncedLocalFiles && config.CleanupRetentionDays > 0)
+                {
+                    ReportProgress("Cleaning up old synchronized local files...", total, total, true, progress);
+                    var cleanupRes = await CleanupSyncedLocalFilesInternalAsync(
+                        config.CleanupRetentionDays,
+                        config.CleanupOnlyWafermaps,
+                        existingKeys,
+                        progress);
+
+                    deletedLocalCount = cleanupRes.DeletedCount;
+                    freedBytes = cleanupRes.FreedBytes;
+                }
+
                 config.LastDatabaseSyncTimestamp = DateTime.Now;
                 await ConfigurationService.Instance.SaveAsync(config);
+
+                string syncSummaryMsg;
+                if (uploadedCount > 0)
+                {
+                    syncSummaryMsg = $"Database sync completed: {uploadedCount} new measurement(s) uploaded ({skippedCount} already in database).";
+                }
+                else
+                {
+                    syncSummaryMsg = $"Database sync completed: All {skippedCount} local measurements are up to date.";
+                }
+
+                if (deletedLocalCount > 0)
+                {
+                    syncSummaryMsg += $" Cleaned up {deletedLocalCount} old local file(s) ({FormatBytes(freedBytes)} freed).";
+                }
 
                 var successResult = new DatabaseSyncResult
                 {
                     Success = true,
+                    Status = DatabaseConnectionStatus.Connected,
                     UploadedCount = uploadedCount,
                     SkippedCount = skippedCount,
-                    Message = uploadedCount > 0 
-                        ? $"Database sync completed: {uploadedCount} new measurement(s) uploaded ({skippedCount} already in database)."
-                        : $"Database sync completed: All {skippedCount} local measurements are up to date."
+                    DeletedLocalCount = deletedLocalCount,
+                    FreedBytes = freedBytes,
+                    Message = syncSummaryMsg
                 };
 
-                progress?.Report(successResult.Message);
+                ReportProgress(successResult.Message, total, total, false, progress);
                 SyncCompleted?.Invoke(successResult);
                 return successResult;
             }
@@ -184,17 +276,270 @@ namespace SMU_Revamp.Services
                 var errorResult = new DatabaseSyncResult
                 {
                     Success = false,
+                    Status = DatabaseConnectionStatus.Error,
                     Message = $"Database sync error: {ex.Message}",
                     Exception = ex
                 };
-                progress?.Report(errorResult.Message);
+                ReportProgress(errorResult.Message, 0, 0, false, progress);
                 SyncCompleted?.Invoke(errorResult);
                 return errorResult;
             }
             finally
             {
                 IsSyncing = false;
+                SyncStateChanged?.Invoke(false);
                 _syncLock.Release();
+            }
+        }
+
+        public static string FormatBytes(long bytes)
+        {
+            if (bytes < 1024) return $"{bytes} B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+            if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+            return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+        }
+
+        public async Task<LocalCleanupPreview> PreviewLocalCleanupAsync(int retentionDays, bool onlyWafermaps)
+        {
+            try
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                if (string.IsNullOrWhiteSpace(config.DbAddress))
+                {
+                    return new LocalCleanupPreview
+                    {
+                        Success = false,
+                        Message = "Database address is not configured."
+                    };
+                }
+
+                var connResult = await DatabaseService.Instance.TestConnectionDetailedAsync(
+                    config.DbAddress, config.DbUser, config.DbPassword, config.DbName);
+
+                if (!connResult.Success)
+                {
+                    return new LocalCleanupPreview
+                    {
+                        Success = false,
+                        Message = $"Database connection failed: {connResult.Message}"
+                    };
+                }
+
+                var existingKeys = await DatabaseService.Instance.GetExistingMeasurementKeysAsync();
+                var localFiles = DiscoverLocalMeasurementFiles();
+
+                int eligibleCount = 0;
+                long totalBytes = 0;
+                var now = DateTime.Now;
+
+                foreach (var file in localFiles)
+                {
+                    if (onlyWafermaps && !file.IsWafermap) continue;
+                    if ((now - file.Timestamp).TotalDays < retentionDays) continue;
+
+                    string compositeKey = DatabaseService.BuildCompositeKey(
+                        file.ProfileName, file.FolderName, file.FileName);
+
+                    if (existingKeys.Contains(compositeKey))
+                    {
+                        eligibleCount++;
+                        totalBytes += file.FileSizeBytes;
+                    }
+                }
+
+                return new LocalCleanupPreview
+                {
+                    Success = true,
+                    EligibleCount = eligibleCount,
+                    TotalBytes = totalBytes,
+                    Message = eligibleCount > 0
+                        ? $"Found {eligibleCount} file(s) ({FormatBytes(totalBytes)}) ready for cleanup."
+                        : $"No files older than {retentionDays} day(s) eligible for cleanup."
+                };
+            }
+            catch (Exception ex)
+            {
+                return new LocalCleanupPreview
+                {
+                    Success = false,
+                    Message = $"Error previewing cleanup: {ex.Message}"
+                };
+            }
+        }
+
+        public async Task<LocalCleanupResult> CleanupSyncedLocalFilesAsync(
+            int retentionDays, 
+            bool onlyWafermaps, 
+            IProgress<string>? progress = null)
+        {
+            try
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                if (string.IsNullOrWhiteSpace(config.DbAddress))
+                {
+                    return new LocalCleanupResult
+                    {
+                        Success = false,
+                        Message = "Database address is not configured."
+                    };
+                }
+
+                var connResult = await DatabaseService.Instance.TestConnectionDetailedAsync(
+                    config.DbAddress, config.DbUser, config.DbPassword, config.DbName);
+
+                if (!connResult.Success)
+                {
+                    return new LocalCleanupResult
+                    {
+                        Success = false,
+                        Message = $"Database connection failed: {connResult.Message}"
+                    };
+                }
+
+                var existingKeys = await DatabaseService.Instance.GetExistingMeasurementKeysAsync();
+                return await CleanupSyncedLocalFilesInternalAsync(retentionDays, onlyWafermaps, existingKeys, progress);
+            }
+            catch (Exception ex)
+            {
+                return new LocalCleanupResult
+                {
+                    Success = false,
+                    Message = $"Cleanup failed: {ex.Message}",
+                    Exception = ex
+                };
+            }
+        }
+
+        private async Task<LocalCleanupResult> CleanupSyncedLocalFilesInternalAsync(
+            int retentionDays, 
+            bool onlyWafermaps, 
+            HashSet<string> existingKeys, 
+            IProgress<string>? progress = null)
+        {
+            int deletedCount = 0;
+            long freedBytes = 0;
+            var affectedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var now = DateTime.Now;
+
+            var localFiles = DiscoverLocalMeasurementFiles();
+
+            var eligibleFiles = new List<LocalMeasurementFileInfo>();
+            foreach (var file in localFiles)
+            {
+                if (onlyWafermaps && !file.IsWafermap) continue;
+                if ((now - file.Timestamp).TotalDays < retentionDays) continue;
+
+                string compositeKey = DatabaseService.BuildCompositeKey(
+                    file.ProfileName, file.FolderName, file.FileName);
+
+                // ABSOLUTE SAFETY CHECK: Must exist in existingKeys from MySQL!
+                if (existingKeys.Contains(compositeKey))
+                {
+                    eligibleFiles.Add(file);
+                }
+            }
+
+            int totalEligible = eligibleFiles.Count;
+            int current = 0;
+
+            foreach (var file in eligibleFiles)
+            {
+                current++;
+                try
+                {
+                    if (File.Exists(file.FullPath))
+                    {
+                        long size = 0;
+                        try { size = new FileInfo(file.FullPath).Length; } catch { }
+
+                        var dir = Path.GetDirectoryName(file.FullPath);
+                        if (!string.IsNullOrWhiteSpace(dir))
+                        {
+                            affectedDirs.Add(dir);
+                        }
+
+                        File.Delete(file.FullPath);
+                        deletedCount++;
+                        freedBytes += size;
+                        progress?.Report($"Cleaned up ({current}/{totalEligible}): {file.FileName}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[DatabaseSyncService] Failed to delete {file.FullPath}: {ex.Message}");
+                }
+            }
+
+            // Prune empty directories (deepest first)
+            foreach (var dir in affectedDirs.OrderByDescending(d => d.Length))
+            {
+                var stopDir = FindCleanupStopDirectory(dir);
+                PruneEmptyDirectories(dir, stopDir);
+            }
+
+            string msg = deletedCount > 0
+                ? $"Cleaned up {deletedCount} synchronized local file(s) ({FormatBytes(freedBytes)} freed)."
+                : $"No synchronized files older than {retentionDays} day(s) were found to delete.";
+
+            return new LocalCleanupResult
+            {
+                Success = true,
+                DeletedCount = deletedCount,
+                FreedBytes = freedBytes,
+                Message = msg
+            };
+        }
+
+        private static string FindCleanupStopDirectory(string dir)
+        {
+            var current = new DirectoryInfo(dir);
+            while (current != null)
+            {
+                if (string.Equals(current.Name, "Wafermaps", StringComparison.OrdinalIgnoreCase))
+                {
+                    return current.FullName;
+                }
+                if (string.Equals(current.Parent?.Name, "SMU_Measurements", StringComparison.OrdinalIgnoreCase))
+                {
+                    return current.FullName; // Profile directory
+                }
+                current = current.Parent;
+            }
+            return dir;
+        }
+
+        private static void PruneEmptyDirectories(string dirPath, string stopAtDir)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(dirPath) || !Directory.Exists(dirPath)) return;
+
+                string normalizedDirPath = Path.GetFullPath(dirPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string normalizedStopDir = Path.GetFullPath(stopAtDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+                if (string.Equals(normalizedDirPath, normalizedStopDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                // If not empty, do not delete
+                if (Directory.EnumerateFileSystemEntries(dirPath).Any())
+                {
+                    return;
+                }
+
+                Directory.Delete(dirPath, false);
+
+                var parent = Path.GetDirectoryName(dirPath);
+                if (!string.IsNullOrWhiteSpace(parent))
+                {
+                    PruneEmptyDirectories(parent, stopAtDir);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[DatabaseSyncService] Failed to prune empty directory {dirPath}: {ex.Message}");
             }
         }
 
@@ -205,6 +550,9 @@ namespace SMU_Revamp.Services
             public string SampleName { get; set; } = string.Empty;
             public string FolderName { get; set; } = string.Empty;
             public string FileName { get; set; } = string.Empty;
+            public bool IsWafermap { get; set; }
+            public DateTime Timestamp { get; set; } = DateTime.Now;
+            public long FileSizeBytes { get; set; }
         }
 
         private List<LocalMeasurementFileInfo> DiscoverLocalMeasurementFiles()
@@ -212,11 +560,34 @@ namespace SMU_Revamp.Services
             var results = new List<LocalMeasurementFileInfo>();
             var seenFullPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            string[] basePaths = new[]
+            var basePaths = new List<string>();
+
+            void TryAddBasePath(string? path)
             {
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                AppDomain.CurrentDomain.BaseDirectory
-            };
+                if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path) && !basePaths.Contains(path, StringComparer.OrdinalIgnoreCase))
+                {
+                    basePaths.Add(path);
+                }
+            }
+
+            try { TryAddBasePath(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)); } catch { }
+            try { TryAddBasePath(AppDomain.CurrentDomain.BaseDirectory); } catch { }
+            try { TryAddBasePath(AppContext.BaseDirectory); } catch { }
+            try { TryAddBasePath(Directory.GetCurrentDirectory()); } catch { }
+
+            try
+            {
+                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (!string.IsNullOrWhiteSpace(userProfile) && Directory.Exists(userProfile))
+                {
+                    TryAddBasePath(Path.Combine(userProfile, "Documents"));
+                    TryAddBasePath(Path.Combine(userProfile, "OneDrive", "Documents"));
+                    TryAddBasePath(userProfile);
+                }
+            }
+            catch { }
+
+            try { TryAddBasePath(Environment.GetFolderPath(Environment.SpecialFolder.Desktop)); } catch { }
 
             foreach (var basePath in basePaths)
             {
@@ -231,67 +602,121 @@ namespace SMU_Revamp.Services
                         string profileName = Path.GetFileName(profileDir);
                         if (string.IsNullOrWhiteSpace(profileName)) continue;
 
-                        // 1. Check Wafermaps: SMU_Measurements/<Profile>/Wafermaps/<DeviceName>/<FolderName>/*.csv
-                        string wafermapsRoot = Path.Combine(profileDir, "Wafermaps");
-                        if (Directory.Exists(wafermapsRoot))
+                        string[] allCsvFiles;
+                        try
                         {
-                            var deviceDirs = Directory.GetDirectories(wafermapsRoot);
-                            foreach (var devDir in deviceDirs)
-                            {
-                                string devName = Path.GetFileName(devDir);
-                                var scanDirs = Directory.GetDirectories(devDir);
-                                foreach (var scanDir in scanDirs)
-                                {
-                                    string folderName = Path.GetFileName(scanDir);
-                                    var csvFiles = Directory.GetFiles(scanDir, "*.csv");
-                                    foreach (var file in csvFiles)
-                                    {
-                                        if (seenFullPaths.Add(file))
-                                        {
-                                            results.Add(new LocalMeasurementFileInfo
-                                            {
-                                                FullPath = file,
-                                                ProfileName = profileName,
-                                                SampleName = devName,
-                                                FolderName = folderName,
-                                                FileName = Path.GetFileName(file)
-                                            });
-                                        }
-                                    }
-                                }
-                            }
+                            allCsvFiles = Directory.GetFiles(profileDir, "*.csv", SearchOption.AllDirectories);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[DatabaseSyncService] Failed to get files in {profileDir}: {ex.Message}");
+                            continue;
                         }
 
-                        // 2. Check Standard Measurement Folders: SMU_Measurements/<Profile>/<FolderName>/*.csv
-                        var directSubDirs = Directory.GetDirectories(profileDir);
-                        foreach (var subDir in directSubDirs)
+                        foreach (var file in allCsvFiles)
                         {
-                            string folderName = Path.GetFileName(subDir);
-                            if (folderName.Equals("Wafermaps", StringComparison.OrdinalIgnoreCase)) continue;
+                            if (!seenFullPaths.Add(file)) continue;
 
-                            var csvFiles = Directory.GetFiles(subDir, "*.csv");
-                            foreach (var file in csvFiles)
+                            string relPath = Path.GetRelativePath(profileDir, file);
+                            string[] segments = relPath.Split(
+                                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, 
+                                StringSplitOptions.RemoveEmptyEntries);
+
+                            string sampleName = "Empty Device";
+                            string folderName = "General";
+
+                            if (segments.Length <= 1)
                             {
-                                if (seenFullPaths.Add(file))
+                                // SMU_Measurements/<Profile>/file.csv
+                                folderName = "General";
+                                sampleName = "Empty Device";
+                            }
+                            else if (segments.Length == 2)
+                            {
+                                // SMU_Measurements/<Profile>/<FolderName>/file.csv
+                                if (segments[0].Equals("Wafermaps", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    // Extract device name from folder or filename if available
-                                    string sampleName = folderName;
-                                    int underscoreIdx = folderName.LastIndexOf('_');
-                                    if (underscoreIdx > 0 && folderName.Length - underscoreIdx == 9) // e.g. "DeviceA_20260818"
-                                    {
-                                        sampleName = folderName.Substring(0, underscoreIdx);
-                                    }
-
-                                    results.Add(new LocalMeasurementFileInfo
-                                    {
-                                        FullPath = file,
-                                        ProfileName = profileName,
-                                        SampleName = string.IsNullOrWhiteSpace(sampleName) ? "Empty Device" : sampleName,
-                                        FolderName = folderName,
-                                        FileName = Path.GetFileName(file)
-                                    });
+                                    folderName = "Wafermaps";
+                                    sampleName = "Empty Device";
+                                }
+                                else
+                                {
+                                    folderName = segments[0];
+                                    sampleName = ExtractSampleName(folderName);
                                 }
                             }
+                            else if (segments.Length == 3)
+                            {
+                                if (segments[0].Equals("Wafermaps", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // SMU_Measurements/<Profile>/Wafermaps/<ScanOrDevice>/file.csv
+                                    if (segments[1].StartsWith("Scan_", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        sampleName = "Empty Device";
+                                        folderName = segments[1];
+                                    }
+                                    else
+                                    {
+                                        sampleName = segments[1];
+                                        folderName = segments[1];
+                                    }
+                                }
+                                else
+                                {
+                                    // SMU_Measurements/<Profile>/<DeviceName>/<FolderName>/file.csv
+                                    sampleName = segments[0];
+                                    folderName = segments[1];
+                                }
+                            }
+                            else // segments.Length >= 4
+                            {
+                                if (segments[0].Equals("Wafermaps", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // SMU_Measurements/<Profile>/Wafermaps/<DeviceName>/<FolderName>/.../file.csv
+                                    sampleName = segments[1];
+                                    folderName = segments[2];
+                                }
+                                else
+                                {
+                                    sampleName = segments[0];
+                                    folderName = segments[1];
+                                }
+                            }
+
+                            if (string.IsNullOrWhiteSpace(sampleName))
+                            {
+                                sampleName = "Empty Device";
+                            }
+
+                            bool isWafermap = (segments.Length > 0 && segments[0].Equals("Wafermaps", StringComparison.OrdinalIgnoreCase)) ||
+                                              file.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }).Any(s => s.Equals("Wafermaps", StringComparison.OrdinalIgnoreCase));
+
+                            DateTime fileTimestamp = File.GetLastWriteTime(file);
+                            var filenameNoExt = Path.GetFileNameWithoutExtension(file);
+                            var matchTimestamp = Regex.Match(filenameNoExt, @"_(\d{8}_\d{6})$");
+                            if (matchTimestamp.Success)
+                            {
+                                if (DateTime.TryParseExact(matchTimestamp.Groups[1].Value, "yyyyMMdd_HHmmss",
+                                    System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsedDt))
+                                {
+                                    fileTimestamp = parsedDt;
+                                }
+                            }
+
+                            long fileSize = 0;
+                            try { fileSize = new FileInfo(file).Length; } catch { }
+
+                            results.Add(new LocalMeasurementFileInfo
+                            {
+                                FullPath = file,
+                                ProfileName = profileName,
+                                SampleName = sampleName,
+                                FolderName = folderName,
+                                FileName = Path.GetFileName(file),
+                                IsWafermap = isWafermap,
+                                Timestamp = fileTimestamp,
+                                FileSizeBytes = fileSize
+                            });
                         }
                     }
                 }
@@ -302,6 +727,17 @@ namespace SMU_Revamp.Services
             }
 
             return results;
+        }
+
+        private static string ExtractSampleName(string folderName)
+        {
+            if (string.IsNullOrWhiteSpace(folderName)) return "Empty Device";
+            int underscoreIdx = folderName.LastIndexOf('_');
+            if (underscoreIdx > 0 && folderName.Length - underscoreIdx == 9) // e.g. "DeviceA_20260818"
+            {
+                return folderName.Substring(0, underscoreIdx);
+            }
+            return folderName;
         }
 
         private class ParsedCsvData

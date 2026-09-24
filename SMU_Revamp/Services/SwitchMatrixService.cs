@@ -25,6 +25,13 @@ namespace SMU_Revamp.Services
         private bool _isConnected = false;
         private int _timeoutMilliseconds = 5000;
         private string _resourceString = DefaultResource;
+        private bool _simulationActive;
+        private readonly SemaphoreSlim _ioLock = new(1, 1);
+
+        /// <summary>
+        /// Whether the switch matrix connection is currently simulated in software.
+        /// </summary>
+        public bool IsSimulationActive => _simulationActive;
 
         /// <summary>
         /// Default resource string used by the VB example.
@@ -63,17 +70,39 @@ namespace SMU_Revamp.Services
         {
             try
             {
-                if (_isConnected && _session != null)
+                if (_isConnected && (_session != null || _simulationActive))
                     return;
-                await Task.Run(() => 
+
+                if (ConfigurationService.Instance.GetConfig().SimulationMode)
                 {
-                    _session = CreateSession();
-                    _isConnected = _session != null;
-                });
+                    _simulationActive = true;
+                    _isConnected = true;
+                    LogService.Instance.Info("Switch matrix connected (software simulation).");
+                    return;
+                }
+
+                await _ioLock.WaitAsync();
+                try
+                {
+                    await Task.Run(() => 
+                    {
+                        _session = CreateSession();
+                        _isConnected = _session != null;
+                    });
+                }
+                finally
+                {
+                    _ioLock.Release();
+                }
+
+                LogService.Instance.Info(_isConnected
+                    ? $"Switch matrix connected ({_resourceString})."
+                    : $"Switch matrix connection returned no session ({_resourceString}).");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Error during connect: {ex.Message}");
+                LogService.Instance.Error("Switch matrix connection failed", ex);
                 throw new InvalidOperationException("Failed to connect to Switch Matrix. Check resource string and connection.", ex);
             }
         }
@@ -83,14 +112,27 @@ namespace SMU_Revamp.Services
         /// </summary>
         public async Task DisconnectAsync()
         {
+            if (_simulationActive)
+            {
+                _isConnected = false;
+                return;
+            }
             try
             {
-                await Task.Run(() => 
+                await _ioLock.WaitAsync();
+                try
                 {
-                    _session?.Dispose();
-                    _session = null;
-                    _isConnected = false;
-                });
+                    await Task.Run(() => 
+                    {
+                        _session?.Dispose();
+                        _session = null;
+                        _isConnected = false;
+                    });
+                }
+                finally
+                {
+                    _ioLock.Release();
+                }
             }
             catch (Exception ex)
             {
@@ -104,8 +146,15 @@ namespace SMU_Revamp.Services
         /// </summary>
         public async Task SendWriteCommandAsync(string command)
         {
+            if (_simulationActive)
+            {
+                await Task.CompletedTask;
+                return;
+            }
             if (!IsConnected || _session == null)
                 throw new InvalidOperationException("Not connected to switch matrix.");
+
+            await _ioLock.WaitAsync();
             try
             {
                 await Task.Run(() => _session.RawIO.Write(command + "\n"));
@@ -115,6 +164,10 @@ namespace SMU_Revamp.Services
                 System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Error sending command: {ex.Message}");
                 throw;
             }
+            finally
+            {
+                _ioLock.Release();
+            }
         }
 
         /// <summary>
@@ -122,8 +175,16 @@ namespace SMU_Revamp.Services
         /// </summary>
         public async Task<string> SendReadCommandAsync(string command, int readBufferChars = 50, int postWriteDelayMs = 0)
         {
+            if (_simulationActive)
+            {
+                // Simulated matrix acknowledges queries (e.g. *OPC?) with "1".
+                await Task.Delay(5);
+                return "1";
+            }
             if (!IsConnected || _session == null)
                 throw new InvalidOperationException("Not connected to switch matrix.");
+
+            await _ioLock.WaitAsync();
             try
             {
                 await Task.Run(() => _session.RawIO.Write(command + "\n"));
@@ -137,6 +198,10 @@ namespace SMU_Revamp.Services
             {
                 System.Diagnostics.Debug.WriteLine($"[SwitchMatrixService] Error reading response: {ex.Message}");
                 throw;
+            }
+            finally
+            {
+                _ioLock.Release();
             }
         }
 

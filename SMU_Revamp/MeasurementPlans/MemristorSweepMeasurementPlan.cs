@@ -40,7 +40,7 @@ namespace SMU_Revamp.MeasurementPlans
                 { "ReadingChannel", "1" },
                 { "PositiveVoltage", 1.0 },
                 { "NegativeVoltage", -1.0 },
-                { "PointsPerSweep", 0 },
+                { "PointsPerSweep", 21 },
                 { "Cycles", 1 },
                 { "Compliance", 0.01 },
                 { "AdcSamples", 0 }
@@ -62,7 +62,7 @@ namespace SMU_Revamp.MeasurementPlans
             }
         }
 
-        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             ResultPoints.Clear();
             CycleData.Clear();
@@ -78,6 +78,11 @@ namespace SMU_Revamp.MeasurementPlans
             int cycles = GetParamValueInt("Cycles");
             double compliance = GetParamValueDouble("Compliance");
             int adcSamples = GetParamValueInt("AdcSamples");
+
+            if (pointsCount < 1)
+            {
+                throw new InvalidOperationException("PointsPerSweep must be at least 1.");
+            }
 
             if (cycles < 1) cycles = 1;
 
@@ -142,15 +147,17 @@ namespace SMU_Revamp.MeasurementPlans
             {
                 for (int c = 0; c < cycles; c++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     var currentCycleData = new List<CurvePoint>();
 
                     // PART 1: 0 -> Positive -> 0
-                    var parsedPos = await RunDoubleSweepAsync(smu, channel, readingChannel, 0, posVol, pointsCount, compliance);
+                    var parsedPos = await RunDoubleSweepAsync(smu, channel, readingChannel, 0, posVol, pointsCount, compliance, cancellationToken);
                     currentCycleData.AddRange(parsedPos);
                     ResultPoints.AddRange(parsedPos);
                     
                     // PART 2: 0 -> Negative -> 0
-                    var parsedNeg = await RunDoubleSweepAsync(smu, channel, readingChannel, 0, negVol, pointsCount, compliance);
+                    var parsedNeg = await RunDoubleSweepAsync(smu, channel, readingChannel, 0, negVol, pointsCount, compliance, cancellationToken);
                     currentCycleData.AddRange(parsedNeg);
                     ResultPoints.AddRange(parsedNeg);
 
@@ -168,13 +175,24 @@ namespace SMU_Revamp.MeasurementPlans
                 }
                 progress?.Report(100);
             }
+            catch (OperationCanceledException)
+            {
+                // AB interrupts an active staircase sweep before the cleanup below.
+                try { await smu.SendCommandAsync("AB"); } catch { }
+                throw;
+            }
             finally
             {
                 cts.Cancel();
+
+                // Always disable the source output and turn the channels off so the
+                // DUT is not left being sourced after success or failure.
+                try { await smu.SendCommandAsync("DZ"); } catch { }
+                try { await smu.SendCommandAsync(readingChannel == channel ? $"CL {channel}" : $"CL {channel},{readingChannel}"); } catch { }
             }
         }
 
-        private async Task<List<CurvePoint>> RunDoubleSweepAsync(E5263_SMU smu, string channel, string readingChannel, double start, double stop, int pointsCount, double compliance)
+        private async Task<List<CurvePoint>> RunDoubleSweepAsync(E5263_SMU smu, string channel, string readingChannel, double start, double stop, int pointsCount, double compliance, CancellationToken cancellationToken = default)
         {
             var wvCommand = System.FormattableString.Invariant($"WV {channel},3,0,{start},{stop},{pointsCount},{compliance}");
             await smu.SendCommandAsync(wvCommand);
@@ -192,13 +210,13 @@ namespace SMU_Revamp.MeasurementPlans
             await smu.SendCommandAsync("TSQ");
 
             int expectedBufferLength = pointsCount * 2 * 32 + 200;
-            string rawData = await smu.ReadResponseAsync(expectedBufferLength);
-            string tsqResponse = await smu.ReadResponseAsync(50); // Clear TSQ
+            string rawData = await smu.ReadResponseAsync(expectedBufferLength, cancellationToken);
+            string tsqResponse = await smu.ReadResponseAsync(50, cancellationToken); // Clear TSQ
 
             return ParseDoubleSweepData(rawData, start, stop, pointsCount, channel, readingChannel);
         }
 
-        private List<CurvePoint> ParseDoubleSweepData(string rawData, double sweepStart, double sweepStop, int pointsCount, string channel, string readingChannel)
+        internal List<CurvePoint> ParseDoubleSweepData(string rawData, double sweepStart, double sweepStop, int pointsCount, string channel, string readingChannel)
         {
             var points = new List<CurvePoint>();
             if (string.IsNullOrWhiteSpace(rawData)) return points;
@@ -226,26 +244,34 @@ namespace SMU_Revamp.MeasurementPlans
             int count = parsedCurrents.Count;
             if (count == 0) return points;
 
+            int expectedTotal = pointsCount * 2;
+            if (expectedTotal > 0 && count != expectedTotal)
+            {
+                var warn = $"[Memristor Sweep] Warning: received {count} points, expected {expectedTotal}. " +
+                           "The instrument likely stopped early (compliance?). Mapping the voltage axis to the received prefix.";
+                Console.WriteLine(warn);
+                System.Diagnostics.Debug.WriteLine(warn);
+            }
+
             bool invertCurrent = readingChannel != channel;
 
-            // Generate voltage points for double sweep
-            int halfPoints = (count + 1) / 2;
+            // Split by INDEX against the requested half-count: indices below
+            // pointsCount belong to the ascending ramp, the rest to the descending
+            // one. A compliance-truncated response is an ordered prefix, so every
+            // received point keeps its true voltage (no stretching).
+            int n = Math.Max(pointsCount, 1);
             for (int i = 0; i < count; i++)
             {
                 double v;
-                if (i < halfPoints)
+                if (i < n)
                 {
-                    v = sweepStart;
-                    if (halfPoints > 1)
-                        v = sweepStart + i * (sweepStop - sweepStart) / (halfPoints - 1);
+                    v = n > 1 ? sweepStart + i * (sweepStop - sweepStart) / (n - 1) : sweepStart;
                 }
                 else
                 {
-                    v = sweepStop;
-                    if (halfPoints > 1)
-                        v = sweepStop - (i - halfPoints) * (sweepStop - sweepStart) / (halfPoints - 1);
+                    v = n > 1 ? sweepStop - (i - n) * (sweepStop - sweepStart) / (n - 1) : sweepStop;
                 }
-                
+
                 double current = invertCurrent ? -parsedCurrents[i] : parsedCurrents[i];
                 points.Add(new CurvePoint(v, current));
             }

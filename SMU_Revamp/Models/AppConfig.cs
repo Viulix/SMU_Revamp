@@ -16,6 +16,12 @@ public class AppConfig
     public bool ShowAlignmentWarning { get; set; } = true;
 
     /// <summary>
+    /// Runs all instrument connections (SMU, prober, switch matrix) in software
+    /// simulation instead of talking to real hardware.
+    /// </summary>
+    public bool SimulationMode { get; set; } = false;
+
+    /// <summary>
     /// Prober GPIB resource string.
     /// </summary>
     public string ProberResource { get; set; } = "GPIB0::22::INSTR";
@@ -129,6 +135,21 @@ public class AppConfig
     /// Timestamp of last successful database synchronization.
     /// </summary>
     public System.DateTime? LastDatabaseSyncTimestamp { get; set; }
+
+    /// <summary>
+    /// Flag to automatically clean up old local measurement files that are verified to be synced to the database.
+    /// </summary>
+    public bool AutoCleanupSyncedLocalFiles { get; set; } = false;
+
+    /// <summary>
+    /// Number of days to retain local measurement files before they become eligible for cleanup.
+    /// </summary>
+    public int CleanupRetentionDays { get; set; } = 30;
+
+    /// <summary>
+    /// If true, only cleans up wafermap measurements (preserving individual measurement sessions).
+    /// </summary>
+    public bool CleanupOnlyWafermaps { get; set; } = true;
 
     /// <summary>
     /// MySQL Database IP/Address.

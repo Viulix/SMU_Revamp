@@ -14,6 +14,8 @@ The `AppConfig` class acts as the data structure for all settings. It includes:
 *   **Database Settings:** `DbAddress`, `DbUser`, `DbPassword`, `DbName`.
 *   **Hardware Settings:** Default compliance limits (`SweepCompliance`) or channels (`SweepChannel`).
 *   **Measurement Presets:** A global list of `MeasurementPreset` objects that store saved configurations for different measurement plans.
+*   **Simulation:** `SimulationMode` runs all instrument connections (SMU, prober, switch matrix) in software — see [Simulation_Mode.md](Simulation_Mode.md).
+*   **UI Behaviour:** `ShowAlignmentWarning` toggles the wafer-scan alignment confirmation dialog; `AutoSaveMeasurements` controls automatic CSV export.
 
 ## Loading and Saving
 

@@ -127,10 +127,10 @@ namespace SMU_Revamp.ViewModels
             StatusMessage = "Loading measurements from database...";
             try
             {
-                var list = await _dbService.GetRecentMeasurementsAsync(1000);
+                var list = await _dbService.GetRecentMeasurementsAsync(300);
                 
                 var roots = new ObservableCollection<DbNode>();
-                var byProfile = list.GroupBy(m => m.ProfileName).OrderBy(g => g.Key);
+                var byProfile = list.GroupBy(m => m.ProfileName).OrderBy(g => g.Key).ToList();
                 foreach (var profileGroup in byProfile)
                 {
                     var profileNode = new DbNode { Header = string.IsNullOrEmpty(profileGroup.Key) ? "Unknown User" : profileGroup.Key };
@@ -180,7 +180,9 @@ namespace SMU_Revamp.ViewModels
                 }
 
                 RootNodes = roots;
-                StatusMessage = $"Loaded {list.Count} measurements.";
+                StatusMessage = byProfile.Count > 0
+                    ? $"Loaded {list.Count} measurements across {byProfile.Count} profile(s)."
+                    : "No measurements found in database.";
             }
             catch (Exception ex)
             {

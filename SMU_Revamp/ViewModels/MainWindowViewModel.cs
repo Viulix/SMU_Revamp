@@ -422,6 +422,16 @@ public partial class MainWindowViewModel : ViewModelBase
                 (ScanWaferCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (RequestStopScanCommand as RelayCommand)?.NotifyCanExecuteChanged();
                 (RunMeasurementCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (StopMeasurementCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                (GoToContactCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (MoveRelativeCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (MoveAbsoluteCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (GoToScanStartCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (DisconnectRouteCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (ClearAllMatrixCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (ToggleScanPauseCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(IsMeasuringSingle));
+                NotifyStartQueueCanExecuteChanged();
                 NotifyGlobalProgressPropertiesChanged();
             }
         }
@@ -580,6 +590,49 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private System.Threading.CancellationTokenSource? _scanCts;
 
+    private Services.AsyncPauseGate? _scanPauseGate;
+
+    private bool _isScanPaused;
+    public bool IsScanPaused
+    {
+        get => _isScanPaused;
+        private set
+        {
+            if (SetProperty(ref _isScanPaused, value))
+            {
+                OnPropertyChanged(nameof(ScanPauseButtonText));
+                (ToggleScanPauseCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>Label for the pause/resume toggle button.</summary>
+    public string ScanPauseButtonText => IsScanPaused ? "Resume Scan" : "Pause Scan";
+
+    private System.Threading.CancellationTokenSource? _settingsSaveDebounceCts;
+
+    private static readonly TimeSpan SettingsSaveDebounceDelay = TimeSpan.FromMilliseconds(400);
+
+    private async Task DebouncedSaveSettingsAsync(System.Threading.CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(SettingsSaveDebounceDelay, token);
+            token.ThrowIfCancellationRequested();
+
+            await Task.Run(() => ConfigurationService.Instance.Save(ConfigurationService.Instance.GetConfig()));
+            await RefreshExistingDeviceNamesAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer keystroke superseded this save.
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Debounced settings save failed: {ex.Message}");
+        }
+    }
+
     private double _moveX;
     public double MoveX
     {
@@ -620,13 +673,6 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         get => _isAlignmentWarningVisible;
         set => SetProperty(ref _isAlignmentWarningVisible, value);
-    }
-
-    private bool _dontShowAlignmentWarning;
-    public bool DontShowAlignmentWarning
-    {
-        get => _dontShowAlignmentWarning;
-        set => SetProperty(ref _dontShowAlignmentWarning, value);
     }
 
     public ICommand CloseErrorPopupCommand { get; }
@@ -686,13 +732,19 @@ public partial class MainWindowViewModel : ViewModelBase
         get => _selectedPreset;
         set
         {
-            if (SetProperty(ref _selectedPreset, value))
+            if (!SetProperty(ref _selectedPreset, value)) return;
+
+            NotifyDurationPropertiesChanged();
+            if (value == null) return;
+
+            // Re-entrant assignments (e.g. LoadAvailablePresets restoring the same
+            // preset under a new instance while one is being applied) must not
+            // re-apply parameters or corrupt the loading guard.
+            if (_isLoadingPreset) return;
+
+            _isLoadingPreset = true;
+            try
             {
-                NotifyDurationPropertiesChanged();
-                if (value != null)
-                {
-                _isLoadingPreset = true;
-                
                 // 1. Switch the plan if needed
                 if (!string.IsNullOrEmpty(value.PlanName) && (SelectedPlan == null || SelectedPlan.Name != value.PlanName))
                 {
@@ -702,7 +754,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         SelectedPlan = targetPlan;
                     }
                 }
-                
+
                 // 2. Load the parameter values for the active plan
                 if (SelectedPlan != null)
                 {
@@ -729,15 +781,13 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
                 // Save immediately when preset is loaded so the new config becomes the "last" config
                 _ = SaveSettingsAndConfigurationAsync();
-                
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                {
-                    _isLoadingPreset = false;
-                });
+            }
+            finally
+            {
+                _isLoadingPreset = false;
             }
         }
     }
-}
 
     private string _newPresetName = string.Empty;
     public string NewPresetName
@@ -825,7 +875,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (string.IsNullOrWhiteSpace(NewPresetName))
             {
                 IsPresetNameInvalid = true;
-                PresetNameErrorMessage = "Bitte geben Sie einen Preset-Namen ein.";
+                PresetNameErrorMessage = "Please enter a preset name.";
                 return;
             }
             
@@ -892,12 +942,13 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedPlan = MeasurementPlans.Count > 0 ? MeasurementPlans.Find(p => p.Name == "Measure Point") ?? MeasurementPlans[0] : null!;
         PlottedPlan = null;
 
-        GoToContactCommand = new AsyncRelayCommand(GoToContactAsync);
+        GoToContactCommand = new AsyncRelayCommand(GoToContactAsync, () => !IsScanningWafer && !IsQueueRunning);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAndConfigurationAsync);
-        RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync, () => !IsScanningWafer && !IsMeasuring);
-        MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync);
-        MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync);
-        GoToScanStartCommand = new AsyncRelayCommand(GoToScanStartAsync);
+        RunMeasurementCommand = new AsyncRelayCommand(RunMeasurementAsync, () => !IsScanningWafer && !IsMeasuring && !IsQueueRunning);
+        StopMeasurementCommand = new RelayCommand(StopMeasurement, () => IsMeasuringSingle);
+        MoveRelativeCommand = new AsyncRelayCommand(MoveRelativeAsync, () => !IsScanningWafer && !IsQueueRunning);
+        MoveAbsoluteCommand = new AsyncRelayCommand(MoveAbsoluteAsync, () => !IsScanningWafer && !IsQueueRunning);
+        GoToScanStartCommand = new AsyncRelayCommand(GoToScanStartAsync, () => !IsScanningWafer && !IsQueueRunning);
         
         SelectAllCellsCommand = new RelayCommand(() => 
         {
@@ -934,6 +985,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RequestStopScanCommand = new RelayCommand(() => IsCancelPromptVisible = true, () => IsScanningWafer);
         ConfirmStopScanCommand = new RelayCommand(ConfirmStopWaferScan);
         CancelStopRequestCommand = new RelayCommand(() => IsCancelPromptVisible = false);
+        ToggleScanPauseCommand = new RelayCommand(ToggleScanPause, () => IsScanningWafer);
         ToggleWaferScanGuideCommand = new RelayCommand(() => IsWaferScanGuideVisible = !IsWaferScanGuideVisible);
 
         CloseErrorPopupCommand = new RelayCommand(() => IsErrorPopupVisible = false);
@@ -956,42 +1008,96 @@ public partial class MainWindowViewModel : ViewModelBase
             MemristorWeightSmoothness = 0.05;
         });
 
-        LoadScanFolderCommand = new AsyncRelayCommand(async () =>
-        {
-            var topLevel = Avalonia.Controls.TopLevel.GetTopLevel(new Avalonia.Controls.Window()); // Will inject topLevel dynamically from UI or pass the path.
-            // Wait, we can't do this easily from ViewModel. We should do it from UI code-behind.
-            // Or better, let's keep it in MainWindow.axaml.cs.
-        });
-
         LoadConfigState();
 
-        // Auto-save settings when Profile or SampleName changes
-        Settings.PropertyChanged += async (s, e) =>
+        // Auto-save settings when Profile or SampleName changes.
+        // Debounced so typing does not trigger a disk write per keystroke,
+        // with the actual I/O moved off the UI thread.
+        Settings.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(SettingsViewModel.Profile) || e.PropertyName == nameof(SettingsViewModel.SampleName))
             {
-                await ConfigurationService.Instance.SaveAsync(ConfigurationService.Instance.GetConfig());
-                RefreshExistingDeviceNames();
+                _settingsSaveDebounceCts?.Cancel();
+                _settingsSaveDebounceCts?.Dispose();
+                _settingsSaveDebounceCts = new System.Threading.CancellationTokenSource();
+                _ = DebouncedSaveSettingsAsync(_settingsSaveDebounceCts.Token);
             }
         };
 
-        DisconnectRouteCommand = new AsyncRelayCommand(DisconnectRouteAsync);
-        ClearAllMatrixCommand = new AsyncRelayCommand(ClearAllMatrixAsync);
+        DisconnectRouteCommand = new AsyncRelayCommand(DisconnectRouteAsync, () => !IsScanningWafer && !IsQueueRunning);
+        ClearAllMatrixCommand = new AsyncRelayCommand(ClearAllMatrixAsync, () => !IsScanningWafer && !IsQueueRunning);
 
         SyncDatabaseCommand = new AsyncRelayCommand(SyncDatabaseAsync);
         DatabaseSyncService.Instance.SyncCompleted += OnDatabaseSyncCompleted;
+        DatabaseSyncService.Instance.SyncProgressChanged += OnDatabaseSyncProgressChanged;
+        DatabaseSyncService.Instance.SyncStateChanged += OnDatabaseSyncStateChanged;
+
+        // Surface compliance truncation warnings (logged by the sweep plan
+        // parsers) as visible notifications instead of log-only entries.
+        LogService.Instance.EntryLogged += OnLogEntryLogged;
 
         InitializeWaferCells();
         InitializeSubCells();
         SubscribeToWaferMapChanges();
 
-        ScanWaferCommand = new AsyncRelayCommand(StartWaferScanAsync, () => !IsScanningWafer);
+        ScanWaferCommand = new AsyncRelayCommand(StartWaferScanAsync, () => !IsScanningWafer && !IsQueueRunning);
+
+        InitializeQueueCommands();
+    }
+
+    /// <summary>
+    /// Matches sweep truncation warnings emitted by the plan parsers so they
+    /// can be surfaced as UI notifications.
+    /// </summary>
+    internal static bool IsComplianceTruncationWarning(LogLevel level, string message)
+    {
+        return level == LogLevel.Warning
+               && message.Contains("compliance", StringComparison.OrdinalIgnoreCase)
+               && message.Contains("expected", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void OnLogEntryLogged(LogLevel level, string message)
+    {
+        if (!IsComplianceTruncationWarning(level, message)) return;
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            NotificationRequested?.Invoke("Compliance", message, null, Avalonia.Controls.Notifications.NotificationType.Warning);
+        });
+    }
+
+    private void OnDatabaseSyncProgressChanged(DatabaseSyncProgress progress)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            DbSyncProgressText = progress.Total > 0 && !progress.IsIndeterminate
+                ? $"Syncing ({progress.Current}/{progress.Total})..."
+                : progress.StatusText;
+            OnPropertyChanged(nameof(DbSyncWarningBadgeText));
+        });
+    }
+
+    private void OnDatabaseSyncStateChanged(bool isSyncing)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            IsSyncingDatabase = isSyncing;
+            if (isSyncing)
+            {
+                DbSyncProgressText = "Syncing database...";
+                OnPropertyChanged(nameof(DbSyncWarningBadgeText));
+                OnPropertyChanged(nameof(IsDbSyncBadgeVisible));
+            }
+        });
     }
 
     private void OnDatabaseSyncCompleted(DatabaseSyncResult result)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
+            IsSyncingDatabase = false;
+            LastSyncStatus = result.Status;
+
             if (!result.Success)
             {
                 IsDbSyncWarningVisible = true;
@@ -1002,13 +1108,28 @@ public partial class MainWindowViewModel : ViewModelBase
                 IsDbSyncWarningVisible = false;
                 DbSyncWarningTooltip = string.Empty;
             }
+            OnPropertyChanged(nameof(DbSyncWarningBadgeText));
+            OnPropertyChanged(nameof(IsDbSyncBadgeVisible));
         });
     }
 
     public async Task SyncDatabaseAsync()
     {
+        if (IsSyncingDatabase) return;
+
         MeasurementStatus = "Synchronizing database...";
-        var result = await DatabaseSyncService.Instance.SyncNowAsync();
+        IsSyncingDatabase = true;
+        DbSyncProgressText = "Checking connection...";
+        OnPropertyChanged(nameof(IsDbSyncBadgeVisible));
+
+        var progress = new System.Progress<string>(msg =>
+        {
+            MeasurementStatus = msg;
+        });
+
+        var result = await DatabaseSyncService.Instance.SyncNowAsync(progress);
+        IsSyncingDatabase = false;
+
         if (result.Success)
         {
             MeasurementStatus = result.Message;
@@ -1025,7 +1146,49 @@ public partial class MainWindowViewModel : ViewModelBase
     public bool IsDbSyncWarningVisible
     {
         get => _isDbSyncWarningVisible;
-        set => SetProperty(ref _isDbSyncWarningVisible, value);
+        set
+        {
+            if (SetProperty(ref _isDbSyncWarningVisible, value))
+            {
+                OnPropertyChanged(nameof(IsDbSyncBadgeVisible));
+            }
+        }
+    }
+
+    private bool _isSyncingDatabase;
+    public bool IsSyncingDatabase
+    {
+        get => _isSyncingDatabase;
+        set
+        {
+            if (SetProperty(ref _isSyncingDatabase, value))
+            {
+                OnPropertyChanged(nameof(DbSyncWarningBadgeText));
+                OnPropertyChanged(nameof(IsDbSyncBadgeVisible));
+            }
+        }
+    }
+
+    public bool IsDbSyncBadgeVisible => IsDbSyncWarningVisible || IsSyncingDatabase;
+
+    private string _dbSyncProgressText = "Syncing...";
+    public string DbSyncProgressText
+    {
+        get => _dbSyncProgressText;
+        set => SetProperty(ref _dbSyncProgressText, value);
+    }
+
+    private DatabaseConnectionStatus _lastSyncStatus = DatabaseConnectionStatus.Connected;
+    public DatabaseConnectionStatus LastSyncStatus
+    {
+        get => _lastSyncStatus;
+        set
+        {
+            if (SetProperty(ref _lastSyncStatus, value))
+            {
+                OnPropertyChanged(nameof(DbSyncWarningBadgeText));
+            }
+        }
     }
 
     private string _dbSyncWarningTooltip = string.Empty;
@@ -1035,14 +1198,33 @@ public partial class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _dbSyncWarningTooltip, value);
     }
 
+    public string DbSyncWarningBadgeText
+    {
+        get
+        {
+            if (IsSyncingDatabase)
+            {
+                return DbSyncProgressText;
+            }
+
+            return LastSyncStatus switch
+            {
+                DatabaseConnectionStatus.AccessDenied => "Access Denied",
+                DatabaseConnectionStatus.ConfigurationMissing => "Config Missing",
+                DatabaseConnectionStatus.Offline => "DB Offline",
+                DatabaseConnectionStatus.Error => "DB Error",
+                _ => "Sync Error"
+            };
+        }
+    }
+
     public IAsyncRelayCommand SyncDatabaseCommand { get; }
-    
+
     public ICommand GoToScanStartCommand { get; }
     public ICommand RequestStopScanCommand { get; }
     public ICommand ConfirmStopScanCommand { get; }
     public ICommand CancelStopRequestCommand { get; }
-
-
+    public ICommand ToggleScanPauseCommand { get; }
 
 
 
@@ -1102,7 +1284,10 @@ public partial class MainWindowViewModel : ViewModelBase
             if (SetProperty(ref _isMeasuring, value))
             {
                 OnPropertyChanged(nameof(IsMeasuringSweep));
+                OnPropertyChanged(nameof(IsMeasuringSingle));
                 (RunMeasurementCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                (StopMeasurementCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                NotifyStartQueueCanExecuteChanged();
                 NotifyGlobalProgressPropertiesChanged();
             }
         }
@@ -1145,7 +1330,9 @@ public partial class MainWindowViewModel : ViewModelBase
          SelectedPlan is SpikeTimingMeasurementPlan ||
          SelectedPlan is MemristorSweepMeasurementPlan ||
          SelectedPlan is FrequencyMemoryMeasurementPlan);
+    public bool IsMeasuringSingle => IsMeasuring && !IsScanningWafer && !IsQueueRunning;
     public ICommand RunMeasurementCommand { get; }
+    public ICommand StopMeasurementCommand { get; }
 
 
     /// <summary>
@@ -1513,7 +1700,6 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
 
-    public ICommand LoadScanFolderCommand { get; }
     public ICommand SetSelectedResultCellCommand { get; }
     public ICommand SetSelectedResultSubCellCommand { get; }
     public ICommand ResetMemristorWeightsCommand { get; }
@@ -1835,5 +2021,5 @@ public class ImportedMeasurementPlan : IMeasurementPlan
     public List<CurvePoint> ResultPoints { get; } = new();
 
 
-    public Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null) => Task.CompletedTask; public void LoadDefaults() { }
+    public Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, System.Threading.CancellationToken cancellationToken = default) => Task.CompletedTask; public void LoadDefaults() { }
 }

@@ -24,6 +24,31 @@ namespace SMU_Revamp.Services
         private int _timeoutMilliseconds = 300000; // default 5 minutes for sweep
         private string _resourceString = DefaultResource;
 
+        // Serializes access to the VISA session so concurrent callers (e.g. a
+        // measurement plan and the Device Debug window) cannot interleave a
+        // RawIO write/read at the hardware level. Note: this does not make a
+        // send+read command pair atomic; callers must not query the instrument
+        // concurrently while a plan is mid-transaction.
+        private readonly SemaphoreSlim _ioLock = new(1, 1);
+
+        private readonly SmuSimulator _simulator = new();
+        private bool _simulationActive;
+
+        /// <summary>
+        /// Whether the instrument connection is currently simulated in software.
+        /// </summary>
+        public bool IsSimulationActive => _simulationActive;
+
+        /// <summary>
+        /// Explicitly enables or disables software simulation. When disabled,
+        /// ConnectAsync re-evaluates the SimulationMode configuration flag.
+        /// </summary>
+        public void SetSimulationMode(bool enabled)
+        {
+            _simulationActive = enabled;
+            if (!enabled) _isConnected = false;
+        }
+
         /// <summary>
         /// Default GPIB resource string for E5263 SMU.
         /// </summary>
@@ -60,17 +85,49 @@ namespace SMU_Revamp.Services
         {
             try
             {
-                if (_isConnected && _session != null)
+                if (_isConnected && (_session != null || _simulationActive))
                     return;
-                await Task.Run(() => 
+
+                // Pick up the simulation flag from configuration unless it was
+                // explicitly forced via SetSimulationMode.
+                if (!_simulationActive && ConfigurationService.Instance.GetConfig().SimulationMode)
                 {
-                    _session = CreateSession();
-                    _isConnected = _session != null;
-                });
+                    _simulationActive = true;
+                }
+
+                if (_simulationActive)
+                {
+                    await Task.Run(() =>
+                    {
+                        _simulator.Reset();
+                        _isConnected = true;
+                    });
+                    LogService.Instance.Info("SMU connected (software simulation).");
+                    return;
+                }
+
+                await _ioLock.WaitAsync();
+                try
+                {
+                    await Task.Run(() =>
+                    {
+                        _session = CreateSession();
+                        _isConnected = _session != null;
+                    });
+                }
+                finally
+                {
+                    _ioLock.Release();
+                }
+
+                LogService.Instance.Info(_isConnected
+                    ? $"SMU connected ({_resourceString})."
+                    : $"SMU connection returned no session ({_resourceString}).");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[E5263_SMU] Error during connect: {ex.Message}");
+                LogService.Instance.Error("SMU connection failed", ex);
                 throw new InvalidOperationException("Failed to connect to E5263 SMU. Check resource string and connection.", ex);
             }
         }
@@ -80,18 +137,33 @@ namespace SMU_Revamp.Services
         /// </summary>
         public async Task DisconnectAsync()
         {
+            if (_simulationActive)
+            {
+                _isConnected = false;
+                LogService.Instance.Info("SMU disconnected (software simulation).");
+                return;
+            }
             try
             {
-                await Task.Run(() => 
+                await _ioLock.WaitAsync();
+                try
                 {
-                    _session?.Dispose();
-                    _session = null;
-                    _isConnected = false;
-                });
+                    await Task.Run(() =>
+                    {
+                        _session?.Dispose();
+                        _session = null;
+                        _isConnected = false;
+                    });
+                }
+                finally
+                {
+                    _ioLock.Release();
+                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[E5263_SMU] Error during disconnect: {ex.Message}");
+                LogService.Instance.Warning($"SMU disconnect error: {ex.Message}");
             }
         }
 
@@ -100,48 +172,157 @@ namespace SMU_Revamp.Services
         /// </summary>
         public async Task SendCommandAsync(string command)
         {
+            if (_simulationActive)
+            {
+                await Task.Run(() => _simulator.Execute(command));
+                LogService.Instance.Debug($"SMU >> {LogService.Truncate(command)}");
+                return;
+            }
             if (!IsConnected || _session == null)
                 throw new InvalidOperationException("Not connected to E5263 SMU.");
+            await _ioLock.WaitAsync();
             try
             {
-                await Task.Run(() => _session.RawIO.Write(command + "\n"));
+                var session = _session ?? throw new InvalidOperationException("Not connected to E5263 SMU.");
+                await Task.Run(() => session.RawIO.Write(command + "\n"));
+                LogService.Instance.Debug($"SMU >> {LogService.Truncate(command)}");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[E5263_SMU] Error sending command: {ex.Message}");
                 throw;
             }
+            finally
+            {
+                _ioLock.Release();
+            }
         }
 
         /// <summary>
         /// Reads a response from the SMU.
         /// </summary>
-        public async Task<string> ReadResponseAsync(int readBufferChars = 1024)
+        public async Task<string> ReadResponseAsync(int readBufferChars = 1024, CancellationToken cancellationToken = default)
         {
+            if (_simulationActive)
+            {
+                if (cancellationToken.CanBeCanceled)
+                {
+                    var readSimTask = Task.Run(() => _simulator.Read());
+                    var completed = await Task.WhenAny(readSimTask, Task.Delay(Timeout.Infinite, cancellationToken));
+                    if (completed != readSimTask)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+                    string simResp = await readSimTask;
+                    LogService.Instance.Debug($"SMU << {LogService.Truncate(simResp)}");
+                    return simResp;
+                }
+                string simResponse = await Task.Run(() => _simulator.Read());
+                LogService.Instance.Debug($"SMU << {LogService.Truncate(simResponse)}");
+                return simResponse;
+            }
             if (!IsConnected || _session == null)
                 throw new InvalidOperationException("Not connected to E5263 SMU.");
+            await _ioLock.WaitAsync(cancellationToken);
             try
             {
-                return await Task.Run(() => _session.RawIO.ReadString(readBufferChars));
+                var session = _session ?? throw new InvalidOperationException("Not connected to E5263 SMU.");
+                string response;
+                if (cancellationToken.CanBeCanceled)
+                {
+                    var readTask = Task.Run(() => session.RawIO.ReadString(readBufferChars));
+                    var completed = await Task.WhenAny(readTask, Task.Delay(Timeout.Infinite, cancellationToken));
+                    if (completed != readTask)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+                    response = await readTask;
+                }
+                else
+                {
+                    response = await Task.Run(() => session.RawIO.ReadString(readBufferChars));
+                }
+                LogService.Instance.Debug($"SMU << {LogService.Truncate(response)}");
+                return response;
+            }
+            catch (OperationCanceledException)
+            {
+                try { _session?.Clear(); } catch { }
+                throw;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[E5263_SMU] Error reading response: {ex.Message}");
                 throw;
             }
+            finally
+            {
+                _ioLock.Release();
+            }
         }
 
         /// <summary>
-        /// Sends a command and reads a response.
+        /// Sends a command and reads a response atomically under the VISA session lock.
         /// </summary>
-        public async Task<string> QueryAsync(string command, int readBufferChars = 1024, int postWriteDelayMs = 0)
+        public async Task<string> QueryAsync(string command, int readBufferChars = 1024, int postWriteDelayMs = 0, CancellationToken cancellationToken = default)
         {
-            await SendCommandAsync(command);
-            if (postWriteDelayMs > 0)
+            if (_simulationActive)
             {
-                await Task.Delay(postWriteDelayMs);
+                await Task.Run(() => _simulator.Execute(command));
+                LogService.Instance.Debug($"SMU >> {LogService.Truncate(command)}");
+                if (postWriteDelayMs > 0)
+                {
+                    await Task.Delay(postWriteDelayMs, cancellationToken);
+                }
+                string simResponse = await Task.Run(() => _simulator.Read());
+                LogService.Instance.Debug($"SMU << {LogService.Truncate(simResponse)}");
+                return simResponse;
             }
-            return await ReadResponseAsync(readBufferChars);
+            if (!IsConnected || _session == null)
+                throw new InvalidOperationException("Not connected to E5263 SMU.");
+
+            await _ioLock.WaitAsync(cancellationToken);
+            try
+            {
+                var session = _session ?? throw new InvalidOperationException("Not connected to E5263 SMU.");
+                await Task.Run(() => session.RawIO.Write(command + "\n"));
+                LogService.Instance.Debug($"SMU >> {LogService.Truncate(command)}");
+                if (postWriteDelayMs > 0)
+                {
+                    await Task.Delay(postWriteDelayMs, cancellationToken);
+                }
+                string response;
+                if (cancellationToken.CanBeCanceled)
+                {
+                    var readTask = Task.Run(() => session.RawIO.ReadString(readBufferChars));
+                    var completed = await Task.WhenAny(readTask, Task.Delay(Timeout.Infinite, cancellationToken));
+                    if (completed != readTask)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+                    response = await readTask;
+                }
+                else
+                {
+                    response = await Task.Run(() => session.RawIO.ReadString(readBufferChars));
+                }
+                LogService.Instance.Debug($"SMU << {LogService.Truncate(response)}");
+                return response;
+            }
+            catch (OperationCanceledException)
+            {
+                try { _session?.Clear(); } catch { }
+                throw;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[E5263_SMU] Error during query '{command}': {ex.Message}");
+                throw;
+            }
+            finally
+            {
+                _ioLock.Release();
+            }
         }
 
         public void SetTimeout(int timeoutMilliseconds)
@@ -162,6 +343,12 @@ namespace SMU_Revamp.Services
         /// </summary>
         public async Task<string?> CheckErrorAsync()
         {
+            if (_simulationActive)
+            {
+                // The simulated instrument never reports device errors.
+                await Task.CompletedTask;
+                return null;
+            }
             if (!IsConnected || _session == null)
                 return "Not connected to E5263 SMU.";
             try

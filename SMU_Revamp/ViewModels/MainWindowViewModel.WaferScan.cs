@@ -89,26 +89,31 @@ public partial class MainWindowViewModel
 
             foreach (var c in SubCells)
             {
-            if (!c.IsValid) continue;
-            c.IsSelected = preset.SelectedSubCells.Contains(c.Id);
-        }
-
-        foreach (var c in Contacts)
-        {
-            if (int.TryParse(c.Id, out int cId))
-            {
-                c.IsSelected = preset.SelectedContacts.Contains(cId);
+                if (!c.IsValid) continue;
+                c.IsSelected = preset.SelectedSubCells.Contains(c.Id);
             }
-        }
 
-        foreach (var c in WaferCells)
-        {
-            if (!c.IsValid) continue;
-            c.IsSelected = preset.SelectedWaferCells.Contains(c.Id);
+            foreach (var c in Contacts)
+            {
+                if (int.TryParse(c.Id, out int cId))
+                {
+                    c.IsSelected = preset.SelectedContacts.Contains(cId);
+                }
+            }
+
+            foreach (var c in WaferCells)
+            {
+                if (!c.IsValid) continue;
+                c.IsSelected = preset.SelectedWaferCells.Contains(c.Id);
+            }
+
+            NewWaferScanPresetName = presetName;
+            NotificationRequested?.Invoke("Preset Loaded", $"Wafer scan preset '{presetName}' loaded.", null);
         }
-        
-        NewWaferScanPresetName = presetName;
-        NotificationRequested?.Invoke("Preset Loaded", $"Wafer scan preset '{presetName}' loaded.", null);
+        catch (Exception ex)
+        {
+            NotificationRequested?.Invoke("Error", $"Failed to load wafer scan preset '{presetName}': {ex.Message}", null);
+            System.Diagnostics.Debug.WriteLine($"[WaferScan] Failed to load preset '{presetName}': {ex}");
         }
         finally
         {
@@ -182,19 +187,46 @@ public partial class MainWindowViewModel
         IsDeleteWaferScanPresetWarningVisible = false;
     }
 
+    private void ToggleScanPause()
+    {
+        if (!IsScanningWafer || _scanPauseGate == null) return;
+
+        if (!IsScanPaused)
+        {
+            _scanPauseGate.Pause();
+            IsScanPaused = true;
+            WaferScanLog = "Pausing after the current measurement...";
+            WaferScanLogFontWeight = Avalonia.Media.FontWeight.Bold;
+            LogService.Instance.Info("Wafer scan pause requested (takes effect after the current contact point).");
+        }
+        else
+        {
+            _scanPauseGate.Resume();
+            IsScanPaused = false;
+            WaferScanLog = "Scan resumed.";
+            WaferScanLogFontWeight = Avalonia.Media.FontWeight.Normal;
+            LogService.Instance.Info("Wafer scan resumed.");
+        }
+    }
+
     private async Task GoToScanStartAsync()
     {
         try
         {
             await ProberService.Instance.ConnectAsync();
+            WaferScanLog = "Separating chuck...";
             await ProberService.Instance.DisconnectChuckAsync();
+            await Task.Delay(200);
+            WaferScanLog = "Returning prober to Home position...";
             await ProberService.Instance.ProberGoHomeAsync();
+            WaferScanLog = "Prober at Home position.";
             WaferScanLogFontWeight = Avalonia.Media.FontWeight.Bold;
             IsScanningWafer = false;
         }
         catch (Exception ex)
         {
             WaferScanLog = $"Error moving to start: {ex.Message}";
+            LogService.Instance.Error("Failed moving prober to start position", ex);
         }
     }
 
@@ -282,7 +314,15 @@ public partial class MainWindowViewModel
             return;
         }
 
-        IsAlignmentWarningVisible = true;
+        // Respect the "Show alignment warning" setting (Settings window).
+        if (ConfigurationService.Instance.GetConfig().ShowAlignmentWarning)
+        {
+            IsAlignmentWarningVisible = true;
+        }
+        else
+        {
+            await ExecuteWaferScanAsync();
+        }
     }
 
     private async Task ExecuteWaferScanAsync()
@@ -297,6 +337,13 @@ public partial class MainWindowViewModel
 
         IsScanningWafer = true;
         _scanCts = new System.Threading.CancellationTokenSource();
+        _scanPauseGate = new Services.AsyncPauseGate();
+        IsScanPaused = false;
+
+        int selectedCellCount = WaferCells.Count(c => c.IsValid && c.IsSelected);
+        int selectedSubCellCount = SubCells.Count(c => c.IsValid && c.IsSelected);
+        LogService.Instance.Session(
+            $"Wafer scan started | Cells: {selectedCellCount} | Sub-cells: {selectedSubCellCount} | Contacts: [{string.Join(",", _parsedScanContacts)}] | Delay: {WaferScanDelayMs} ms");
         _currentWaferScanFolderName = $"Scan_{DateTime.Now:yyyyMMdd_HHmmss}";
         WaferScanAccumulatedSeries.Clear();
 
@@ -331,6 +378,8 @@ public partial class MainWindowViewModel
 
             int totalExpectedContacts = _totalExpectedCells * _totalExpectedSubCells * _parsedScanContacts.Count;
             int currentContact = 0;
+            int failedContacts = 0;
+            double totalPausedMs = 0;
             var scanTotalStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             WaferScanCountText = $"0 / {totalExpectedContacts}";
@@ -340,10 +389,19 @@ public partial class MainWindowViewModel
             
             await ProberService.Instance.ScanWaferAsync(targetCells, targetSubCells, _parsedScanContacts, WaferScanDelayMs, async (cell, row, col, contact) =>
             {
+                // Pause gate: hold before starting the next contact point. A stop
+                // request wins over the pause and cancels the scan from here.
+                if (_scanPauseGate is { IsPaused: true })
+                {
+                    WaferScanLog = "Scan paused.";
+                    totalPausedMs += await _scanPauseGate.WaitAsync(_scanCts!.Token);
+                }
+
                 currentContact++;
                 if (currentContact > 1)
                 {
-                    double avgMs = scanTotalStopwatch.Elapsed.TotalMilliseconds / (currentContact - 1);
+                    double activeMs = scanTotalStopwatch.Elapsed.TotalMilliseconds - totalPausedMs;
+                    double avgMs = activeMs / (currentContact - 1);
                     int remaining = Math.Max(0, totalExpectedContacts - currentContact + 1);
                     TimeSpan estimatedRemaining = TimeSpan.FromMilliseconds(avgMs * remaining);
                     DateTime finishTime = DateTime.Now + estimatedRemaining;
@@ -387,47 +445,82 @@ public partial class MainWindowViewModel
                 }
                 catch (Exception measEx)
                 {
+                    failedContacts++;
                     WaferScanLog = $"Warning: Measurement on Cell {cell} R{row}C{col} #{contact} failed: {measEx.Message}";
                     System.Diagnostics.Debug.WriteLine($"[WaferScan] Error on Cell {cell} R{row}C{col} #{contact}: {measEx}");
                 }
                 
                 WaferScanProgress = (double)currentContact / totalExpectedContacts * 100.0;
-                WaferScanCountText = $"{currentContact} / {totalExpectedContacts}";
+                WaferScanCountText = failedContacts > 0
+                    ? $"{currentContact - failedContacts} / {totalExpectedContacts} ({failedContacts} failed)"
+                    : $"{currentContact} / {totalExpectedContacts}";
             }, _scanCts.Token);
 
-            WaferScanLog = "Wafer scan completed.";
+            if (failedContacts > 0)
+            {
+                WaferScanLog = $"Wafer scan finished. {currentContact - failedContacts} / {totalExpectedContacts} contacts measured successfully, {failedContacts} failed.";
+                LogService.Instance.Warning(WaferScanLog);
+            }
+            else
+            {
+                WaferScanLog = "Wafer scan completed.";
+                LogService.Instance.Info(WaferScanLog);
+            }
             WaferScanProgress = 100;
-            WaferScanCountText = $"{totalExpectedContacts} / {totalExpectedContacts}";
+            WaferScanCountText = failedContacts > 0
+                ? $"{currentContact - failedContacts} / {totalExpectedContacts} ({failedContacts} failed)"
+                : $"{totalExpectedContacts} / {totalExpectedContacts}";
         }
         catch (OperationCanceledException)
         {
             WaferScanLog = "Wafer scan canceled.";
+            LogService.Instance.Warning("Wafer scan canceled by user.");
         }
         catch (Exception ex)
         {
             WaferScanLog = $"Error during scan: {ex.Message}";
+            LogService.Instance.Error("Wafer scan failed", ex);
         }
         finally
         {
+            // Tear down any pause state so a scan that ended while paused
+            // cannot leave the gate or UI flag stuck.
+            _scanPauseGate?.Resume();
+            _scanPauseGate = null;
+            IsScanPaused = false;
+
             WaferScanLog = "Separating chuck...";
+            bool separationSucceeded = false;
             try 
             {
                 await ProberService.Instance.DisconnectChuckAsync();
                 await Task.Delay(200);
+                separationSucceeded = true;
             }
             catch (Exception discEx)
             {
                 System.Diagnostics.Debug.WriteLine($"[WaferScan] Error disconnecting chuck in finally: {discEx.Message}");
+                LogService.Instance.Error("CRITICAL HARDWARE SAFETY: Failed to separate chuck. Aborting return to Home position to prevent damaging needles and wafer.", discEx);
+                WaferScanLog = "CRITICAL: Chuck separation failed! Prober Home movement aborted for safety.";
+                NotificationRequested?.Invoke(
+                    "CRITICAL SAFETY WARNING",
+                    "Chuck separation failed! Movement to Home position was aborted to prevent damaging the probe needles and wafer.",
+                    null,
+                    Avalonia.Controls.Notifications.NotificationType.Error);
             }
 
-            try
+            if (separationSucceeded)
             {
-                WaferScanLog = "Returning prober to Home position...";
-                await ProberService.Instance.ProberGoHomeAsync();
-            }
-            catch (Exception homeEx)
-            {
-                System.Diagnostics.Debug.WriteLine($"[WaferScan] Error returning prober home in finally: {homeEx.Message}");
+                try
+                {
+                    WaferScanLog = "Returning prober to Home position...";
+                    await ProberService.Instance.ProberGoHomeAsync();
+                }
+                catch (Exception homeEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WaferScan] Error returning prober home in finally: {homeEx.Message}");
+                    LogService.Instance.Error("Failed to return prober home in finally", homeEx);
+                }
             }
 
             // Close SMU session properly when wafer scan completes, is canceled, or fails

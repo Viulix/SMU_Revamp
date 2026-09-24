@@ -66,6 +66,12 @@ public partial class MainWindowViewModel
 
     private void RefreshPlotDataFromPlottedPlan()
     {
+        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(RefreshPlotDataFromPlottedPlan);
+            return;
+        }
+
         if (PlottedPlan == null)
         {
             CurvePoints = Array.Empty<CurvePoint>();

@@ -17,8 +17,37 @@ public partial class SettingsWindow : Window
         _debugService = DeviceDebugService.Instance;
     }
 
+    private bool IsExperimentBusy(out string reason)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            if (vm.IsScanningWafer)
+            {
+                reason = "Operation blocked: A wafer scan is currently running.";
+                return true;
+            }
+            if (vm.IsQueueRunning)
+            {
+                reason = "Operation blocked: An experiment queue is currently running.";
+                return true;
+            }
+            if (vm.IsMeasuring)
+            {
+                reason = "Operation blocked: A measurement is currently running.";
+                return true;
+            }
+        }
+        reason = string.Empty;
+        return false;
+    }
+
     private async void TestProberConnection_Click(object? sender, RoutedEventArgs e)
     {
+        if (IsExperimentBusy(out var reason))
+        {
+            ProberOutputTextBox.Text = reason;
+            return;
+        }
         ProberOutputTextBox.Text = "Testing Prober connection...";
         var result = await _debugService.TestProberConnectionAsync();
         ProberOutputTextBox.Text = result;
@@ -28,6 +57,11 @@ public partial class SettingsWindow : Window
 
     private async void TestSwitchConnection_Click(object? sender, RoutedEventArgs e)
     {
+        if (IsExperimentBusy(out var reason))
+        {
+            SwitchOutputTextBox.Text = reason;
+            return;
+        }
         SwitchOutputTextBox.Text = "Testing Switch Matrix connection...";
         var result = await _debugService.TestSwitchMatrixConnectionAsync();
         SwitchOutputTextBox.Text = result;
@@ -36,6 +70,11 @@ public partial class SettingsWindow : Window
 
     private async void CreateSwitchConnection_Click(object? sender, RoutedEventArgs e)
     {
+        if (IsExperimentBusy(out var reason))
+        {
+            SwitchOutputTextBox.Text = reason;
+            return;
+        }
         var x = ConnectionXTextBox.Text ?? string.Empty;
         var y = ConnectionYTextBox.Text ?? string.Empty;
 
@@ -52,6 +91,11 @@ public partial class SettingsWindow : Window
 
     private async void DisconnectSwitchConnection_Click(object? sender, RoutedEventArgs e)
     {
+        if (IsExperimentBusy(out var reason))
+        {
+            SwitchOutputTextBox.Text = reason;
+            return;
+        }
         var x = ConnectionXTextBox.Text ?? string.Empty;
         var y = ConnectionYTextBox.Text ?? string.Empty;
 
@@ -68,6 +112,11 @@ public partial class SettingsWindow : Window
 
     private async void ClearAllSwitchConnections_Click(object? sender, RoutedEventArgs e)
     {
+        if (IsExperimentBusy(out var reason))
+        {
+            SwitchOutputTextBox.Text = reason;
+            return;
+        }
         SwitchOutputTextBox.Text = "Clearing all Switch Matrix connections...";
         var result = await _debugService.ClearAllSwitchMatrixConnectionsAsync();
         SwitchOutputTextBox.Text = result;
@@ -76,6 +125,11 @@ public partial class SettingsWindow : Window
 
     private async void TestSMUConnection_Click(object? sender, RoutedEventArgs e)
     {
+        if (IsExperimentBusy(out var reason))
+        {
+            SmuOutputTextBox.Text = reason;
+            return;
+        }
         SmuOutputTextBox.Text = "Testing SMU connection...";
         var result = await _debugService.TestSMUConnectionAsync();
         SmuOutputTextBox.Text = result;
@@ -83,6 +137,11 @@ public partial class SettingsWindow : Window
 
     private async void QuerySMUIdentity_Click(object? sender, RoutedEventArgs e)
     {
+        if (IsExperimentBusy(out var reason))
+        {
+            SmuOutputTextBox.Text = reason;
+            return;
+        }
         SmuOutputTextBox.Text = "Querying SMU identity...";
         var result = await _debugService.QuerySMUIdentityAsync();
         SmuOutputTextBox.Text = result;
@@ -90,6 +149,11 @@ public partial class SettingsWindow : Window
 
     private async void ForceSmuVoltage_Click(object? sender, RoutedEventArgs e)
     {
+        if (IsExperimentBusy(out var reason))
+        {
+            SmuOutputTextBox.Text = reason;
+            return;
+        }
         var channel = SmuChannelTextBox.Text ?? string.Empty;
         var voltStr = (SmuVoltageTextBox.Text ?? string.Empty).Replace(',', '.');
         var compStr = (SmuComplianceTextBox.Text ?? string.Empty).Replace(',', '.');
@@ -172,6 +236,14 @@ public partial class SettingsWindow : Window
         if (DataContext is ViewModels.MainWindowViewModel vm)
         {
             vm.ToggleIndeterminateDemoProgress();
+        }
+    }
+
+    private async void CleanUpLocalStorageNowButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ViewModels.MainWindowViewModel vm)
+        {
+            await vm.Settings.RequestCleanUpLocalFilesNowAsync();
         }
     }
 

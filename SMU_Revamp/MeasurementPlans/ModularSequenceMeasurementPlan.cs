@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using SMU_Revamp.Interfaces;
 using SMU_Revamp.Models;
@@ -180,7 +181,7 @@ namespace SMU_Revamp.MeasurementPlans
             }
         }
 
-        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+        public override async Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             // Sync current state
             DeserializeSteps();
@@ -207,47 +208,64 @@ namespace SMU_Revamp.MeasurementPlans
                 throw new InvalidOperationException("No channels configured in modular sequence steps.");
             }
 
-            // 1. Reset and Enable Channels
-            await smu.SendCommandAsync("*RST");
-            await smu.SendCommandAsync("FMT 1");
-            await smu.SendCommandAsync("TSC 1");
-            
+            cancellationToken.ThrowIfCancellationRequested();
+
             string cnCommand = $"CN {string.Join(",", channels)}";
-            await smu.SendCommandAsync(cnCommand);
-
-            var cnError = await smu.CheckErrorAsync();
-            if (cnError != null)
-            {
-                throw new InvalidOperationException($"SMU rejected CN command: {cnError}");
-            }
-
-            // 2. Execute Steps
-            for (int i = 0; i < Steps.Count; i++)
-            {
-                var step = Steps[i];
-                double stepProgressStart = (double)i / Steps.Count * 100.0;
-                double stepProgressEnd = (double)(i + 1) / Steps.Count * 100.0;
-                progress?.Report(stepProgressStart);
-
-                var stepPoints = await RunStepOnSmuAsync(smu, step);
-                ResultPoints.AddRange(stepPoints);
-
-                if (step.DelayMs > 0)
-                {
-                    await Task.Delay((int)step.DelayMs);
-                }
-                
-                progress?.Report(stepProgressEnd);
-            }
-
-            // 3. Turn off channels at the very end
             string clCommand = $"CL {string.Join(",", channels)}";
-            await smu.SendCommandAsync(clCommand);
 
-            progress?.Report(100);
+            try
+            {
+                // 1. Reset and Enable Channels
+                await smu.SendCommandAsync("*RST");
+                await smu.SendCommandAsync("FMT 1");
+                await smu.SendCommandAsync("TSC 1");
+
+                await smu.SendCommandAsync(cnCommand);
+
+                var cnError = await smu.CheckErrorAsync();
+                if (cnError != null)
+                {
+                    throw new InvalidOperationException($"SMU rejected CN command: {cnError}");
+                }
+
+                // 2. Execute Steps
+                for (int i = 0; i < Steps.Count; i++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var step = Steps[i];
+                    double stepProgressStart = (double)i / Steps.Count * 100.0;
+                    double stepProgressEnd = (double)(i + 1) / Steps.Count * 100.0;
+                    progress?.Report(stepProgressStart);
+
+                    var stepPoints = await RunStepOnSmuAsync(smu, step, cancellationToken);
+                    ResultPoints.AddRange(stepPoints);
+
+                    if (step.DelayMs > 0)
+                    {
+                        await Task.Delay((int)step.DelayMs, cancellationToken);
+                    }
+                    
+                    progress?.Report(stepProgressEnd);
+                }
+
+                progress?.Report(100);
+            }
+            catch (OperationCanceledException)
+            {
+                try { await smu.SendCommandAsync("AB"); } catch { }
+                throw;
+            }
+            finally
+            {
+                // Always zero the outputs and turn the channels off, even when a
+                // step throws mid-sequence.
+                try { await smu.SendCommandAsync("DZ"); } catch { }
+                try { await smu.SendCommandAsync(clCommand); } catch { }
+            }
         }
 
-        private async Task<List<CurvePoint>> RunStepOnSmuAsync(E5263_SMU smu, SequenceStep step)
+        private async Task<List<CurvePoint>> RunStepOnSmuAsync(E5263_SMU smu, SequenceStep step, CancellationToken cancellationToken)
         {
             var points = new List<CurvePoint>();
             string channel = step.WriteChannel;
@@ -312,7 +330,7 @@ namespace SMU_Revamp.MeasurementPlans
                         int totalPoints = modeValue == 3 ? step.Points * 2 : step.Points;
                         double plcTime = adcSamples * 0.02;
                         double estimatedDurationSeconds = totalPoints * (plcTime + 0.005) + 0.5;
-                        await Task.Delay((int)(estimatedDurationSeconds * 1000));
+                        await Task.Delay((int)(estimatedDurationSeconds * 1000), cancellationToken);
 
                         int expectedBufferLength = step.Points * 32 * (modeValue == 3 ? 2 : 1) + 200;
                         string rawData = await smu.ReadResponseAsync(expectedBufferLength);
@@ -346,7 +364,7 @@ namespace SMU_Revamp.MeasurementPlans
             return points;
         }
 
-        private List<CurvePoint> ParseSmuData(string rawData, double forcedVoltage, string readingChannel, string channel)
+        internal List<CurvePoint> ParseSmuData(string rawData, double forcedVoltage, string readingChannel, string channel)
         {
             var points = new List<CurvePoint>();
             if (string.IsNullOrWhiteSpace(rawData)) return points;
@@ -380,7 +398,7 @@ namespace SMU_Revamp.MeasurementPlans
             return points;
         }
 
-        private List<CurvePoint> ParseSweepData(string rawData, int modeValue, double sweepStart, double sweepStop, int pointsCount, string readingChannel, string channel)
+        internal List<CurvePoint> ParseSweepData(string rawData, int modeValue, double sweepStart, double sweepStop, int pointsCount, string readingChannel, string channel)
         {
             var points = new List<CurvePoint>();
             if (string.IsNullOrWhiteSpace(rawData)) return points;
@@ -410,39 +428,44 @@ namespace SMU_Revamp.MeasurementPlans
 
             bool invertCurrent = readingChannel != channel;
 
+            int expectedTotal = modeValue == 3 ? pointsCount * 2 : pointsCount;
+            if (expectedTotal > 0 && count != expectedTotal)
+            {
+                var warn = $"[Modular Sequence] Warning: sweep returned {count} points, expected {expectedTotal}. " +
+                           "The instrument likely stopped early (compliance?). Mapping the voltage axis to the received prefix.";
+                Console.WriteLine(warn);
+                System.Diagnostics.Debug.WriteLine(warn);
+            }
+
             if (modeValue == 1)
             {
+                // Map against the REQUESTED point count so a compliance-truncated
+                // response keeps its true voltages instead of being stretched.
                 for (int i = 0; i < count; i++)
                 {
-                    double v = sweepStart;
-                    if (count > 1)
-                    {
-                        v = sweepStart + i * (sweepStop - sweepStart) / (count - 1);
-                    }
+                    double v = pointsCount > 1
+                        ? sweepStart + i * (sweepStop - sweepStart) / (pointsCount - 1)
+                        : sweepStart;
                     points.Add(new CurvePoint(v, invertCurrent ? -parsedCurrents[i] : parsedCurrents[i]));
                 }
             }
             else
             {
-                int halfPoints = (count + 1) / 2;
+                // Split by INDEX against the requested half-count: indices below
+                // pointsCount belong to the ascending ramp, the rest to the
+                // descending one. A compliance-truncated response is an ordered
+                // prefix, so every received point keeps its true voltage.
+                int n = Math.Max(pointsCount, 1);
                 for (int i = 0; i < count; i++)
                 {
                     double v;
-                    if (i < halfPoints)
+                    if (i < n)
                     {
-                        v = sweepStart;
-                        if (halfPoints > 1)
-                        {
-                            v = sweepStart + i * (sweepStop - sweepStart) / (halfPoints - 1);
-                        }
+                        v = n > 1 ? sweepStart + i * (sweepStop - sweepStart) / (n - 1) : sweepStart;
                     }
                     else
                     {
-                        v = sweepStop;
-                        if (halfPoints > 1)
-                        {
-                            v = sweepStop - (i - halfPoints) * (sweepStop - sweepStart) / (halfPoints - 1);
-                        }
+                        v = n > 1 ? sweepStop - (i - n) * (sweepStop - sweepStart) / (n - 1) : sweepStop;
                     }
                     points.Add(new CurvePoint(v, invertCurrent ? -parsedCurrents[i] : parsedCurrents[i]));
                 }

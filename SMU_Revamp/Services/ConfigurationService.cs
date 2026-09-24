@@ -23,10 +23,13 @@ namespace SMU_Revamp.Services
         {
             try
             {
-                var appDataDir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "SMU_Revamp"
-                );
+                var configDirOverride = Environment.GetEnvironmentVariable("SMU_REVAMP_CONFIG_DIR");
+                var appDataDir = string.IsNullOrWhiteSpace(configDirOverride)
+                    ? Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                        "SMU_Revamp"
+                    )
+                    : configDirOverride;
 
                 if (!Directory.Exists(appDataDir))
                 {
@@ -93,6 +96,8 @@ namespace SMU_Revamp.Services
             return Task.CompletedTask;
         }
 
+        private static readonly object _fileLock = new();
+
         /// <summary>
         /// Saves configuration synchronously to disk.
         /// </summary>
@@ -100,10 +105,22 @@ namespace SMU_Revamp.Services
         {
             try
             {
-                _config = config;
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                var json = JsonSerializer.Serialize(config, options);
-                File.WriteAllText(_configPath, json);
+                lock (_fileLock)
+                {
+                    _config = config;
+                    var options = new JsonSerializerOptions { WriteIndented = true };
+                    var json = JsonSerializer.Serialize(config, options);
+
+                    var dir = Path.GetDirectoryName(_configPath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    {
+                        Directory.CreateDirectory(dir);
+                    }
+
+                    string tempPath = _configPath + ".tmp";
+                    File.WriteAllText(tempPath, json);
+                    File.Move(tempPath, _configPath, overwrite: true);
+                }
             }
             catch (Exception ex)
             {

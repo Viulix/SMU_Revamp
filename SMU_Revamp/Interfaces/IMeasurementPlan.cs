@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using SMU_Revamp.Models;
 using SMU_Revamp.Services;
@@ -72,7 +73,12 @@ namespace SMU_Revamp.Interfaces
             return lines;
         }
 
-        Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null);
+        /// <summary>
+        /// Runs the measurement. Implementations must observe <paramref name="cancellationToken"/>
+        /// between hardware operations and guarantee the source output is disabled
+        /// (DZ/CL) via try/finally on both success and failure paths.
+        /// </summary>
+        Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, CancellationToken cancellationToken = default);
         void LoadDefaults();
 
         /// <summary>

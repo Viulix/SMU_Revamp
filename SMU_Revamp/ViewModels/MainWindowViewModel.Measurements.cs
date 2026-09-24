@@ -18,19 +18,55 @@ namespace SMU_Revamp.ViewModels;
 
 public partial class MainWindowViewModel
 {
+    private System.Threading.CancellationTokenSource? _singleMeasurementCts;
+
+    public void StopMeasurement()
+    {
+        if (_singleMeasurementCts != null && !_singleMeasurementCts.IsCancellationRequested)
+        {
+            MeasurementStatus = "Stopping measurement...";
+            LogService.Instance.Info("Manual measurement stop requested by user.");
+            try
+            {
+                _singleMeasurementCts.Cancel();
+            }
+            catch (Exception ex)
+            {
+                LogService.Instance.Warning($"Error cancelling measurement: {ex.Message}");
+            }
+        }
+    }
+
     private async Task RunMeasurementAsync()
     {
         if (IsMeasuring) return;
         if (SelectedPlan == null) return;
 
+        if (!IsScanningWafer && !IsQueueRunning)
+        {
+            _singleMeasurementCts = new System.Threading.CancellationTokenSource();
+        }
+
         IsMeasuring = true;
+
+        // Linked to the wafer-scan, queue, or single-measurement token, so a stop request
+        // also aborts the in-flight hardware measurement instead of only the loop.
+        using var measurementCts = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(
+            _scanCts?.Token ?? System.Threading.CancellationToken.None,
+            _queueCts?.Token ?? System.Threading.CancellationToken.None,
+            _singleMeasurementCts?.Token ?? System.Threading.CancellationToken.None);
+        var measurementToken = measurementCts.Token;
 
         // Update the plotted plan to be the one we are running
         PlottedPlan = SelectedPlan;
 
+        LogService.Instance.Session(
+            $"Measurement '{PlottedPlan?.Name}' | Profile: {Settings.Profile} | Device: {Settings.SampleName}" +
+            (IsScanningWafer ? $" | Wafer scan contact TargetCell={TargetCell} R{TargetRow}C{TargetColumn} #{TargetContact}" : string.Empty));
+
         if (!IsScanningWafer)
         {
-            PlottedPlan.ResultPoints.Clear();
+            PlottedPlan!.ResultPoints.Clear();
             RefreshPlotDataFromPlottedPlan();
         }
 
@@ -111,7 +147,7 @@ public partial class MainWindowViewModel
 
             await smu.ConnectAsync();
 
-            MeasurementStatus = $"Executing plan {PlottedPlan.Name}...";
+            MeasurementStatus = $"Executing plan {PlottedPlan!.Name}...";
             int lastPointCount = 0;
             var progressReporter = new Progress<double>(p =>
             {
@@ -122,7 +158,7 @@ public partial class MainWindowViewModel
                     RefreshPlotDataFromPlottedPlan();
                 }
             });
-            await PlottedPlan.RunMeasurementAsync(smu, progressReporter);
+            await PlottedPlan.RunMeasurementAsync(smu, progressReporter, measurementToken);
             singleMeasurementStopwatch.Stop();
 
             double actualDurationSeconds = singleMeasurementStopwatch.Elapsed.TotalSeconds;
@@ -162,7 +198,8 @@ public partial class MainWindowViewModel
                 }
                 else if (PlotSeries.Count > 1)
                 {
-                    MeasurementStatus = $"Finished. Measured {CurvePoints.Count} points in {PlotSeries.Count} plot series.";
+                    int totalSeriesPoints = PlotSeries.Sum(s => s.Points.Count);
+                    MeasurementStatus = $"Finished. Measured {totalSeriesPoints} points in {PlotSeries.Count} plot series.";
                 }
                 else
                 {
@@ -309,22 +346,47 @@ public partial class MainWindowViewModel
             {
                 SelectedTabIndex = 0; // Auto switch to Viewer tab
             }
+
+            LogService.Instance.Info($"Measurement finished ({(PlottedPlan?.ResultPoints.Count ?? 0)} result points).");
+        }
+        catch (OperationCanceledException)
+        {
+            // Rethrow so a wafer scan or queue aborts cleanly instead of accumulating
+            // partially measured data for this contact point. Standalone manual measurements
+            // finish gracefully here.
+            MeasurementStatus = IsScanningWafer ? "Measurement canceled by stop request." : "Measurement canceled.";
+            LogService.Instance.Warning(MeasurementStatus);
+            if (IsScanningWafer || IsQueueRunning)
+            {
+                throw;
+            }
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Error during measurement: {ex.Message}";
             MeasurementStatus = $"Error: {ex.Message}";
             Console.WriteLine($"Error running measurement: {ex.Message}");
+            LogService.Instance.Error($"Measurement of plan '{PlottedPlan?.Name}' failed", ex);
+            if (IsScanningWafer)
+            {
+                // Surface the failure to the wafer-scan callback instead of
+                // silently counting this contact point as completed.
+                throw;
+            }
         }
         finally
         {
+            _singleMeasurementCts?.Dispose();
+            _singleMeasurementCts = null;
+
             // Close session for single measurements (during a wafer scan, ExecuteWaferScanAsync manages the persistent session)
             if (!IsScanningWafer)
             {
                 try { await E5263_SMU.Instance.DisconnectAsync(); } catch { }
             }
             IsMeasuring = false;
-            MeasurementProgress = 100;
+            // Keep the actual progress on failure/cancel instead of jumping to 100%;
+            // successful plans report 100 themselves.
             IsProgressIndeterminate = false;
         }
     }
@@ -846,7 +908,13 @@ public partial class MainWindowViewModel
 
         if (!string.IsNullOrEmpty(currentPresetName))
         {
-            SelectedPreset = AvailablePresets.FirstOrDefault(p => p.Name == currentPresetName);
+            var match = AvailablePresets.FirstOrDefault(p => p.Name == currentPresetName);
+            // Only reassign when the instance actually changed to avoid a
+            // re-entrant SelectedPreset application.
+            if (!ReferenceEquals(match, _selectedPreset))
+            {
+                SelectedPreset = match;
+            }
         }
     }
 
@@ -911,8 +979,16 @@ public partial class MainWindowViewModel
         }
 
         config.Presets.Add(newPreset);
-        await ConfigurationService.Instance.SaveAsync(config);
-        
+        try
+        {
+            await ConfigurationService.Instance.SaveAsync(config);
+        }
+        catch (Exception ex)
+        {
+            // async void: swallow and log so an unexpected failure cannot crash the app.
+            System.Diagnostics.Debug.WriteLine($"Failed to save preset '{name}': {ex}");
+        }
+
         LoadAvailablePresets();
         SelectedPreset = config.Presets.FirstOrDefault(p => p.Name == name);
         NewPresetName = string.Empty;
@@ -939,7 +1015,15 @@ public partial class MainWindowViewModel
                 SelectedPreset = null;
             }
             UpdateWarningMessage();
-            await SaveSettingsAndConfigurationAsync();
+            try
+            {
+                await SaveSettingsAndConfigurationAsync();
+            }
+            catch (Exception ex)
+            {
+                // async void: log instead of risking an unhandled crash.
+                System.Diagnostics.Debug.WriteLine($"Failed to save measurement config after parameter change: {ex}");
+            }
         }
     }
 
@@ -1088,63 +1172,73 @@ public partial class MainWindowViewModel
 
         LoadAvailablePresets();
         LoadLastConfig();
-        RefreshExistingDeviceNames();
+        _ = RefreshExistingDeviceNamesAsync();
         IsConfigLoaded = true;
     }
 
-    public void RefreshExistingDeviceNames()
+    /// <summary>
+    /// Collects known device names from config and disk without blocking the
+    /// UI thread; the collection is updated on the caller's (UI) context.
+    /// </summary>
+    public async Task RefreshExistingDeviceNamesAsync()
     {
         try
         {
-            var profile = string.IsNullOrWhiteSpace(Settings.Profile) ? "Default" : Settings.Profile.Trim();
-            var deviceNamesSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string profileName = string.IsNullOrWhiteSpace(Settings.Profile) ? "Default" : Settings.Profile.Trim();
 
-            // 1. Load from AppConfig saved device names
-            var config = ConfigurationService.Instance.GetConfig();
-            if (config.SavedDeviceNames != null)
+            HashSet<string> deviceNamesSet = await Task.Run(() =>
             {
-                foreach (var name in config.SavedDeviceNames)
+                var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                // 1. Load from AppConfig saved device names
+                var config = ConfigurationService.Instance.GetConfig();
+                if (config.SavedDeviceNames != null)
                 {
-                    if (!string.IsNullOrWhiteSpace(name)) deviceNamesSet.Add(name.Trim());
-                }
-            }
-
-            // Always include "Empty Device" in suggestions
-            deviceNamesSet.Add("Empty Device");
-
-            // 2. Scan disk folders under SMU_Measurements/<profile>/Wafermaps/
-            string[] basePaths = new[]
-            {
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                AppDomain.CurrentDomain.BaseDirectory
-            };
-
-            foreach (var basePath in basePaths)
-            {
-                try
-                {
-                    string wafermapsDir = System.IO.Path.Combine(basePath, "SMU_Measurements", profile, "Wafermaps");
-                    if (System.IO.Directory.Exists(wafermapsDir))
+                    foreach (var name in config.SavedDeviceNames)
                     {
-                        // First migrate any legacy Scan_* folders directly under Wafermaps/ into Wafermaps/Empty Device/
-                        MigrateLegacyWafermapFolders(wafermapsDir);
+                        if (!string.IsNullOrWhiteSpace(name)) set.Add(name.Trim());
+                    }
+                }
 
-                        // Scan device subdirectories
-                        var subDirs = System.IO.Directory.GetDirectories(wafermapsDir);
-                        foreach (var subDir in subDirs)
+                // Always include "Empty Device" in suggestions
+                set.Add("Empty Device");
+
+                // 2. Scan disk folders under SMU_Measurements/<profile>/Wafermaps/
+                string[] basePaths = new[]
+                {
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    AppDomain.CurrentDomain.BaseDirectory
+                };
+
+                foreach (var basePath in basePaths)
+                {
+                    try
+                    {
+                        string wafermapsDir = System.IO.Path.Combine(basePath, "SMU_Measurements", profileName, "Wafermaps");
+                        if (System.IO.Directory.Exists(wafermapsDir))
                         {
-                            var dirName = System.IO.Path.GetFileName(subDir);
-                            if (!string.IsNullOrWhiteSpace(dirName))
+                            // First migrate any legacy Scan_* folders directly under Wafermaps/ into Wafermaps/Empty Device/
+                            MigrateLegacyWafermapFolders(wafermapsDir);
+
+                            // Scan device subdirectories
+                            var subDirs = System.IO.Directory.GetDirectories(wafermapsDir);
+                            foreach (var subDir in subDirs)
                             {
-                                deviceNamesSet.Add(dirName.Trim());
+                                var dirName = System.IO.Path.GetFileName(subDir);
+                                if (!string.IsNullOrWhiteSpace(dirName))
+                                {
+                                    set.Add(dirName.Trim());
+                                }
                             }
                         }
                     }
+                    catch { }
                 }
-                catch { }
-            }
 
-            // Update collection
+                return set;
+            });
+
+            // Update collection on the UI thread
             ExistingDeviceNames.Clear();
             foreach (var devName in deviceNamesSet.OrderBy(n => n))
             {
@@ -1197,7 +1291,7 @@ public partial class MainWindowViewModel
         await ConfigurationService.Instance.SaveAsync(config);
     }
 
-    public Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null)
+    public Task RunMeasurementAsync(E5263_SMU smu, IProgress<double>? progress = null, System.Threading.CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }
