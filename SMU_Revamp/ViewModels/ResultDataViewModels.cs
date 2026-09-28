@@ -13,6 +13,10 @@ public partial class ResultContactViewModel : ObservableObject
     public int ContactNumber { get; set; }
     public string DisplayName => $"Contact {ContactNumber}";
     public List<CurvePoint> CurveData { get; set; } = new();
+    public List<PlotSeries> Series { get; set; } = new();
+    public string PlanName { get; set; } = string.Empty;
+    public string XAxisLabel { get; set; } = "Voltage (V)";
+    public string YAxisLabel { get; set; } = "Current (A)";
 
     [ObservableProperty]
     private double _aggregatedValue = double.NaN;

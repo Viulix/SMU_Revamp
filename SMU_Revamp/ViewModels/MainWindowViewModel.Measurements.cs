@@ -149,13 +149,18 @@ public partial class MainWindowViewModel
 
             MeasurementStatus = $"Executing plan {PlottedPlan!.Name}...";
             int lastPointCount = 0;
+            var lastPlotUpdate = System.Diagnostics.Stopwatch.StartNew();
             var progressReporter = new Progress<double>(p =>
             {
                 MeasurementProgress = p;
                 if (PlottedPlan != null && PlottedPlan.ResultPoints.Count != lastPointCount)
                 {
                     lastPointCount = PlottedPlan.ResultPoints.Count;
-                    RefreshPlotDataFromPlottedPlan();
+                    if (lastPlotUpdate.ElapsedMilliseconds >= 60 || p >= 99)
+                    {
+                        lastPlotUpdate.Restart();
+                        RefreshPlotDataFromPlottedPlan();
+                    }
                 }
             });
             await PlottedPlan.RunMeasurementAsync(smu, progressReporter, measurementToken);

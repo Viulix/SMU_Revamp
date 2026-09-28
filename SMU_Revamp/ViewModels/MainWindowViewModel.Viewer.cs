@@ -81,7 +81,12 @@ public partial class MainWindowViewModel
 
         if (IsScanningWafer && WaferScanAccumulatedSeries.Count > 0)
         {
-            var activeSeriesList = new List<PlotSeries>(WaferScanAccumulatedSeries);
+            int maxRecentSeries = 20;
+            var recentAccumulated = WaferScanAccumulatedSeries.Count > maxRecentSeries
+                ? WaferScanAccumulatedSeries.Skip(WaferScanAccumulatedSeries.Count - maxRecentSeries).ToList()
+                : WaferScanAccumulatedSeries;
+
+            var activeSeriesList = new List<PlotSeries>(recentAccumulated);
             
             if (PlottedPlan.PlotSeries != null && PlottedPlan.PlotSeries.Count > 0)
             {
@@ -125,16 +130,25 @@ public partial class MainWindowViewModel
         CustomPlotTitle = title;
         PlottedPlan = plan;
         CurvePoints = new List<CurvePoint>(SelectedResultContact.CurveData);
-        PlotSeries = new List<PlotSeries>
-        {
-            new PlotSeries(title, SelectedResultContact.CurveData.ToList())
-        };
 
-        CustomXAxisTitle = null;
-        CustomYAxisTitle = null;
+        if (SelectedResultContact.Series != null && SelectedResultContact.Series.Count > 0)
+        {
+            PlotSeries = new List<PlotSeries>(SelectedResultContact.Series);
+        }
+        else
+        {
+            PlotSeries = new List<PlotSeries>
+            {
+                new PlotSeries(title, SelectedResultContact.CurveData.ToList())
+            };
+        }
+
+        CustomXAxisTitle = SelectedResultContact.XAxisLabel;
+        CustomYAxisTitle = SelectedResultContact.YAxisLabel;
         OnPropertyChanged(nameof(XAxisTitle));
         OnPropertyChanged(nameof(YAxisTitle));
         OnPropertyChanged(nameof(IsPlottedPlanLoaded));
+        InitializeSeriesSettings();
 
         SelectedTabIndex = 0; // Switch to Viewer tab
     }

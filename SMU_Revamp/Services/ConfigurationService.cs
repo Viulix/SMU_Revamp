@@ -88,8 +88,11 @@ namespace SMU_Revamp.Services
 
             try
             {
-                var effectiveLogDir = GetEffectiveLogsDirectory(_config);
-                LogService.Instance.SetLogDirectory(effectiveLogDir);
+                if (!string.IsNullOrWhiteSpace(_config.LogsDirectory))
+                {
+                    var effectiveLogDir = GetEffectiveLogsDirectory(_config);
+                    LogService.Instance.SetLogDirectory(effectiveLogDir);
+                }
             }
             catch (Exception ex)
             {

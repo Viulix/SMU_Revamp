@@ -60,22 +60,22 @@ public partial class CurvePlotView : UserControl
 
     static CurvePlotView()
     {
-        TitleProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        XAxisLabelProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        YAxisLabelProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        PointsProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        SeriesProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        LogarithmicYProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        LogarithmicXProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        PlotStyleProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
+        TitleProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
+        XAxisLabelProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
+        YAxisLabelProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
+        PointsProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
+        SeriesProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
+        LogarithmicYProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
+        LogarithmicXProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
+        PlotStyleProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
         PlotAspectRatioProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.UpdateAspectRatio());
-        XMinProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        XMaxProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        YMinProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        YMaxProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
+        XMinProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
+        XMaxProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
+        YMinProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
+        YMaxProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
         SeriesSettingsProperty.Changed.AddClassHandler<CurvePlotView>((control, e) => control.OnSeriesSettingsChanged(e));
-        AutoFitDataXProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
-        AutoFitDataYProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.Redraw());
+        AutoFitDataXProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
+        AutoFitDataYProperty.Changed.AddClassHandler<CurvePlotView>((control, _) => control.RequestRedraw());
     }
 
     private void OnSeriesSettingsChanged(AvaloniaPropertyChangedEventArgs e)
@@ -154,14 +154,69 @@ public partial class CurvePlotView : UserControl
     public bool AutoFitDataX { get => GetValue(AutoFitDataXProperty); set => SetValue(AutoFitDataXProperty, value); }
     public bool AutoFitDataY { get => GetValue(AutoFitDataYProperty); set => SetValue(AutoFitDataYProperty, value); }
 
+    private bool _isRedrawQueued;
+    private bool _needsRedrawWhenVisible;
+
+    public void RequestRedraw()
+    {
+        if (!IsEffectivelyVisible)
+        {
+            _needsRedrawWhenVisible = true;
+            return;
+        }
+
+        if (_isRedrawQueued) return;
+        _isRedrawQueued = true;
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _isRedrawQueued = false;
+            if (IsEffectivelyVisible)
+            {
+                Redraw();
+            }
+            else
+            {
+                _needsRedrawWhenVisible = true;
+            }
+        }, Avalonia.Threading.DispatcherPriority.Render);
+    }
+
     public CurvePlotView()
     {
         InitializeComponent();
-        AttachedToVisualTree += (_, _) => Redraw();
         
         if (ContainerGrid != null)
         {
             ContainerGrid.SizeChanged += (s, e) => UpdateAspectRatio();
+        }
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (_needsRedrawWhenVisible || (AvaPlot?.Plot.PlottableList.Count ?? 0) == 0)
+        {
+            _needsRedrawWhenVisible = false;
+            RequestRedraw();
+        }
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == BoundsProperty)
+        {
+            UpdateAspectRatio();
+        }
+        else if (change.Property == IsVisibleProperty)
+        {
+            if (IsEffectivelyVisible && _needsRedrawWhenVisible)
+            {
+                _needsRedrawWhenVisible = false;
+                RequestRedraw();
+            }
         }
     }
 
@@ -195,11 +250,11 @@ public partial class CurvePlotView : UserControl
 
     private List<PlotSeries> GetEffectiveSeries()
     {
-        var suppliedSeries = Series?.Where(s => s.Points.Count >= 2).ToList() ?? new List<PlotSeries>();
+        var suppliedSeries = Series?.Where(s => s.Points.Count >= 1).ToList() ?? new List<PlotSeries>();
         if (suppliedSeries.Count > 0) return suppliedSeries;
 
         var points = Points?.ToList() ?? new List<CurvePoint>();
-        return points.Count >= 2
+        return points.Count >= 1
             ? new List<PlotSeries> { new PlotSeries(Title ?? "Data", points) }
             : new List<PlotSeries>();
     }
@@ -280,7 +335,7 @@ public partial class CurvePlotView : UserControl
 
             var sp = AvaPlot.Plot.Add.Scatter(xs, ys);
             sp.LegendText = s.Name;
-            sp.Smooth = isInterpolated;
+            sp.Smooth = isInterpolated && xs.Length > 2;
             
             var seriesSettingsList = SeriesSettings?.ToList();
             if (seriesSettingsList != null)
@@ -309,7 +364,13 @@ public partial class CurvePlotView : UserControl
                 }
             }
             
-            if (drawLine && drawScatter)
+            if (xs.Length == 1)
+            {
+                // Single-point spot measurements must have a visible marker
+                sp.LineWidth = 0;
+                sp.MarkerSize = 7;
+            }
+            else if (drawLine && drawScatter)
             {
                 sp.MarkerSize = 5;
             }
@@ -326,7 +387,7 @@ public partial class CurvePlotView : UserControl
             DrawYErrorBars(s.Points, sp.Color);
         }
 
-        if (series.Count > 1)
+        if (series.Count > 1 && series.Count <= 20)
         {
             AvaPlot.Plot.ShowLegend();
         }
@@ -431,6 +492,9 @@ public partial class CurvePlotView : UserControl
             capHalfWidth = xSpan * 0.0075;
         }
 
+        var barXs = new List<double>(points.Count * 9);
+        var barYs = new List<double>(points.Count * 9);
+
         foreach (var point in points)
         {
             if (point.YError is not double error ||
@@ -448,20 +512,29 @@ public partial class CurvePlotView : UserControl
             if (!double.IsFinite(x) || !double.IsFinite(yLow) || !double.IsFinite(yHigh))
                 continue;
 
-            var vertical = AvaPlot.Plot.Add.Scatter(new[] { x, x }, new[] { yLow, yHigh });
-            vertical.Color = color;
-            vertical.LineWidth = 1;
-            vertical.MarkerSize = 0;
+            // Vertical line
+            barXs.Add(x); barYs.Add(yLow);
+            barXs.Add(x); barYs.Add(yHigh);
+            barXs.Add(double.NaN); barYs.Add(double.NaN);
 
-            var lowerCap = AvaPlot.Plot.Add.Scatter(new[] { x - capHalfWidth, x + capHalfWidth }, new[] { yLow, yLow });
-            lowerCap.Color = color;
-            lowerCap.LineWidth = 1;
-            lowerCap.MarkerSize = 0;
+            // Lower cap
+            barXs.Add(x - capHalfWidth); barYs.Add(yLow);
+            barXs.Add(x + capHalfWidth); barYs.Add(yLow);
+            barXs.Add(double.NaN); barYs.Add(double.NaN);
 
-            var upperCap = AvaPlot.Plot.Add.Scatter(new[] { x - capHalfWidth, x + capHalfWidth }, new[] { yHigh, yHigh });
-            upperCap.Color = color;
-            upperCap.LineWidth = 1;
-            upperCap.MarkerSize = 0;
+            // Upper cap
+            barXs.Add(x - capHalfWidth); barYs.Add(yHigh);
+            barXs.Add(x + capHalfWidth); barYs.Add(yHigh);
+            barXs.Add(double.NaN); barYs.Add(double.NaN);
+        }
+
+        if (barXs.Count > 0)
+        {
+            var errPlot = AvaPlot.Plot.Add.Scatter(barXs.ToArray(), barYs.ToArray());
+            errPlot.Color = color;
+            errPlot.LineWidth = 1;
+            errPlot.MarkerSize = 0;
+            errPlot.LegendText = string.Empty;
         }
     }
 

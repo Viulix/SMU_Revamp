@@ -13,7 +13,9 @@ namespace SMU_Revamp.MeasurementPlans
     {
         public override string Name => "PotDep";
         public override string Description => "Performs cycles of Potentiation and Depression and measures read current.";
-                        public override double PlotAspectRatio => 3.0;
+        public override string XAxisLabel => "Cycle";
+        public override string YAxisLabel => "Read Current (A)";
+        public override double PlotAspectRatio => 3.0;
         public override PlotStyle DefaultPlotStyle => PlotStyle.LineAndScatter;
 
                         

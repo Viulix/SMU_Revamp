@@ -59,26 +59,16 @@ public partial class MainWindowViewModel
             // caller's (UI) context.
             var parsedFiles = await Task.Run(() =>
             {
-                var records = new List<(int CellRow, int CellCol, int SubRow, int SubCol, int Contact, List<CurvePoint> Points)>();
+                var records = new List<ParsedMeasurementRecord>();
                 int matchedFiles = 0;
 
                 foreach (var file in Directory.GetFiles(folderPath, "*.csv"))
                 {
-                    var filename = Path.GetFileName(file);
-                    var match = regex.Match(filename);
-                    if (!match.Success) continue;
+                    var record = ParseMeasurementCsvFile(file, regex);
+                    if (record == null) continue;
 
                     matchedFiles++;
-                    var points = ParseCsvPoints(file);
-                    if (points.Count == 0) continue;
-
-                    records.Add((
-                        int.Parse(match.Groups["cR"].Value),
-                        int.Parse(match.Groups["cC"].Value),
-                        int.Parse(match.Groups["sR"].Value),
-                        int.Parse(match.Groups["sC"].Value),
-                        int.Parse(match.Groups["cont"].Value),
-                        points));
+                    records.Add(record);
                 }
 
                 return (records, matchedFiles);
@@ -109,6 +99,10 @@ public partial class MainWindowViewModel
                 }
 
                 contactVm.CurveData = record.Points;
+                contactVm.Series = record.Series;
+                contactVm.PlanName = record.PlanName;
+                contactVm.XAxisLabel = record.XAxisLabel;
+                contactVm.YAxisLabel = record.YAxisLabel;
                 loadedCount++;
             }
 
@@ -180,6 +174,62 @@ public partial class MainWindowViewModel
                 // Read points from DB
                 var dbData = await Services.DatabaseService.Instance.LoadMeasurementDataAsync(meas.Id);
                 contactVm.CurveData = dbData.Points;
+                contactVm.PlanName = meas.PlanName;
+
+                if (string.Equals(meas.PlanName, "PotDep", StringComparison.OrdinalIgnoreCase))
+                {
+                    contactVm.XAxisLabel = "Cycle";
+                    contactVm.YAxisLabel = "Read Current (A)";
+                    contactVm.Series = new List<PlotSeries> { new PlotSeries("PotDep", dbData.Points) };
+                }
+                else if (string.Equals(meas.PlanName, "Frequency Memory", StringComparison.OrdinalIgnoreCase))
+                {
+                    contactVm.XAxisLabel = "Inter-spike interval (ms)";
+                    contactVm.YAxisLabel = "Mean Read Current (A)";
+                    contactVm.Series = new List<PlotSeries> { new PlotSeries("Frequency Memory", dbData.Points) };
+                }
+                else if (string.Equals(meas.PlanName, "Spike Timing", StringComparison.OrdinalIgnoreCase))
+                {
+                    contactVm.XAxisLabel = "Delay after Last Spike End (ms)";
+                    contactVm.YAxisLabel = "Read Current (A)";
+                    contactVm.Series = new List<PlotSeries> { new PlotSeries("Spike Timing", dbData.Points) };
+                }
+                else if (string.Equals(meas.PlanName, "Memristor Sweep", StringComparison.OrdinalIgnoreCase))
+                {
+                    contactVm.XAxisLabel = "Voltage (V)";
+                    contactVm.YAxisLabel = "Current (A)";
+
+                    if (dbData.Parameters.TryGetValue("Points", out var ptsStr) &&
+                        int.TryParse(ptsStr, out int ptsCount) && ptsCount > 0)
+                    {
+                        int pointsPerCycle = ptsCount * 4;
+                        if (pointsPerCycle > 0 && dbData.Points.Count >= pointsPerCycle)
+                        {
+                            var reconstructedSeries = new List<PlotSeries>();
+                            int cycleNum = 1;
+                            for (int i = 0; i < dbData.Points.Count; i += pointsPerCycle)
+                            {
+                                var cyclePoints = dbData.Points.Skip(i).Take(pointsPerCycle).ToList();
+                                reconstructedSeries.Add(new PlotSeries($"Cycle {cycleNum++}", cyclePoints));
+                            }
+                            contactVm.Series = reconstructedSeries;
+                        }
+                        else
+                        {
+                            contactVm.Series = new List<PlotSeries> { new PlotSeries("Memristor Sweep", dbData.Points) };
+                        }
+                    }
+                    else
+                    {
+                        contactVm.Series = new List<PlotSeries> { new PlotSeries("Memristor Sweep", dbData.Points) };
+                    }
+                }
+                else
+                {
+                    contactVm.XAxisLabel = "Voltage (V)";
+                    contactVm.YAxisLabel = "Current (A)";
+                    contactVm.Series = new List<PlotSeries> { new PlotSeries(string.IsNullOrEmpty(meas.PlanName) ? "Data" : meas.PlanName, dbData.Points) };
+                }
             }
 
             if (filesFound)
@@ -439,5 +489,174 @@ public partial class MainWindowViewModel
         SelectedResultContact = contacts[nextIndex];
     }
 
+    private ParsedMeasurementRecord? ParseMeasurementCsvFile(string filePath, Regex regex)
+    {
+        var filename = Path.GetFileName(filePath);
+        var match = regex.Match(filename);
+        if (!match.Success) return null;
+
+        var lines = File.ReadAllLines(filePath);
+        string planName = string.Empty;
+        char separator = '\t';
+        bool hasSeparator = false;
+        string? headerLine = null;
+        var dataLines = new List<string>();
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed)) continue;
+
+            if (trimmed.StartsWith("sep=", StringComparison.OrdinalIgnoreCase))
+            {
+                var sepStr = trimmed.Substring(4).Trim();
+                if (sepStr.Length > 0)
+                {
+                    separator = sepStr[0];
+                    hasSeparator = true;
+                }
+                continue;
+            }
+
+            if (trimmed.StartsWith("#"))
+            {
+                var meta = trimmed.Substring(1).Trim();
+                if (meta.StartsWith("Plan\t", StringComparison.OrdinalIgnoreCase) || meta.StartsWith("Plan,", StringComparison.OrdinalIgnoreCase) || meta.StartsWith("Plan:", StringComparison.OrdinalIgnoreCase))
+                {
+                    planName = meta.Substring(5).Trim();
+                }
+                continue;
+            }
+
+            if (headerLine == null)
+            {
+                headerLine = trimmed;
+            }
+            else
+            {
+                dataLines.Add(trimmed);
+            }
+        }
+
+        if (headerLine == null) return null;
+
+        if (!hasSeparator)
+        {
+            if (headerLine.Contains('\t')) separator = '\t';
+            else if (headerLine.Contains(';')) separator = ';';
+            else if (headerLine.Contains(',')) separator = ',';
+        }
+
+        var headers = headerLine.Split(separator).Select(h => h.Trim().Trim('"')).ToList();
+        var points = new List<CurvePoint>();
+        var series = new List<PlotSeries>();
+        string xLabel = "Voltage (V)";
+        string yLabel = "Current (A)";
+
+        // Check for multi-cycle format (e.g. Cycle 1 Voltage, Cycle 1 Current, Cycle 2 Voltage, Cycle 2 Current...)
+        if (headers.Count >= 4 && headers.Any(h => h.StartsWith("Cycle 1", StringComparison.OrdinalIgnoreCase) || h.Contains("Cycle 1 Voltage")))
+        {
+            int cycleCount = headers.Count / 2;
+            var cycleLists = new List<List<CurvePoint>>();
+            for (int c = 0; c < cycleCount; c++) cycleLists.Add(new List<CurvePoint>());
+
+            foreach (var line in dataLines)
+            {
+                var parts = line.Split(separator);
+                for (int c = 0; c < cycleCount; c++)
+                {
+                    int vIdx = c * 2;
+                    int iIdx = c * 2 + 1;
+                    if (vIdx < parts.Length && iIdx < parts.Length)
+                    {
+                        if (SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[vIdx], out double vVal) &&
+                            SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[iIdx], out double iVal))
+                        {
+                            cycleLists[c].Add(new CurvePoint(vVal, iVal));
+                        }
+                    }
+                }
+            }
+
+            for (int c = 0; c < cycleCount; c++)
+            {
+                if (cycleLists[c].Count > 0)
+                {
+                    series.Add(new PlotSeries($"Cycle {c + 1}", cycleLists[c]));
+                    points.AddRange(cycleLists[c]);
+                }
+            }
+            if (string.IsNullOrEmpty(planName)) planName = "Memristor Sweep";
+        }
+        else if (headers.Count >= 2 && (headers[0].Equals("Cycle", StringComparison.OrdinalIgnoreCase) || planName.Equals("PotDep", StringComparison.OrdinalIgnoreCase)))
+        {
+            xLabel = "Cycle";
+            yLabel = "Read Current (A)";
+            if (string.IsNullOrEmpty(planName)) planName = "PotDep";
+
+            foreach (var line in dataLines)
+            {
+                var parts = line.Split(separator);
+                if (parts.Length >= 2 &&
+                    SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[0], out double cycleVal) &&
+                    SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[1], out double iVal))
+                {
+                    points.Add(new CurvePoint(cycleVal, iVal));
+                }
+            }
+            if (points.Count > 0)
+            {
+                series.Add(new PlotSeries(planName, points));
+            }
+        }
+        else
+        {
+            // Standard 2-column or generic format
+            if (headers.Count > 0 && !string.IsNullOrWhiteSpace(headers[0])) xLabel = headers[0];
+            if (headers.Count > 1 && !string.IsNullOrWhiteSpace(headers[1])) yLabel = headers[1];
+
+            foreach (var line in dataLines)
+            {
+                var parts = line.Split(separator);
+                if (parts.Length >= 2 &&
+                    SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[0], out double xVal) &&
+                    SMU_Revamp.Services.ParameterConfigHelper.TryParseDoubleRobust(parts[1], out double yVal))
+                {
+                    points.Add(new CurvePoint(xVal, yVal));
+                }
+            }
+            if (points.Count > 0)
+            {
+                series.Add(new PlotSeries(string.IsNullOrEmpty(planName) ? "Data" : planName, points));
+            }
+        }
+
+        if (points.Count == 0) return null;
+
+        return new ParsedMeasurementRecord(
+            int.Parse(match.Groups["cR"].Value),
+            int.Parse(match.Groups["cC"].Value),
+            int.Parse(match.Groups["sR"].Value),
+            int.Parse(match.Groups["sC"].Value),
+            int.Parse(match.Groups["cont"].Value),
+            points,
+            series,
+            planName,
+            xLabel,
+            yLabel);
+    }
+
 }
+
+public record ParsedMeasurementRecord(
+    int CellRow,
+    int CellCol,
+    int SubRow,
+    int SubCol,
+    int Contact,
+    List<CurvePoint> Points,
+    List<PlotSeries> Series,
+    string PlanName,
+    string XAxisLabel,
+    string YAxisLabel);
 

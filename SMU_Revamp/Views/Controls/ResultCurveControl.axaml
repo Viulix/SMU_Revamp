@@ -31,15 +31,17 @@
                 <TabControl Margin="0,10,0,0">
                     <TabItem Header="Linear Plot">
                         <views:CurvePlotView Title="{Binding SelectedResultContact.DisplayName}"
-                                             XAxisLabel="Voltage (V)"
-                                             YAxisLabel="Current (A)"
+                                             XAxisLabel="{Binding SelectedResultContact.XAxisLabel}"
+                                             YAxisLabel="{Binding SelectedResultContact.YAxisLabel}"
+                                             Series="{Binding SelectedResultContact.Series}"
                                              Points="{Binding SelectedResultContact.CurveData}"
                                              Height="400" />
                     </TabItem>
                     <TabItem Header="Logarithmic Plot">
                         <views:CurvePlotView Title="I-V Curve - Logarithmic"
-                                             XAxisLabel="Voltage (V)"
-                                             YAxisLabel="Current (A)"
+                                             XAxisLabel="{Binding SelectedResultContact.XAxisLabel}"
+                                             YAxisLabel="{Binding SelectedResultContact.YAxisLabel}"
+                                             Series="{Binding SelectedResultContact.Series}"
                                              Points="{Binding SelectedResultContact.CurveData}"
                                              LogarithmicY="True"
                                              Height="400" />
