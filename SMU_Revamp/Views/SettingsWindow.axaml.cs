@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using SMU_Revamp.Services;
 using SMU_Revamp.Interfaces;
 
@@ -247,4 +248,153 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private static string? GetSafePath(IStorageItem? item)
+    {
+        if (item == null) return null;
+
+        try
+        {
+            var localPath = item.TryGetLocalPath();
+            if (!string.IsNullOrWhiteSpace(localPath))
+            {
+                if (localPath.Length == 2 && char.IsLetter(localPath[0]) && localPath[1] == ':')
+                {
+                    localPath += "\\";
+                }
+                return localPath;
+            }
+        }
+        catch { }
+
+        try
+        {
+            var uri = item.Path;
+            if (uri != null)
+            {
+                string raw;
+                if (uri.IsAbsoluteUri)
+                {
+                    raw = uri.IsFile ? uri.LocalPath : uri.ToString();
+                }
+                else
+                {
+                    raw = Uri.UnescapeDataString(uri.OriginalString);
+                }
+
+                if (!string.IsNullOrWhiteSpace(raw))
+                {
+                    if (raw.Length == 2 && char.IsLetter(raw[0]) && raw[1] == ':')
+                    {
+                        raw += "\\";
+                    }
+                    return raw;
+                }
+            }
+        }
+        catch { }
+
+        return null;
+    }
+
+    private async void BrowseMeasurementsDirectory_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (DataContext is ViewModels.MainWindowViewModel vm)
+            {
+                var topLevel = TopLevel.GetTopLevel(this);
+                if (topLevel == null) return;
+
+                IStorageFolder? startLocation = null;
+                try
+                {
+                    var curPath = !string.IsNullOrWhiteSpace(vm.Settings.MeasurementsDirectory)
+                        ? vm.Settings.MeasurementsDirectory
+                        : vm.Settings.DefaultMeasurementsDirectory;
+                    if (!string.IsNullOrWhiteSpace(curPath) && System.IO.Directory.Exists(curPath))
+                    {
+                        startLocation = await topLevel.StorageProvider.TryGetFolderFromPathAsync(curPath);
+                    }
+                }
+                catch { }
+
+                var result = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = "Select Measurements / Sync Directory",
+                    SuggestedStartLocation = startLocation,
+                    AllowMultiple = false
+                });
+
+                if (result != null && result.Count > 0)
+                {
+                    var selectedPath = GetSafePath(result[0]);
+                    if (!string.IsNullOrWhiteSpace(selectedPath))
+                    {
+                        var root = System.IO.Path.GetPathRoot(selectedPath);
+                        if (!string.IsNullOrWhiteSpace(root) && 
+                            string.Equals(selectedPath.TrimEnd('\\', '/'), root.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                        {
+                            selectedPath = System.IO.Path.Combine(root, "SMU_Measurements");
+                        }
+                        vm.Settings.MeasurementsDirectory = selectedPath;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SettingsWindow] Error browsing measurements directory: {ex.Message}");
+        }
+    }
+
+    private async void BrowseLogsDirectory_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (DataContext is ViewModels.MainWindowViewModel vm)
+            {
+                var topLevel = TopLevel.GetTopLevel(this);
+                if (topLevel == null) return;
+
+                IStorageFolder? startLocation = null;
+                try
+                {
+                    var curPath = !string.IsNullOrWhiteSpace(vm.Settings.LogsDirectory)
+                        ? vm.Settings.LogsDirectory
+                        : vm.Settings.DefaultLogsDirectory;
+                    if (!string.IsNullOrWhiteSpace(curPath) && System.IO.Directory.Exists(curPath))
+                    {
+                        startLocation = await topLevel.StorageProvider.TryGetFolderFromPathAsync(curPath);
+                    }
+                }
+                catch { }
+
+                var result = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = "Select Application Logs Directory",
+                    SuggestedStartLocation = startLocation,
+                    AllowMultiple = false
+                });
+
+                if (result != null && result.Count > 0)
+                {
+                    var selectedPath = GetSafePath(result[0]);
+                    if (!string.IsNullOrWhiteSpace(selectedPath))
+                    {
+                        var root = System.IO.Path.GetPathRoot(selectedPath);
+                        if (!string.IsNullOrWhiteSpace(root) && 
+                            string.Equals(selectedPath.TrimEnd('\\', '/'), root.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                        {
+                            selectedPath = System.IO.Path.Combine(root, "SMU_Revamp_logs");
+                        }
+                        vm.Settings.LogsDirectory = selectedPath;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SettingsWindow] Error browsing logs directory: {ex.Message}");
+        }
+    }
 }

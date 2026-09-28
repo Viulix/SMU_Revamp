@@ -237,29 +237,30 @@ public partial class MainWindowViewModel
                         string folderPath;
                         try
                         {
-                            var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                            var baseDir = ConfigurationService.GetEffectiveMeasurementsDirectory();
                             if (IsScanningWafer)
                             {
                                 folderName = _currentWaferScanFolderName;
-                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, "Wafermaps", deviceName, folderName);
+                                folderPath = System.IO.Path.Combine(baseDir, profile, "Wafermaps", deviceName, folderName);
                             }
                             else
                             {
                                 folderName = $"{deviceName}_{DateTime.Now:yyyyMMdd}";
-                                folderPath = System.IO.Path.Combine(documentsPath, "SMU_Measurements", profile, folderName);
+                                folderPath = System.IO.Path.Combine(baseDir, profile, folderName);
                             }
                         }
                         catch
                         {
+                            var fallbackBase = AppDomain.CurrentDomain.BaseDirectory;
                             if (IsScanningWafer)
                             {
                                 folderName = _currentWaferScanFolderName;
-                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, "Wafermaps", deviceName, folderName);
+                                folderPath = System.IO.Path.Combine(fallbackBase, "SMU_Measurements", profile, "Wafermaps", deviceName, folderName);
                             }
                             else
                             {
                                 folderName = $"{deviceName}_{DateTime.Now:yyyyMMdd}";
-                                folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements", profile, folderName);
+                                folderPath = System.IO.Path.Combine(fallbackBase, "SMU_Measurements", profile, folderName);
                             }
                         }
                         
@@ -1203,7 +1204,16 @@ public partial class MainWindowViewModel
                 // Always include "Empty Device" in suggestions
                 set.Add("Empty Device");
 
-                // 2. Scan disk folders under SMU_Measurements/<profile>/Wafermaps/
+                // 2. Scan disk folders under <MeasurementsDir>/<profile>/Wafermaps/
+                var candidateDirs = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                string effectiveDir = ConfigurationService.GetEffectiveMeasurementsDirectory();
+                if (!string.IsNullOrWhiteSpace(effectiveDir))
+                {
+                    candidateDirs.Add(System.IO.Path.Combine(effectiveDir, profileName, "Wafermaps"));
+                    candidateDirs.Add(System.IO.Path.Combine(effectiveDir, "SMU_Measurements", profileName, "Wafermaps"));
+                }
+
                 string[] basePaths = new[]
                 {
                     Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
@@ -1212,9 +1222,13 @@ public partial class MainWindowViewModel
 
                 foreach (var basePath in basePaths)
                 {
+                    candidateDirs.Add(System.IO.Path.Combine(basePath, "SMU_Measurements", profileName, "Wafermaps"));
+                }
+
+                foreach (var wafermapsDir in candidateDirs)
+                {
                     try
                     {
-                        string wafermapsDir = System.IO.Path.Combine(basePath, "SMU_Measurements", profileName, "Wafermaps");
                         if (System.IO.Directory.Exists(wafermapsDir))
                         {
                             // First migrate any legacy Scan_* folders directly under Wafermaps/ into Wafermaps/Empty Device/

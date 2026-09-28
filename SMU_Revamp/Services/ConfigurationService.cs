@@ -85,6 +85,16 @@ namespace SMU_Revamp.Services
                 System.Diagnostics.Debug.WriteLine($"[ConfigurationService] Load failed: {ex}");
                 _config = new AppConfig();
             }
+
+            try
+            {
+                var effectiveLogDir = GetEffectiveLogsDirectory(_config);
+                LogService.Instance.SetLogDirectory(effectiveLogDir);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ConfigurationService] Failed to set log directory: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -142,5 +152,56 @@ namespace SMU_Revamp.Services
         /// Gets the current configuration.
         /// </summary>
         public AppConfig GetConfig() => _config;
+
+        /// <summary>
+        /// Gets the default directory for saving measurements (%USERPROFILE%/Documents/SMU_Measurements).
+        /// </summary>
+        public static string GetDefaultMeasurementsDirectory()
+        {
+            try
+            {
+                var docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                if (!string.IsNullOrWhiteSpace(docs))
+                {
+                    return Path.Combine(docs, "SMU_Measurements");
+                }
+            }
+            catch { }
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SMU_Measurements");
+        }
+
+        /// <summary>
+        /// Resolves the effective measurement storage directory based on configuration or default.
+        /// </summary>
+        public static string GetEffectiveMeasurementsDirectory(AppConfig? config = null)
+        {
+            config ??= Instance.GetConfig();
+            if (!string.IsNullOrWhiteSpace(config.MeasurementsDirectory))
+            {
+                return config.MeasurementsDirectory;
+            }
+            return GetDefaultMeasurementsDirectory();
+        }
+
+        /// <summary>
+        /// Gets the default directory for application logs (%APPDATA%/SMU_Revamp/logs).
+        /// </summary>
+        public static string GetDefaultLogsDirectory()
+        {
+            return LogService.ComputeDefaultLogDirectory();
+        }
+
+        /// <summary>
+        /// Resolves the effective application logs directory based on configuration or default.
+        /// </summary>
+        public static string GetEffectiveLogsDirectory(AppConfig? config = null)
+        {
+            config ??= Instance.GetConfig();
+            if (!string.IsNullOrWhiteSpace(config.LogsDirectory))
+            {
+                return config.LogsDirectory;
+            }
+            return GetDefaultLogsDirectory();
+        }
     }
 }

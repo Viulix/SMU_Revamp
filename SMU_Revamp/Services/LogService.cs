@@ -144,7 +144,7 @@ namespace SMU_Revamp.Services
             return singleLine.Length <= maxLength ? singleLine : singleLine.Substring(0, maxLength) + $"... (+{singleLine.Length - maxLength} chars)";
         }
 
-        private static string ComputeDefaultLogDirectory()
+        public static string ComputeDefaultLogDirectory()
         {
             try
             {

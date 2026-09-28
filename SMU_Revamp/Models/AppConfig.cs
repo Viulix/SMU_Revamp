@@ -152,6 +152,18 @@ public class AppConfig
     public bool CleanupOnlyWafermaps { get; set; } = true;
 
     /// <summary>
+    /// Custom directory for saving measurement files and syncing to database.
+    /// If null or empty, defaults to Documents/SMU_Measurements.
+    /// </summary>
+    public string MeasurementsDirectory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Custom directory for application log files.
+    /// If null or empty, defaults to %AppData%/SMU_Revamp/logs.
+    /// </summary>
+    public string LogsDirectory { get; set; } = string.Empty;
+
+    /// <summary>
     /// MySQL Database IP/Address.
     /// </summary>
     public string DbAddress { get; set; } = "134.245.242.39";

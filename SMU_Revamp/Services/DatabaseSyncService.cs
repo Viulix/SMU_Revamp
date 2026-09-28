@@ -493,6 +493,17 @@ namespace SMU_Revamp.Services
 
         private static string FindCleanupStopDirectory(string dir)
         {
+            string? effectiveMeasurementsDir = null;
+            try
+            {
+                var effective = ConfigurationService.GetEffectiveMeasurementsDirectory();
+                if (!string.IsNullOrWhiteSpace(effective))
+                {
+                    effectiveMeasurementsDir = Path.GetFullPath(effective).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                }
+            }
+            catch { }
+
             var current = new DirectoryInfo(dir);
             while (current != null)
             {
@@ -503,6 +514,14 @@ namespace SMU_Revamp.Services
                 if (string.Equals(current.Parent?.Name, "SMU_Measurements", StringComparison.OrdinalIgnoreCase))
                 {
                     return current.FullName; // Profile directory
+                }
+                if (effectiveMeasurementsDir != null && current.Parent != null)
+                {
+                    var parentPath = Path.GetFullPath(current.Parent.FullName).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                    if (string.Equals(parentPath, effectiveMeasurementsDir, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return current.FullName; // Profile directory under configured measurements path
+                    }
                 }
                 current = current.Parent;
             }
@@ -560,6 +579,28 @@ namespace SMU_Revamp.Services
             var results = new List<LocalMeasurementFileInfo>();
             var seenFullPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            var rootDirs = new List<string>();
+
+            void TryAddRootDir(string? path)
+            {
+                if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path) && !rootDirs.Contains(path, StringComparer.OrdinalIgnoreCase))
+                {
+                    rootDirs.Add(path);
+                }
+            }
+
+            try
+            {
+                var config = ConfigurationService.Instance.GetConfig();
+                string effectiveDir = ConfigurationService.GetEffectiveMeasurementsDirectory(config);
+                TryAddRootDir(effectiveDir);
+                if (!string.IsNullOrWhiteSpace(config.MeasurementsDirectory))
+                {
+                    TryAddRootDir(Path.Combine(config.MeasurementsDirectory, "SMU_Measurements"));
+                }
+            }
+            catch { }
+
             var basePaths = new List<string>();
 
             void TryAddBasePath(string? path)
@@ -591,9 +632,13 @@ namespace SMU_Revamp.Services
 
             foreach (var basePath in basePaths)
             {
+                TryAddRootDir(Path.Combine(basePath, "SMU_Measurements"));
+            }
+
+            foreach (var rootSmuDir in rootDirs)
+            {
                 try
                 {
-                    string rootSmuDir = Path.Combine(basePath, "SMU_Measurements");
                     if (!Directory.Exists(rootSmuDir)) continue;
 
                     var profileDirs = Directory.GetDirectories(rootSmuDir);
@@ -722,7 +767,7 @@ namespace SMU_Revamp.Services
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[DatabaseSyncService] Error scanning path {basePath}: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"[DatabaseSyncService] Error scanning path {rootSmuDir}: {ex.Message}");
                 }
             }
 

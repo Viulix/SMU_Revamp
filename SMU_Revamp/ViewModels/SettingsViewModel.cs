@@ -4,6 +4,7 @@ using SMU_Revamp.Models;
 using SMU_Revamp.Services;
 using SMU_Revamp.Interfaces;
 using System;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace SMU_Revamp.ViewModels
@@ -243,6 +244,113 @@ namespace SMU_Revamp.ViewModels
             set => SetProperty(ref _cleanupConfirmationMessage, value);
         }
 
+        // Storage Directories and Disk Space Configuration
+        private string _measurementsDirectory = string.Empty;
+        public string MeasurementsDirectory
+        {
+            get => _measurementsDirectory;
+            set
+            {
+                if (SetProperty(ref _measurementsDirectory, value))
+                {
+                    UpdateDriveStorageInfo();
+                }
+            }
+        }
+
+        public string DefaultMeasurementsDirectory => ConfigurationService.GetDefaultMeasurementsDirectory();
+
+        private string _logsDirectory = string.Empty;
+        public string LogsDirectory
+        {
+            get => _logsDirectory;
+            set => SetProperty(ref _logsDirectory, value);
+        }
+
+        public string DefaultLogsDirectory => ConfigurationService.GetDefaultLogsDirectory();
+
+        private string _driveStorageInfo = string.Empty;
+        public string DriveStorageInfo
+        {
+            get => _driveStorageInfo;
+            set => SetProperty(ref _driveStorageInfo, value);
+        }
+
+        private double _driveUsedPercentage = 0.0;
+        public double DriveUsedPercentage
+        {
+            get => _driveUsedPercentage;
+            set => SetProperty(ref _driveUsedPercentage, value);
+        }
+
+        private bool _isDriveStorageInfoAvailable = false;
+        public bool IsDriveStorageInfoAvailable
+        {
+            get => _isDriveStorageInfoAvailable;
+            set => SetProperty(ref _isDriveStorageInfoAvailable, value);
+        }
+
+        public void UpdateDriveStorageInfo()
+        {
+            try
+            {
+                string path = !string.IsNullOrWhiteSpace(MeasurementsDirectory)
+                    ? MeasurementsDirectory.Trim()
+                    : DefaultMeasurementsDirectory;
+
+                if (path.Length == 2 && char.IsLetter(path[0]) && path[1] == ':')
+                {
+                    path += "\\";
+                }
+
+                string fullPath = Path.GetFullPath(path);
+                string? root = Path.GetPathRoot(fullPath);
+
+                if (string.IsNullOrWhiteSpace(root))
+                {
+                    DriveStorageInfo = "Drive path could not be resolved.";
+                    IsDriveStorageInfoAvailable = false;
+                    return;
+                }
+
+                if (root.Length == 2 && char.IsLetter(root[0]) && root[1] == ':')
+                {
+                    root += "\\";
+                }
+
+                var drive = new DriveInfo(root);
+                if (drive.IsReady)
+                {
+                    long freeBytes = drive.AvailableFreeSpace;
+                    long totalBytes = drive.TotalSize;
+                    long usedBytes = totalBytes - freeBytes;
+                    double usedPercent = totalBytes > 0 ? (double)usedBytes / totalBytes * 100.0 : 0.0;
+
+                    DriveUsedPercentage = Math.Clamp(usedPercent, 0.0, 100.0);
+                    DriveStorageInfo = $"{FormatBytes(freeBytes)} free of {FormatBytes(totalBytes)} ({usedPercent:F1}% used) on {drive.Name.TrimEnd('\\')}";
+                    IsDriveStorageInfoAvailable = true;
+                }
+                else
+                {
+                    DriveStorageInfo = $"Drive {root} is not ready.";
+                    IsDriveStorageInfoAvailable = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                DriveStorageInfo = $"Storage info unavailable: {ex.Message}";
+                IsDriveStorageInfoAvailable = false;
+            }
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            if (bytes < 1024) return $"{bytes} B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+            if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+            return $"{bytes / (1024.0 * 1024.0 * 1024.0):F1} GB";
+        }
+
         public IRelayCommand CancelCleanupCommand { get; }
         public IAsyncRelayCommand ConfirmCleanupCommand { get; }
 
@@ -281,6 +389,9 @@ namespace SMU_Revamp.ViewModels
             AutoCleanupSyncedLocalFiles = config.AutoCleanupSyncedLocalFiles;
             CleanupRetentionDays = config.CleanupRetentionDays > 0 ? config.CleanupRetentionDays : 30;
             CleanupOnlyWafermaps = config.CleanupOnlyWafermaps;
+            MeasurementsDirectory = config.MeasurementsDirectory ?? string.Empty;
+            LogsDirectory = config.LogsDirectory ?? string.Empty;
+            UpdateDriveStorageInfo();
 
             CancelCleanupCommand = new RelayCommand(CancelCleanup);
             ConfirmCleanupCommand = new AsyncRelayCommand(ConfirmCleanupAsync);
@@ -377,6 +488,12 @@ namespace SMU_Revamp.ViewModels
             config.AutoCleanupSyncedLocalFiles = AutoCleanupSyncedLocalFiles;
             config.CleanupRetentionDays = CleanupRetentionDays;
             config.CleanupOnlyWafermaps = CleanupOnlyWafermaps;
+            config.MeasurementsDirectory = MeasurementsDirectory?.Trim() ?? string.Empty;
+            config.LogsDirectory = LogsDirectory?.Trim() ?? string.Empty;
+
+            var effectiveLogDir = ConfigurationService.GetEffectiveLogsDirectory(config);
+            LogService.Instance.SetLogDirectory(effectiveLogDir);
+            UpdateDriveStorageInfo();
 
             await _configService.SaveAsync(config);
             ApplyStatusMessage = "Settings saved.";
@@ -412,6 +529,9 @@ namespace SMU_Revamp.ViewModels
             AutoCleanupSyncedLocalFiles = config.AutoCleanupSyncedLocalFiles;
             CleanupRetentionDays = config.CleanupRetentionDays > 0 ? config.CleanupRetentionDays : 30;
             CleanupOnlyWafermaps = config.CleanupOnlyWafermaps;
+            MeasurementsDirectory = config.MeasurementsDirectory ?? string.Empty;
+            LogsDirectory = config.LogsDirectory ?? string.Empty;
+            UpdateDriveStorageInfo();
             CleanupStatusMessage = string.Empty;
             IsCleanupConfirmationVisible = false;
         }
