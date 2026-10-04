@@ -159,11 +159,7 @@ public partial class CurvePlotView : UserControl
 
     public void RequestRedraw()
     {
-        if (!IsEffectivelyVisible)
-        {
-            _needsRedrawWhenVisible = true;
-            return;
-        }
+        _needsRedrawWhenVisible = true;
 
         if (_isRedrawQueued) return;
         _isRedrawQueued = true;
@@ -173,11 +169,8 @@ public partial class CurvePlotView : UserControl
             _isRedrawQueued = false;
             if (IsEffectivelyVisible)
             {
+                _needsRedrawWhenVisible = false;
                 Redraw();
-            }
-            else
-            {
-                _needsRedrawWhenVisible = true;
             }
         }, Avalonia.Threading.DispatcherPriority.Render);
     }
@@ -185,10 +178,25 @@ public partial class CurvePlotView : UserControl
     public CurvePlotView()
     {
         InitializeComponent();
-        
+
+        Loaded += (s, e) =>
+        {
+            if (_needsRedrawWhenVisible || (AvaPlot?.Plot.PlottableList.Count ?? 0) == 0)
+            {
+                RequestRedraw();
+            }
+        };
+
         if (ContainerGrid != null)
         {
-            ContainerGrid.SizeChanged += (s, e) => UpdateAspectRatio();
+            ContainerGrid.SizeChanged += (s, e) =>
+            {
+                UpdateAspectRatio();
+                if (_needsRedrawWhenVisible)
+                {
+                    RequestRedraw();
+                }
+            };
         }
     }
 
@@ -197,7 +205,6 @@ public partial class CurvePlotView : UserControl
         base.OnAttachedToVisualTree(e);
         if (_needsRedrawWhenVisible || (AvaPlot?.Plot.PlottableList.Count ?? 0) == 0)
         {
-            _needsRedrawWhenVisible = false;
             RequestRedraw();
         }
     }
@@ -209,12 +216,15 @@ public partial class CurvePlotView : UserControl
         if (change.Property == BoundsProperty)
         {
             UpdateAspectRatio();
+            if (_needsRedrawWhenVisible && IsEffectivelyVisible)
+            {
+                RequestRedraw();
+            }
         }
         else if (change.Property == IsVisibleProperty)
         {
-            if (IsEffectivelyVisible && _needsRedrawWhenVisible)
+            if (_needsRedrawWhenVisible && IsEffectivelyVisible)
             {
-                _needsRedrawWhenVisible = false;
                 RequestRedraw();
             }
         }

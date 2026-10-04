@@ -41,7 +41,7 @@ namespace SMU_Revamp.MeasurementPlans
                 { "Points", 21 },
                 { "Compliance", 0.01 },
                 { "AdcSamples", 0 },
-                { "SweepMode", 0 }
+                { "SweepMode", "Single Staircase (1)" }
             };
         }
 
@@ -85,9 +85,9 @@ namespace SMU_Revamp.MeasurementPlans
                 await smu.SendCommandAsync($"AV -{adcSamples},0");
                 progress?.Report(2);
 
-                int modeValue = 3;
-                if (mode.Contains("(1)")) modeValue = 1;
-                else if (mode.Contains("(3)")) modeValue = 3;
+                int modeValue = 1;
+                if (mode.Contains("(3)") || mode == "3") modeValue = 3;
+                else if (mode.Contains("(1)") || mode == "1") modeValue = 1;
 
                 var wvCommand = System.FormattableString.Invariant($"WV {channel},{modeValue},0,{start},{stop},{pointsCount},{compliance}");
                 await smu.SendCommandAsync(wvCommand);

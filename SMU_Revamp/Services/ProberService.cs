@@ -286,7 +286,7 @@ namespace SMU_Revamp.Services
             if (!int.TryParse(cell.Substring(0, 2), out int cellY) || !int.TryParse(cell.Substring(2, 2), out int cellX))
                 throw new ArgumentException("Cell must be a 4-digit string 'YYXX' containing numbers.");
 
-            double grossx = (cellX - 4) * 5000;
+            double grossx = (cellX - 1) * 5000;
             double grossy = (cellY - 1) * 5000;
 
             double subOffsetX = (col - 1) * 1000;
