@@ -292,6 +292,12 @@ namespace SMU_Revamp.ViewModels
 
         public void UpdateDriveStorageInfo()
         {
+            if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(UpdateDriveStorageInfo);
+                return;
+            }
+
             try
             {
                 string path = !string.IsNullOrWhiteSpace(MeasurementsDirectory)
@@ -439,6 +445,7 @@ namespace SMU_Revamp.ViewModels
                 {
                     SyncStatusMessage = result.Success ? result.Message : $"Sync failed: {result.Message}";
                 }
+                UpdateDriveStorageInfo();
             });
         }
 
@@ -636,6 +643,7 @@ namespace SMU_Revamp.ViewModels
 
             CleanupStatusMessage = result.Message;
             IsCleaningUpLocalFiles = false;
+            UpdateDriveStorageInfo();
         }
     }
 }

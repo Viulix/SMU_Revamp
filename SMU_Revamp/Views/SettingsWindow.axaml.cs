@@ -16,6 +16,13 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent();
         _debugService = DeviceDebugService.Instance;
+        this.Opened += (s, e) =>
+        {
+            if (DataContext is ViewModels.MainWindowViewModel vm)
+            {
+                vm.Settings.UpdateDriveStorageInfo();
+            }
+        };
     }
 
     private bool IsExperimentBusy(out string reason)

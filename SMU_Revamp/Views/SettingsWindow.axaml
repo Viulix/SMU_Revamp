@@ -356,7 +356,7 @@
                         <!-- Storage Directories -->
                         <Grid ColumnDefinitions="140,*,Auto" RowDefinitions="Auto,Auto" Margin="0,2,0,0">
                             <!-- Measurements Directory -->
-                            <TextBlock Grid.Column="0" Grid.Row="0" Text="Measurements / Sync:" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="0" Grid.Row="0" Text="Measurements / Sync:" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,6,0" />
                             <TextBox Grid.Column="1" Grid.Row="0" 
                                      Text="{Binding Settings.MeasurementsDirectory}" 
                                      PlaceholderText="{Binding Settings.DefaultMeasurementsDirectory}" 
