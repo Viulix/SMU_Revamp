@@ -63,6 +63,15 @@ namespace SMU_Revamp.MeasurementPlans
                 if (readingChannel != channel)
                 {
                     await smu.SendCommandAsync($"CN {channel},{readingChannel}");
+                    // Hold the separate return channel at 0 V with the requested current compliance limit.
+                    // Without this, CN leaves the return channel at the SMU default limit of 100 uA.
+                    var dvReturnCommand = System.FormattableString.Invariant($"DV {readingChannel},0,0,{compliance}");
+                    await smu.SendCommandAsync(dvReturnCommand);
+                    var dvReturnError = await smu.CheckErrorAsync();
+                    if (dvReturnError != null)
+                    {
+                        throw new InvalidOperationException($"SMU rejected return channel DV command: {dvReturnError}");
+                    }
                 }
                 else
                 {

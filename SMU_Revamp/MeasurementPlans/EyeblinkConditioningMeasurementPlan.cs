@@ -847,9 +847,16 @@ namespace SMU_Revamp.MeasurementPlans
             await smu.SendCommandAsync("*RST");
 
             if (settings.ReadingChannel == settings.WriteChannel)
+            {
                 await smu.SendCommandAsync($"CN {settings.WriteChannel}");
+            }
             else
+            {
                 await smu.SendCommandAsync($"CN {settings.WriteChannel},{settings.ReadingChannel}");
+                // Hold the separate return channel at 0 V with the requested current compliance limit.
+                // Without this, CN leaves the return channel at the SMU default limit of 100 uA.
+                await smu.SendCommandAsync(FormattableString.Invariant($"DV {settings.ReadingChannel},0,0,{settings.Compliance:G17}"));
+            }
 
             // FMT 1 gives fixed-width ASCII elements with a three-character
             // header. TSC 1 inserts an instrument timestamp immediately before

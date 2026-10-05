@@ -551,6 +551,9 @@ namespace SMU_Revamp.MeasurementPlans
             if (s.ReadingChannel != s.WriteChannel)
             {
                 await smu.SendCommandAsync($"CN {s.WriteChannel},{s.ReadingChannel}");
+                // Hold the separate return channel at 0 V with the requested current compliance limit.
+                // Without this, CN leaves the return channel at the SMU default limit of 100 uA.
+                await smu.SendCommandAsync(FormattableString.Invariant($"DV {s.ReadingChannel},0,0,{s.Compliance}"));
             }
             else
             {

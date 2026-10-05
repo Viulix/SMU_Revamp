@@ -276,6 +276,19 @@ namespace SMU_Revamp.MeasurementPlans
             // Set averaging PLC
             await smu.SendCommandAsync($"AV -{adcSamples},0");
 
+            if (readingChannel != channel)
+            {
+                // Hold the separate return channel at 0 V with the requested current compliance limit.
+                // Without this, CN leaves the return channel at the SMU default limit of 100 uA.
+                var dvReturnCommand = System.FormattableString.Invariant($"DV {readingChannel},0,0,{compliance}");
+                await smu.SendCommandAsync(dvReturnCommand);
+                var dvError = await smu.CheckErrorAsync();
+                if (dvError != null)
+                {
+                    throw new InvalidOperationException($"SMU rejected return channel DV command: {dvError}");
+                }
+            }
+
             switch (step.Type)
             {
                 case StepType.Point:
