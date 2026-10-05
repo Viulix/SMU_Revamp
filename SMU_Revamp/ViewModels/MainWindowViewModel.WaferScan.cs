@@ -436,6 +436,13 @@ public partial class MainWindowViewModel
                         {
                             WaferScanAccumulatedSeries.Add(new PlotSeries(seriesName, new List<CurvePoint>(PlottedPlan.ResultPoints)));
                         }
+
+                        // Keep only the rolling plot window; older contacts are already auto-saved.
+                        int overflow = WaferScanAccumulatedSeries.Count - MaxWaferScanPlotSeries;
+                        if (overflow > 0)
+                        {
+                            WaferScanAccumulatedSeries.RemoveRange(0, overflow);
+                        }
                     }
                     RefreshPlotDataFromPlottedPlan();
                 }

@@ -105,7 +105,7 @@ public partial class CurvePlotView : UserControl
                     inpc.PropertyChanged += SeriesSetting_PropertyChanged;
             }
         }
-        Redraw();
+        RequestRedraw();
     }
 
     private void SeriesSettings_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -126,14 +126,15 @@ public partial class CurvePlotView : UserControl
                     inpc.PropertyChanged += SeriesSetting_PropertyChanged;
             }
         }
-        Redraw();
+        // Coalesced: a Clear() + N x Add() rebuild must not trigger N synchronous redraws.
+        RequestRedraw();
     }
 
     private void SeriesSetting_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == "PickerColor" || e.PropertyName == "ColorHex" || e.PropertyName == "LineWidth" || e.PropertyName == "LineStyle")
         {
-            Redraw();
+            RequestRedraw();
         }
     }
 
@@ -326,6 +327,15 @@ public partial class CurvePlotView : UserControl
         bool drawScatter = PlotStyle == SMU_Revamp.Models.PlotStyle.Scatter || PlotStyle == SMU_Revamp.Models.PlotStyle.LineAndScatter || PlotStyle == SMU_Revamp.Models.PlotStyle.InterpolatedLineAndScatter;
         bool isInterpolated = PlotStyle == SMU_Revamp.Models.PlotStyle.InterpolatedLine || PlotStyle == SMU_Revamp.Models.PlotStyle.InterpolatedLineAndScatter;
 
+        var settingsByName = new Dictionary<string, SMU_Revamp.ViewModels.SeriesSetting>();
+        if (SeriesSettings != null)
+        {
+            foreach (var set in SeriesSettings)
+            {
+                settingsByName.TryAdd(set.SeriesName, set);
+            }
+        }
+
         foreach (var s in series)
         {
             var xs = new double[s.Points.Count];
@@ -347,30 +357,25 @@ public partial class CurvePlotView : UserControl
             sp.LegendText = s.Name;
             sp.Smooth = isInterpolated && xs.Length > 2;
             
-            var seriesSettingsList = SeriesSettings?.ToList();
-            if (seriesSettingsList != null)
+            if (settingsByName.TryGetValue(s.Name, out var setting))
             {
-                var setting = seriesSettingsList.FirstOrDefault(set => set.SeriesName == s.Name);
-                if (setting != null)
+                if (!string.IsNullOrWhiteSpace(setting.ColorHex))
                 {
-                    if (!string.IsNullOrWhiteSpace(setting.ColorHex))
+                    try
                     {
-                        try
-                        {
-                            var color = ScottPlot.Color.FromHex(setting.ColorHex);
-                            sp.Color = color;
-                        }
-                        catch { }
+                        var color = ScottPlot.Color.FromHex(setting.ColorHex);
+                        sp.Color = color;
                     }
-                    
-                    sp.LineWidth = (float)setting.LineWidth;
-                    
-                    switch (setting.LineStyle)
-                    {
-                        case "Dashed": sp.LinePattern = ScottPlot.LinePattern.Dashed; break;
-                        case "Dotted": sp.LinePattern = ScottPlot.LinePattern.Dotted; break;
-                        default: sp.LinePattern = ScottPlot.LinePattern.Solid; break;
-                    }
+                    catch { }
+                }
+                
+                sp.LineWidth = (float)setting.LineWidth;
+                
+                switch (setting.LineStyle)
+                {
+                    case "Dashed": sp.LinePattern = ScottPlot.LinePattern.Dashed; break;
+                    case "Dotted": sp.LinePattern = ScottPlot.LinePattern.Dotted; break;
+                    default: sp.LinePattern = ScottPlot.LinePattern.Solid; break;
                 }
             }
             

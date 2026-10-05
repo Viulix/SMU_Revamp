@@ -203,6 +203,11 @@ public class AppConfig
     /// </summary>
     public System.Collections.Generic.List<WaferScanPreset> WaferScanPresets { get; set; } = new();
 
+    /// <summary>
+    /// Maximum number of plot series to retain and display in the live wafer scan plot.
+    /// </summary>
+    public int WaferScanMaxPlotSeries { get; set; } = 10;
+
     // Memristor Check weights
     public double MemristorWeightSnr { get; set; } = 0.20;
     public double MemristorWeightNonlinearity { get; set; } = 0.15;

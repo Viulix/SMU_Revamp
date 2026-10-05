@@ -31,6 +31,7 @@ namespace SMU_Revamp.ViewModels
         private string _profile = string.Empty;
         private string _sampleName = string.Empty;
         private bool _showAlignmentWarning = true;
+        private int _waferScanMaxPlotSeries = 10;
 
         // Database Configuration
         private string _dbAddress = "134.245.242.39";
@@ -103,6 +104,12 @@ namespace SMU_Revamp.ViewModels
         {
             get => _showAlignmentWarning;
             set => SetProperty(ref _showAlignmentWarning, value);
+        }
+
+        public int WaferScanMaxPlotSeries
+        {
+            get => _waferScanMaxPlotSeries;
+            set => SetProperty(ref _waferScanMaxPlotSeries, Math.Max(1, value));
         }
 
         private bool _simulationMode = false;
@@ -397,6 +404,7 @@ namespace SMU_Revamp.ViewModels
             SampleName = string.Empty;
             ShowAlignmentWarning = config.ShowAlignmentWarning;
             SimulationMode = config.SimulationMode;
+            WaferScanMaxPlotSeries = config.WaferScanMaxPlotSeries > 0 ? config.WaferScanMaxPlotSeries : 10;
 
             DbAddress = config.DbAddress;
             DbUser = config.DbUser;
@@ -499,6 +507,7 @@ namespace SMU_Revamp.ViewModels
             config.SMUTimeoutMs = SMUTimeoutMs;
             config.ShowAlignmentWarning = ShowAlignmentWarning;
             config.SimulationMode = SimulationMode;
+            config.WaferScanMaxPlotSeries = WaferScanMaxPlotSeries > 0 ? WaferScanMaxPlotSeries : 10;
 
             config.DbAddress = DbAddress;
             config.DbUser = DbUser;
@@ -538,6 +547,7 @@ namespace SMU_Revamp.ViewModels
             SampleName = string.Empty;
             ShowAlignmentWarning = config.ShowAlignmentWarning;
             SimulationMode = config.SimulationMode;
+            WaferScanMaxPlotSeries = config.WaferScanMaxPlotSeries > 0 ? config.WaferScanMaxPlotSeries : 10;
 
             DbAddress = config.DbAddress;
             DbUser = config.DbUser;

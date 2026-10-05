@@ -156,7 +156,7 @@ public partial class MainWindowViewModel
                 if (PlottedPlan != null && PlottedPlan.ResultPoints.Count != lastPointCount)
                 {
                     lastPointCount = PlottedPlan.ResultPoints.Count;
-                    if (lastPlotUpdate.ElapsedMilliseconds >= 60 || p >= 99)
+                    if (lastPlotUpdate.ElapsedMilliseconds >= 200 || p >= 99)
                     {
                         lastPlotUpdate.Restart();
                         RefreshPlotDataFromPlottedPlan();

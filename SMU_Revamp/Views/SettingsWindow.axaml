@@ -295,6 +295,25 @@
             <!-- Separator -->
             <Separator Margin="0,10" />
 
+            <!-- Wafermap Scan Section -->
+            <TextBlock Text="Wafermap Scan &amp; Live Plot" FontSize="16" FontWeight="Bold" />
+
+            <StackPanel Orientation="Vertical" Spacing="10" Margin="20,0,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Max Plot Curves:" Width="140" VerticalAlignment="Center" />
+                    <NumericUpDown Value="{Binding Settings.WaferScanMaxPlotSeries}" Minimum="1" Maximum="100" Increment="1" ShowButtonSpinner="True" Width="160" />
+                </StackPanel>
+                <TextBlock Text="Number of recent curve series retained and displayed in the live plot during a wafer scan. Smaller values reduce UI lag during long scans (default: 10)."
+                           FontSize="11" Foreground="#888888" TextWrapping="Wrap" MaxWidth="460" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Alignment Warning:" Width="140" VerticalAlignment="Center" />
+                    <CheckBox IsChecked="{Binding Settings.ShowAlignmentWarning}" Content="Show alignment warning before scan starts" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Separator -->
+            <Separator Margin="0,10" />
+
             <!-- Database Section -->
             <TextBlock Text="MySQL Database" FontSize="16" FontWeight="Bold" />
 

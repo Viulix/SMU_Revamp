@@ -18,24 +18,48 @@ namespace SMU_Revamp.ViewModels;
 
 public partial class MainWindowViewModel
 {
+    private static readonly string[] DefaultSeriesColors = { "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf" };
+
     private void InitializeSeriesSettings()
     {
-        var currentSettings = SeriesSettings.ToList();
-        SeriesSettings.Clear();
-        
-        var seriesCount = PlotSeries?.Count ?? 1;
-        var defaultColors = new[] { "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf" };
+        var series = PlotSeries;
+        var seriesCount = series?.Count ?? 1;
 
+        var names = new string[seriesCount];
         for (int i = 0; i < seriesCount; i++)
         {
-            var seriesName = PlotSeries != null && PlotSeries.Count > i ? PlotSeries[i].Name : $"Series {i + 1}";
-            var defaultColor = defaultColors[i % defaultColors.Length];
-            
-            // Preserve existing custom color for this series name if possible, otherwise use default
-            var existing = currentSettings.FirstOrDefault(s => s.SeriesName == seriesName);
-            var colorToUse = existing != null ? existing.ColorHex : defaultColor;
+            names[i] = series != null && series.Count > i ? series[i].Name : $"Series {i + 1}";
+        }
 
-            SeriesSettings.Add(new SeriesSetting(seriesName, colorToUse));
+        // Fast path: PlotSeries is replaced on every live refresh (~200 ms) while the
+        // series names stay the same. Rebuilding the ObservableCollection each time
+        // fires one CollectionChanged per item, which made every bound plot redraw
+        // repeatedly and caused the stutter during long wafer scans.
+        if (SeriesSettings.Count == seriesCount)
+        {
+            bool unchanged = true;
+            for (int i = 0; i < seriesCount; i++)
+            {
+                if (SeriesSettings[i].SeriesName != names[i]) { unchanged = false; break; }
+            }
+            if (unchanged) return;
+        }
+
+        // Preserve existing custom color for this series name if possible, otherwise use default
+        var existingColors = new Dictionary<string, string>();
+        foreach (var s in SeriesSettings)
+        {
+            existingColors.TryAdd(s.SeriesName, s.ColorHex);
+        }
+
+        SeriesSettings.Clear();
+        for (int i = 0; i < seriesCount; i++)
+        {
+            var colorToUse = existingColors.TryGetValue(names[i], out var c)
+                ? c
+                : DefaultSeriesColors[i % DefaultSeriesColors.Length];
+
+            SeriesSettings.Add(new SeriesSetting(names[i], colorToUse));
         }
     }
 
@@ -62,6 +86,18 @@ public partial class MainWindowViewModel
         }
     }
 
+    /// <summary>
+    /// Maximum number of finished-contact series kept for the live wafer-scan plot.
+    /// Configured in Settings (default: 10).
+    /// </summary>
+    public int MaxWaferScanPlotSeries => Settings?.WaferScanMaxPlotSeries > 0 
+        ? Settings.WaferScanMaxPlotSeries 
+        : (ConfigurationService.Instance.GetConfig().WaferScanMaxPlotSeries > 0 ? ConfigurationService.Instance.GetConfig().WaferScanMaxPlotSeries : 10);
+
+    /// <summary>
+    /// Rolling window of the most recent finished-contact series during a wafer scan.
+    /// Capped at <see cref="MaxWaferScanPlotSeries"/> so memory stays constant on long scans.
+    /// </summary>
     public List<PlotSeries> WaferScanAccumulatedSeries { get; } = new();
 
     private void RefreshPlotDataFromPlottedPlan()
@@ -81,12 +117,13 @@ public partial class MainWindowViewModel
 
         if (IsScanningWafer && WaferScanAccumulatedSeries.Count > 0)
         {
-            int maxRecentSeries = 20;
-            var recentAccumulated = WaferScanAccumulatedSeries.Count > maxRecentSeries
-                ? WaferScanAccumulatedSeries.Skip(WaferScanAccumulatedSeries.Count - maxRecentSeries).ToList()
-                : WaferScanAccumulatedSeries;
-
-            var activeSeriesList = new List<PlotSeries>(recentAccumulated);
+            int maxSeries = MaxWaferScanPlotSeries;
+            int start = Math.Max(0, WaferScanAccumulatedSeries.Count - maxSeries);
+            var activeSeriesList = new List<PlotSeries>(maxSeries + 4);
+            for (int i = start; i < WaferScanAccumulatedSeries.Count; i++)
+            {
+                activeSeriesList.Add(WaferScanAccumulatedSeries[i]);
+            }
             
             if (PlottedPlan.PlotSeries != null && PlottedPlan.PlotSeries.Count > 0)
             {
