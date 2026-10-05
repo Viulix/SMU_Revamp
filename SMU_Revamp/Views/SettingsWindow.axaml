@@ -328,6 +328,16 @@
                     <Button Content="Sync Database Now" Click="SyncDbNowButton_Click" Classes="Secondary" IsEnabled="{Binding !Settings.IsSyncingDatabase}" />
                 </StackPanel>
 
+                <!-- Immediate Test Connection Result -->
+                <TextBlock Text="{Binding Settings.DbConnectionTestMessage}"
+                           Foreground="{Binding Settings.DbConnectionTestForeground}"
+                           FontSize="11"
+                           FontWeight="Medium"
+                           Margin="130,4,0,0"
+                           TextWrapping="Wrap"
+                           MaxWidth="380"
+                           IsVisible="{Binding Settings.DbConnectionTestMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
                 <TextBlock Text="{Binding Settings.SyncStatusMessage}"
                            Foreground="#4B5563"
                            FontSize="12"

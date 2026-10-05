@@ -21,6 +21,7 @@ public partial class SettingsWindow : Window
             if (DataContext is ViewModels.MainWindowViewModel vm)
             {
                 vm.Settings.UpdateDriveStorageInfo();
+                vm.Settings.DbConnectionTestMessage = string.Empty;
             }
         };
     }

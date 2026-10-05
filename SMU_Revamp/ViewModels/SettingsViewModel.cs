@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Avalonia.Media;
 using SMU_Revamp.Models;
 using SMU_Revamp.Services;
 using SMU_Revamp.Interfaces;
@@ -242,6 +243,20 @@ namespace SMU_Revamp.ViewModels
         {
             get => _cleanupConfirmationMessage;
             set => SetProperty(ref _cleanupConfirmationMessage, value);
+        }
+
+        private string _dbConnectionTestMessage = string.Empty;
+        public string DbConnectionTestMessage
+        {
+            get => _dbConnectionTestMessage;
+            set => SetProperty(ref _dbConnectionTestMessage, value);
+        }
+
+        private IBrush _dbConnectionTestForeground = new SolidColorBrush(Color.Parse("#4B5563"));
+        public IBrush DbConnectionTestForeground
+        {
+            get => _dbConnectionTestForeground;
+            set => SetProperty(ref _dbConnectionTestForeground, value);
         }
 
         // Storage Directories and Disk Space Configuration
@@ -541,29 +556,37 @@ namespace SMU_Revamp.ViewModels
             UpdateDriveStorageInfo();
             CleanupStatusMessage = string.Empty;
             IsCleanupConfirmationVisible = false;
+            DbConnectionTestMessage = string.Empty;
         }
 
         public async Task TestDbConnectionAsync()
         {
-            ApplyStatusMessage = "Testing connection...";
+            DbConnectionTestForeground = new SolidColorBrush(Color.Parse("#4B5563"));
+            DbConnectionTestMessage = "Testing connection...";
+
             var result = await DatabaseService.Instance.TestConnectionDetailedAsync(DbAddress, DbUser, DbPassword, DbName);
             if (result.Success)
             {
-                ApplyStatusMessage = "Database connection successful. Tables initialized.";
+                DbConnectionTestForeground = new SolidColorBrush(Color.Parse("#16A34A"));
+                DbConnectionTestMessage = "✓ Connection successful. Tables initialized.";
             }
             else if (result.Status == DatabaseConnectionStatus.AccessDenied)
             {
-                ApplyStatusMessage = $"Access Denied: {result.Message}";
+                DbConnectionTestForeground = new SolidColorBrush(Color.Parse("#DC2626"));
+                DbConnectionTestMessage = $"✗ Access Denied: {result.Message}";
             }
             else
             {
-                ApplyStatusMessage = $"Connection failed ({result.Status}): {result.Message}";
+                DbConnectionTestForeground = new SolidColorBrush(Color.Parse("#DC2626"));
+                DbConnectionTestMessage = $"✗ Connection failed ({result.Status}): {result.Message}";
             }
         }
 
         public async Task SyncDatabaseNowAsync()
         {
             if (IsSyncingDatabase) return;
+
+            DbConnectionTestMessage = string.Empty;
 
             // Automatically apply current settings from text fields before syncing
             await ApplySettingsAsync();
