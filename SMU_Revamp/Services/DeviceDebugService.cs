@@ -196,10 +196,13 @@ namespace SMU_Revamp.Services
             }
         }
 
-        public async Task<string> ForceSMUDCVoltageAsync(string channel, double voltage, double compliance, double seconds)
+        public async Task<string> ForceSMUDCVoltageAsync(string channel, double voltage, double compliance, double seconds, string returnChannel = "")
         {
             var smu = E5263_SMU.Instance;
             bool wasConnected = smu.IsConnected;
+            bool hasReturn = !string.IsNullOrWhiteSpace(returnChannel) && returnChannel.Trim() != channel.Trim();
+            string actualReturn = hasReturn ? returnChannel.Trim() : string.Empty;
+
             try
             {
                 var config = ConfigurationService.Instance.GetConfig();
@@ -209,7 +212,27 @@ namespace SMU_Revamp.Services
 
                 // Reset and base configuration
                 await smu.SendCommandAsync("*RST");
-                await smu.SendCommandAsync($"CN {channel}");
+                await smu.SendCommandAsync("FMT 1");
+                await smu.SendCommandAsync("TSC 1");
+
+                if (hasReturn)
+                {
+                    await smu.SendCommandAsync($"CN {channel},{actualReturn}");
+                    // Hold return channel at 0 V with specified compliance
+                    var dvReturnCmd = System.FormattableString.Invariant($"DV {actualReturn},0,0,{compliance}");
+                    await smu.SendCommandAsync(dvReturnCmd);
+                    var dvReturnError = await smu.CheckErrorAsync();
+                    if (dvReturnError != null)
+                    {
+                        await smu.SendCommandAsync($"CL {channel},{actualReturn}");
+                        if (!wasConnected) await smu.DisconnectAsync();
+                        return $"SMU return channel setup failed: {dvReturnError}";
+                    }
+                }
+                else
+                {
+                    await smu.SendCommandAsync($"CN {channel}");
+                }
 
                 // Force DC Voltage: DV <ch>,0,<voltage>,<compliance> (0 is auto-range for voltage)
                 var dvCommand = System.FormattableString.Invariant($"DV {channel},0,{voltage},{compliance}");
@@ -219,41 +242,90 @@ namespace SMU_Revamp.Services
                 var error = await smu.CheckErrorAsync();
                 if (error != null)
                 {
-                    await smu.SendCommandAsync($"CL {channel}");
-                    if (!wasConnected)
-                    {
-                        await smu.DisconnectAsync();
-                    }
+                    await smu.SendCommandAsync(hasReturn ? $"CL {channel},{actualReturn}" : $"CL {channel}");
+                    if (!wasConnected) await smu.DisconnectAsync();
                     return $"SMU configuration failed: {error}";
+                }
+
+                // Spot-measure current while voltage is forced
+                string measChannel = hasReturn ? actualReturn : channel;
+                await smu.SendCommandAsync($"MM 1,{measChannel}");
+                await smu.SendCommandAsync($"CMM {measChannel},1");
+                await smu.SendCommandAsync("TSR");
+                await smu.SendCommandAsync("XE");
+                await smu.SendCommandAsync("TSQ");
+
+                string measuredCurrentText = "N/A";
+                double measuredCurrent = 0;
+                bool measurementParsed = false;
+                try
+                {
+                    string rawData = await smu.ReadResponseAsync(100);
+                    foreach (var token in rawData.Split(new[] { ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var trimmed = token.Trim();
+                        int idx = trimmed.IndexOf('I');
+                        if (idx >= 0 && idx < trimmed.Length - 1)
+                        {
+                            string numStr = trimmed.Substring(idx + 1);
+                            if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double val))
+                            {
+                                measuredCurrent = val;
+                                measurementParsed = true;
+                                measuredCurrentText = System.FormattableString.Invariant($"{val:E4} A ({val * 1000:F3} mA)");
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch (Exception mex)
+                {
+                    measuredCurrentText = $"Read error: {mex.Message}";
                 }
 
                 // Hold voltage for specified duration
                 int delayMs = (int)(seconds * 1000);
-                await Task.Delay(delayMs);
+                if (delayMs > 0)
+                {
+                    await Task.Delay(delayMs);
+                }
 
-                // Disable channel and disconnect only if not connected before
-                await smu.SendCommandAsync($"CL {channel}");
+                // Disable channels and zero voltage
+                try { await smu.SendCommandAsync("DZ"); } catch { }
+                await smu.SendCommandAsync(hasReturn ? $"CL {channel},{actualReturn}" : $"CL {channel}");
                 if (!wasConnected)
                 {
                     await smu.DisconnectAsync();
                 }
 
-                return $"Successfully forced {voltage:F3}V on channel {channel} for {seconds} seconds.";
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"[SMU Output Active -> Safely Closed]");
+                sb.AppendLine($"Forced {voltage:F3} V on Ch {channel} (Comp: {compliance:E2} A) for {seconds:F1}s.");
+                if (hasReturn)
+                {
+                    sb.AppendLine($"Return Ch {actualReturn}: held at 0 V with Compliance {compliance:E2} A.");
+                }
+                if (measurementParsed)
+                {
+                    sb.AppendLine($"Live Measured Current: {measuredCurrentText}");
+                    if (Math.Abs(measuredCurrent) >= compliance * 0.95)
+                    {
+                        sb.AppendLine($">>> COMPLIANCE ACTIVE: Strom hat das Limit ({compliance:E2} A) erreicht! <<<");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"Compliance Status: OK (Strom liegt unterhalb des Limits).");
+                    }
+                }
+                return sb.ToString().TrimEnd();
             }
             catch (Exception ex)
             {
-                try
-                {
-                    await E5263_SMU.Instance.SendCommandAsync($"CL {channel}");
-                }
-                catch {}
+                try { await E5263_SMU.Instance.SendCommandAsync("DZ"); } catch { }
+                try { await E5263_SMU.Instance.SendCommandAsync(hasReturn ? $"CL {channel},{actualReturn}" : $"CL {channel}"); } catch { }
                 if (!wasConnected)
                 {
-                    try
-                    {
-                        await E5263_SMU.Instance.DisconnectAsync();
-                    }
-                    catch {}
+                    try { await E5263_SMU.Instance.DisconnectAsync(); } catch { }
                 }
                 return $"Failed to force SMU voltage: {ex.Message}";
             }

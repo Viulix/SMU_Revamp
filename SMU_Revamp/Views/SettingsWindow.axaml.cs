@@ -164,13 +164,14 @@ public partial class SettingsWindow : Window
             return;
         }
         var channel = SmuChannelTextBox.Text ?? string.Empty;
+        var returnChannel = SmuReturnChannelTextBox.Text ?? string.Empty;
         var voltStr = (SmuVoltageTextBox.Text ?? string.Empty).Replace(',', '.');
         var compStr = (SmuComplianceTextBox.Text ?? string.Empty).Replace(',', '.');
         var durStr = (SmuDurationTextBox.Text ?? string.Empty).Replace(',', '.');
 
         if (string.IsNullOrWhiteSpace(channel))
         {
-            SmuOutputTextBox.Text = "Error: Please specify a channel.";
+            SmuOutputTextBox.Text = "Error: Please specify a force channel.";
             return;
         }
 
@@ -192,8 +193,8 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        SmuOutputTextBox.Text = $"Connecting and forcing {voltage:F3} V on channel {channel} for {duration:F1} seconds...";
-        var result = await _debugService.ForceSMUDCVoltageAsync(channel, voltage, compliance, duration);
+        SmuOutputTextBox.Text = $"Connecting and forcing {voltage:F3} V on channel {channel} (Return Ch {returnChannel}, Comp: {compliance:E2} A) for {duration:F1} seconds...";
+        var result = await _debugService.ForceSMUDCVoltageAsync(channel, voltage, compliance, duration, returnChannel);
         SmuOutputTextBox.Text = result;
     }
 

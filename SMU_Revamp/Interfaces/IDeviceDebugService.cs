@@ -19,6 +19,6 @@ namespace SMU_Revamp.Interfaces
 
         Task<string> TestSMUConnectionAsync();
         Task<string> QuerySMUIdentityAsync();
-        Task<string> ForceSMUDCVoltageAsync(string channel, double voltage, double compliance, double seconds);
+        Task<string> ForceSMUDCVoltageAsync(string channel, double voltage, double compliance, double seconds, string returnChannel = "");
     }
 }
