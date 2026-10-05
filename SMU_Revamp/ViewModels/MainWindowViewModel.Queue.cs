@@ -48,6 +48,8 @@ public partial class MainWindowViewModel
                 OnPropertyChanged(nameof(IsExperimentBusy));
                 OnPropertyChanged(nameof(IsMeasuringSingle));
                 (StopMeasurementCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                GoToTargetContactCommand.NotifyCanExecuteChanged();
+                GoHomeCommand.NotifyCanExecuteChanged();
             }
         }
     }

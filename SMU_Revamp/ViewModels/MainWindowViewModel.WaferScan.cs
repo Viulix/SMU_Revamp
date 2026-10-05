@@ -735,7 +735,10 @@ public partial class MainWindowViewModel
         }
     }
 
-    [RelayCommand]
+    /// <summary>Manual prober movement is only allowed while no wafer scan or queue is running.</summary>
+    private bool CanMoveProberManually() => !IsScanningWafer && !IsQueueRunning;
+
+    [RelayCommand(CanExecute = nameof(CanMoveProberManually))]
     private async Task GoToTargetContactAsync()
     {
         ErrorMessage = string.Empty;
@@ -772,7 +775,7 @@ public partial class MainWindowViewModel
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanMoveProberManually))]
     private async Task GoHomeAsync()
     {
         ErrorMessage = string.Empty;

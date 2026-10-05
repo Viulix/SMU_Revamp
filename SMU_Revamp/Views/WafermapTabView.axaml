@@ -54,7 +54,7 @@
                                 <StackPanel Grid.Row="1" Spacing="5" Margin="26,0,0,0">
                                     <TextBlock Text="1. Set Measurement Plan: Select or build the measurement plan in the 'Measurements' tab." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
                                     <TextBlock Text="2. Select Target Contacts: Mark Target Cells (16x16), Global Sub-cells (5x5), and Contacts (1-6)." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
-                                    <TextBlock Text="3. Start &amp; Align: Click 'Start Wafer Scan' and confirm prober alignment at Home position (0101, Sub 1,1, Contact 1)." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
+                                    <TextBlock Text="3. Start &amp; Align: Click 'Start Wafer Scan' and confirm prober alignment at Home position (0104, Sub 1,1, Contact 1)." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
                                     <TextBlock Text="4. Automated Scan: Prober moves to each target point, executes the measurement plan, and saves CSV results." Foreground="#334155" FontSize="12" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Grid>

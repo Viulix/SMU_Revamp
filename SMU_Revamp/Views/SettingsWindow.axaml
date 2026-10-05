@@ -44,7 +44,7 @@
                                     <TextBlock Text="Contact:" Width="120" VerticalAlignment="Center" />
                                     <TextBox Text="{Binding TargetContact}" PlaceholderText="e.g. 1" Width="150" />
                                 </StackPanel>
-                                <Button Content="Go To Contact" Command="{Binding GoToContactCommand}" Classes="Primary" Width="150" Margin="0,10,0,0" />
+                                <Button Content="Go To Contact" Command="{Binding GoToTargetContactCommand}" Classes="Primary" Width="150" Margin="0,10,0,0" />
                                 <TextBlock Text="{Binding ErrorMessage}" Foreground="#D32F2F" TextWrapping="Wrap" MaxWidth="300" HorizontalAlignment="Left" />
                             </StackPanel>
 

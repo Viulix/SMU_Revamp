@@ -257,7 +257,7 @@
             <Border Background="White" CornerRadius="8" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400" BorderBrush="LightGray" BorderThickness="1">
                 <StackPanel Spacing="20">
                     <TextBlock Text="Alignment Confirmation" FontSize="20" FontWeight="Bold" Foreground="#1F2937" />
-                    <TextBlock Text="Have you correctly aligned the wafer to cell 0101 and set the home position?" TextWrapping="Wrap" />
+                    <TextBlock Text="Have you correctly aligned the wafer to cell 0104 and set the home position?" TextWrapping="Wrap" />
                     
                     <Border Background="#F3F4F6" CornerRadius="6" Padding="10,8">
                         <StackPanel Orientation="Horizontal" Spacing="8">

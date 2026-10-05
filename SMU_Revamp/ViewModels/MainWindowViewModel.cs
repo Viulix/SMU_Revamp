@@ -424,6 +424,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 (RunMeasurementCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (StopMeasurementCommand as RelayCommand)?.NotifyCanExecuteChanged();
                 (GoToContactCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+                GoToTargetContactCommand.NotifyCanExecuteChanged();
+                GoHomeCommand.NotifyCanExecuteChanged();
                 (MoveRelativeCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (MoveAbsoluteCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
                 (GoToScanStartCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
